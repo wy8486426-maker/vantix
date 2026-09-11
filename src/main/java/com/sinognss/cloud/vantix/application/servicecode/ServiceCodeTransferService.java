@@ -22,9 +22,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -84,6 +83,7 @@ public class ServiceCodeTransferService {
         for (ServiceCode code : lockedCodes) {
             validateTransferable(code, from, now);
         }
+        validateBatchDuration(lockedCodes);
 
         OperatorIdentity operator = userHolder.getOperator();
         TransferType transferType = transferType(from, to, systemCompanyId);
@@ -100,6 +100,7 @@ public class ServiceCodeTransferService {
             transfer.setFromCompanyId(from);
             transfer.setToCompanyId(to);
             transfer.setTransferType(transferType);
+            transfer.setReason(command.reason());
             transfer.setOperatorUserId(operator.userId());
             transfer.setOperatorUserName(operator.userName());
             transfer.setCreatedAt(now);
@@ -177,6 +178,18 @@ public class ServiceCodeTransferService {
         }
         if (command.serviceCodeIds().stream().anyMatch(id -> id == null || id <= 0)) {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "服务码 ID 非法");
+        }
+    }
+
+    private void validateBatchDuration(List<ServiceCode> codes) {
+        ServiceCode first = codes.get(0);
+        boolean sameDuration = codes.stream().allMatch(code ->
+                Objects.equals(first.getServiceType(), code.getServiceType())
+                        && Objects.equals(first.getDurationValue(), code.getDurationValue())
+                        && Objects.equals(first.getDurationUnit(), code.getDurationUnit()));
+        if (!sameDuration) {
+            throw new BusinessException(ErrorCode.BATCH_STATUS_INCONSISTENT,
+                    "同一批次服务码必须具有相同的服务时长");
         }
     }
 }

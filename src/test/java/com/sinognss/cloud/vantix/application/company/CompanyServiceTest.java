@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -39,7 +40,7 @@ class CompanyServiceTest {
     void shouldSetFirstLevelCompanyAsChildAndWriteHistory() {
         DealerCompany root = company(1L, null);
         DealerCompany child = company(2L, null);
-        when(companyMapper.selectOne(any())).thenReturn(child, root);
+        when(companyMapper.selectForUpdate(any())).thenReturn(List.of(child, root));
         service.updateParent(new UpdateCompanyParentCommand(2L, 1L, "业务调整"));
 
         assertEquals(1L, child.getParentCompanyId());
@@ -60,7 +61,7 @@ class CompanyServiceTest {
     void shouldRejectSecondLevelParent() {
         DealerCompany target = company(3L, null);
         DealerCompany secondLevelParent = company(2L, 1L);
-        when(companyMapper.selectOne(any())).thenReturn(target, secondLevelParent);
+        when(companyMapper.selectForUpdate(any())).thenReturn(List.of(target, secondLevelParent));
 
         assertThrows(BusinessException.class,
                 () -> service.updateParent(new UpdateCompanyParentCommand(3L, 2L, null)));
@@ -69,11 +70,24 @@ class CompanyServiceTest {
     @Test
     void shouldRejectCycle() {
         DealerCompany target = company(1L, 2L);
-        DealerCompany parent = company(2L, null);
-        when(companyMapper.selectOne(any())).thenReturn(target, parent, target);
+        DealerCompany parent = company(2L, 1L);
+        when(companyMapper.selectForUpdate(any())).thenReturn(List.of(target, parent));
 
         assertThrows(BusinessException.class,
                 () -> service.updateParent(new UpdateCompanyParentCommand(1L, 2L, null)));
+    }
+
+    @Test
+    void shouldRejectMovingCompanyThatAlreadyHasChildren() {
+        DealerCompany target = company(1L, null);
+        DealerCompany parent = company(3L, null);
+        when(companyMapper.selectForUpdate(any())).thenReturn(List.of(target, parent));
+        when(companyMapper.selectCount(any())).thenReturn(1L);
+
+        assertThrows(BusinessException.class,
+                () -> service.updateParent(new UpdateCompanyParentCommand(1L, 3L, "迁移")));
+        verify(companyMapper, org.mockito.Mockito.never()).updateById(any(DealerCompany.class));
+        verify(relationLogMapper, org.mockito.Mockito.never()).insert(any(com.sinognss.cloud.vantix.domain.company.DealerRelationLog.class));
     }
 
     private DealerCompany company(Long id, Long parentId) {

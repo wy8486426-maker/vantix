@@ -1,5 +1,6 @@
 package com.sinognss.cloud.vantix.controller;
 
+import com.sinognss.cloud.vantix.application.servicecode.DisplayStatus;
 import com.sinognss.cloud.vantix.application.servicecode.ServiceCodeService;
 import com.sinognss.cloud.vantix.application.servicecode.ServiceCodeTransferService;
 import com.sinognss.cloud.vantix.application.servicecode.TransferServiceCodeCommand;
@@ -35,8 +36,9 @@ public class ServiceCodeController {
     @GetMapping
     public Object page(@RequestParam(defaultValue = "1") long current,
                        @RequestParam(defaultValue = "20") long size,
-                       @RequestParam(required = false) ServiceCodeStatus status) {
-        return CommonResultAdapter.success(serviceCodeService.page(current, size, status));
+                       @RequestParam(required = false) ServiceCodeStatus status,
+                       @RequestParam(required = false) DisplayStatus displayStatus) {
+        return CommonResultAdapter.success(serviceCodeService.page(current, size, status, displayStatus));
     }
 
     @GetMapping("/{id}")

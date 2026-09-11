@@ -19,9 +19,11 @@ import org.springframework.util.StringUtils;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
-import java.util.HashSet;
+import java.util.Comparator;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 public class CompanyService {
@@ -71,14 +73,32 @@ public class CompanyService {
     public CompanyView updateParent(UpdateCompanyParentCommand command) {
         Long companyId = command.companyId();
         assertCompanyAccess(companyId);
-        DealerCompany company = getRequired(companyId);
         Long parentId = command.parentCompanyId();
         if (companyId.equals(parentId)) {
             throw new BusinessException(ErrorCode.COMPANY_RELATION_INVALID, "公司不能设置自己为直接上级");
         }
-        if (parentId != null) {
-            DealerCompany parent = getRequired(parentId);
+        List<Long> lockIds = java.util.stream.Stream.of(companyId, parentId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .sorted(Comparator.naturalOrder())
+                .toList();
+        Map<Long, DealerCompany> lockedCompanies = companyMapper.selectForUpdate(lockIds).stream()
+                .collect(Collectors.toMap(DealerCompany::getCompanyId, Function.identity()));
+        DealerCompany company = lockedCompanies.get(companyId);
+        if (company == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "公司不存在: " + companyId);
+        }
+        DealerCompany parent = parentId == null ? null : lockedCompanies.get(parentId);
+        if (parentId != null && parent == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "公司不存在: " + parentId);
+        }
+        if (parent != null) {
             validateParentChain(companyId, parent);
+            if (companyMapper.selectCount(Wrappers.<DealerCompany>lambdaQuery()
+                    .eq(DealerCompany::getParentCompanyId, companyId)) > 0) {
+                throw new BusinessException(ErrorCode.COMPANY_RELATION_INVALID,
+                        "已有直接下级的公司不能再挂到其他上级");
+            }
         }
 
         Long oldParentId = company.getParentCompanyId();
@@ -129,15 +149,8 @@ public class CompanyService {
         if (parent.getParentCompanyId() != null) {
             throw new BusinessException(ErrorCode.COMPANY_RELATION_INVALID, "二级公司不能继续挂下级公司");
         }
-        Set<Long> visited = new HashSet<>();
-        Long cursor = parent.getCompanyId();
-        while (cursor != null) {
-            if (!visited.add(cursor) || cursor.equals(companyId)) {
-                throw new BusinessException(ErrorCode.COMPANY_RELATION_INVALID, "公司上下级关系会形成循环");
-            }
-            DealerCompany ancestor = companyMapper.selectOne(Wrappers.<DealerCompany>lambdaQuery()
-                    .eq(DealerCompany::getCompanyId, cursor));
-            cursor = ancestor == null ? null : ancestor.getParentCompanyId();
+        if (parent.getCompanyId().equals(companyId)) {
+            throw new BusinessException(ErrorCode.COMPANY_RELATION_INVALID, "公司上下级关系会形成循环");
         }
     }
 }

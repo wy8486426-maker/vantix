@@ -9,7 +9,7 @@ import com.sinognss.cloud.vantix.common.user.UserScope;
 import com.sinognss.cloud.vantix.domain.company.DealerCompany;
 import com.sinognss.cloud.vantix.domain.servicecode.ServiceCode;
 import com.sinognss.cloud.vantix.domain.servicecode.ServiceCodeStatus;
-import com.sinognss.cloud.vantix.domain.servicecode.TransferType;
+import com.sinognss.cloud.vantix.domain.servicecode.ServiceCodeTransfer;
 import com.sinognss.cloud.vantix.infrastructure.mapper.DealerCompanyMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceCodeMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceCodeTransferMapper;
@@ -26,6 +26,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.mockito.ArgumentCaptor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -68,6 +69,10 @@ class ServiceCodeTransferServiceTest {
         verify(codeMapper).transferWithCas(100L, 1L, 2L, 0L,
                 LocalDateTime.of(2026, 1, 1, 0, 0), LocalDateTime.of(2026, 1, 1, 0, 0));
         verify(transferMapper).insert(any(com.sinognss.cloud.vantix.domain.servicecode.ServiceCodeTransfer.class));
+        ArgumentCaptor<ServiceCodeTransfer> captor = ArgumentCaptor.forClass(ServiceCodeTransfer.class);
+        verify(transferMapper).insert(captor.capture());
+        assertEquals("赠送", captor.getValue().getReason());
+
     }
 
     @Test
@@ -106,6 +111,20 @@ class ServiceCodeTransferServiceTest {
                 .transferWithCas(anyLong(), anyLong(), anyLong(), anyLong(), any(), any());
         verify(transferMapper, org.mockito.Mockito.never())
                 .insert(any(com.sinognss.cloud.vantix.domain.servicecode.ServiceCodeTransfer.class));
+    }
+
+    @Test
+    void shouldRejectBatchWithDifferentServiceDuration() {
+        ServiceCode first = activeCode(100L, 1L);
+        ServiceCode second = activeCode(101L, 1L);
+        second.setServiceType("OTHER");
+        when(codeMapper.selectList(any())).thenReturn(List.of(first, second));
+
+        assertThrows(BusinessException.class,
+                () -> service.transfer(new TransferServiceCodeCommand(1L, 2L, List.of(100L, 101L), null)));
+        verify(codeMapper, org.mockito.Mockito.never())
+                .transferWithCas(anyLong(), anyLong(), anyLong(), anyLong(), any(), any());
+        verify(transferMapper, org.mockito.Mockito.never()).insert(any(ServiceCodeTransfer.class));
     }
 
     @Test

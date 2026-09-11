@@ -1,6 +1,6 @@
 # Vantix 账号运营平台
 
-第一阶段是单 Spring Boot 服务，负责公司上下级关系、服务时长/账号沉默配置、服务码资产和批量转赠。数据库由 Flyway 从空库执行 `V1__init_schema.sql` 初始化。
+第一阶段是单 Spring Boot 服务，负责公司上下级关系、服务时长/账号沉默配置、服务码资产和批量转赠。数据库由 Flyway 从空库执行 `V1__init_schema.sql` 和后续版本迁移初始化。
 
 ## 本阶段接口
 
@@ -9,15 +9,17 @@
 - `GET/POST/PUT /api/config/service-durations`
 - `GET/PUT /api/config/account`
 - `GET/PUT /api/config/system-company`
-- `GET /api/service-codes`、`GET /api/service-codes/{id}`
+- `GET /api/service-codes`、`GET /api/service-codes/{id}`（列表支持 `status` 与动态 `displayStatus=WAITING|EXPIRING|EXPIRED|PROCESSING|CONSUMED`）
 - `POST /api/service-codes/transfers`
 - `GET /api/service-codes/{id}/transfers`
 
-服务码转赠在一个 MySQL 本地事务内按服务码 ID 升序 `SELECT ... FOR UPDATE`，完成全部校验后使用 `version` CAS 更新并记录流水；任意一张失败都会回滚批次。服务码过期和即将到期是 DTO 展示状态，不是数据库状态。
+服务码转赠在一个 MySQL 本地事务内按服务码 ID 升序 `SELECT ... FOR UPDATE`，完成全部校验后使用 `version` CAS 更新并记录流水；任意一张失败都会回滚批次。批量转赠要求所有服务码的 `service_type`、`duration_value`、`duration_unit` 完全一致。服务码过期和即将到期是 DTO 展示状态，不是数据库状态。
 
 公司基础资料的 `CompanyClient` 和 CORS 的 `CorsAccountClient` 仅保留边界，未猜测远程 URL，也未实现真实账号创建、续期、激活、密码查看或密码重置。
 
 统一用户中心由 `sino-cloud-base` 提供。`UserHolderBridge` 调用 `com.sinognss.cloud.base.filter.UserHolder` 的 `getUserAndCompanyId()` 作为数据范围、`getUser()` 作为真实操作人；本项目不创建用户、角色、权限或密码字段。
+
+本阶段不引入 Redis、分布式事务或 CORS 密码存储。无用户上下文或不支持的数据范围会拒绝请求；定时任务/MQ/system 身份需在后续阶段显式建模。
 
 ## 启动
 

@@ -16,6 +16,7 @@ public class ServiceCodeTransfer {
     private Long fromCompanyId;
     private Long toCompanyId;
     private TransferType transferType;
+    private String reason;
     private Long operatorUserId;
     private String operatorUserName;
     private LocalDateTime createdAt;
@@ -34,6 +35,8 @@ public class ServiceCodeTransfer {
     public void setToCompanyId(Long toCompanyId) { this.toCompanyId = toCompanyId; }
     public TransferType getTransferType() { return transferType; }
     public void setTransferType(TransferType transferType) { this.transferType = transferType; }
+    public String getReason() { return reason; }
+    public void setReason(String reason) { this.reason = reason; }
     public Long getOperatorUserId() { return operatorUserId; }
     public void setOperatorUserId(Long operatorUserId) { this.operatorUserId = operatorUserId; }
     public String getOperatorUserName() { return operatorUserName; }
