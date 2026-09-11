@@ -1,0 +1,5 @@
+target/
+.m2-repository/
+maven-settings-local.xml
+.idea/
+*.iml
