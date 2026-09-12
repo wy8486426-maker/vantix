@@ -10,6 +10,7 @@ import java.time.LocalDateTime;
 public class ServiceDurationConfig {
     @TableId(type = IdType.AUTO)
     private Long id;
+    private String specCode;
     private String serviceType;
     private Integer durationValue;
     private DurationUnit durationUnit;
@@ -22,6 +23,8 @@ public class ServiceDurationConfig {
     private LocalDateTime updatedAt;
 
     public Long getId() { return id; }
+    public String getSpecCode() { return specCode; }
+    public void setSpecCode(String specCode) { this.specCode = specCode; }
     public void setId(Long id) { this.id = id; }
     public String getServiceType() { return serviceType; }
     public void setServiceType(String serviceType) { this.serviceType = serviceType; }

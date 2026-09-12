@@ -4,9 +4,11 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.sinognss.cloud.vantix.domain.servicecode.ServiceCode;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Mapper
 public interface ServiceCodeMapper extends BaseMapper<ServiceCode> {
@@ -21,4 +23,7 @@ public interface ServiceCodeMapper extends BaseMapper<ServiceCode> {
                         @Param("version") Long version,
                         @Param("now") LocalDateTime now,
                         @Param("updatedAt") LocalDateTime updatedAt);
+
+    @Select("SELECT * FROM service_code WHERE generate_batch_id = #{batchId} ORDER BY id")
+    List<ServiceCode> selectByGenerateBatchId(@Param("batchId") Long batchId);
 }

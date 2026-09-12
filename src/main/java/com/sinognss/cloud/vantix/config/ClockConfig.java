@@ -8,7 +8,7 @@ import java.time.Clock;
 import java.time.ZoneId;
 
 @Configuration
-@EnableConfigurationProperties(VantixProperties.class)
+@EnableConfigurationProperties({VantixProperties.class, OfflineImportProperties.class, GenerationProperties.class})
 public class ClockConfig {
     @Bean
     public Clock clock() {

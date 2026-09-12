@@ -5,6 +5,7 @@ import com.sinognss.cloud.vantix.common.exception.BusinessException;
 import com.sinognss.cloud.vantix.common.exception.ErrorCode;
 import com.sinognss.cloud.vantix.common.user.OperatorIdentity;
 import com.sinognss.cloud.vantix.common.user.UserHolderBridge;
+import com.sinognss.cloud.vantix.domain.config.DurationUnit;
 import com.sinognss.cloud.vantix.domain.config.ServiceDurationConfig;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceDurationConfigMapper;
 import org.slf4j.Logger;
@@ -12,6 +13,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+import java.util.HexFormat;
 import java.util.List;
 
 @Service
@@ -39,8 +42,10 @@ public class ServiceDurationConfigService {
         ensureUnique(command, null);
         OperatorIdentity operator = userHolder.getOperator();
         ServiceDurationConfig config = toEntity(command, operator);
+        config.setSpecCode(createSpecCode(command));
         mapper.insert(config);
-        log.info("Service duration config created, configId={}, operatorUserId={}", config.getId(), operator.userId());
+        log.info("Service duration config created, configId={}, specCode={}, operatorUserId={}",
+                config.getId(), config.getSpecCode(), operator.userId());
         return ServiceDurationConfigView.from(config);
     }
 
@@ -61,13 +66,33 @@ public class ServiceDurationConfigService {
         config.setRemark(command.remark());
         config.setUpdatedBy(operator.userId());
         mapper.updateById(config);
-        log.info("Service duration config updated, configId={}, operatorUserId={}", id, operator.userId());
+        log.info("Service duration config updated, configId={}, specCode={}, operatorUserId={}",
+                id, config.getSpecCode(), operator.userId());
         return ServiceDurationConfigView.from(config);
+    }
+
+    private String createSpecCode(ServiceDurationConfigCommand command) {
+        String prefix = switch (command.durationUnit()) {
+            case DAY -> "D";
+            case WEEK -> "W";
+            case MONTH -> "M";
+            case YEAR -> "Y";
+        };
+        String canonical = prefix + command.durationValue();
+        long sameDuration = mapper.selectCount(Wrappers.<ServiceDurationConfig>lambdaQuery()
+                .eq(ServiceDurationConfig::getDurationValue, command.durationValue())
+                .eq(ServiceDurationConfig::getDurationUnit, command.durationUnit()));
+        if (sameDuration == 0 && mapper.selectCount(Wrappers.<ServiceDurationConfig>lambdaQuery()
+                .eq(ServiceDurationConfig::getSpecCode, canonical)) == 0) {
+            return canonical;
+        }
+        return canonical + "-S" + HexFormat.of().withUpperCase()
+                .formatHex(command.serviceType().trim().getBytes(StandardCharsets.UTF_8));
     }
 
     private ServiceDurationConfig toEntity(ServiceDurationConfigCommand command, OperatorIdentity operator) {
         ServiceDurationConfig config = new ServiceDurationConfig();
-        config.setServiceType(command.serviceType());
+        config.setServiceType(command.serviceType().trim());
         config.setDurationValue(command.durationValue());
         config.setDurationUnit(command.durationUnit());
         config.setCodeSilenceMonths(command.codeSilenceMonths());
@@ -89,7 +114,7 @@ public class ServiceDurationConfigService {
 
     private void ensureUnique(ServiceDurationConfigCommand command, Long id) {
         var query = Wrappers.<ServiceDurationConfig>lambdaQuery()
-                .eq(ServiceDurationConfig::getServiceType, command.serviceType())
+                .eq(ServiceDurationConfig::getServiceType, command.serviceType().trim())
                 .eq(ServiceDurationConfig::getDurationValue, command.durationValue())
                 .eq(ServiceDurationConfig::getDurationUnit, command.durationUnit());
         if (id != null) {

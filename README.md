@@ -21,6 +21,17 @@
 
 本阶段不引入 Redis、分布式事务或 CORS 密码存储。无用户上下文或不支持的数据范围会拒绝请求；定时任务/MQ/system 身份需在后续阶段显式建模。
 
+## Phase 1.5
+
+- GET /internal/v1/service-code-specs 只返回当前启用的服务时长规格，不暴露数据库 ID 或沉默规则。
+- POST /internal/v1/service-code-generations 接收 B2B 请求号、订单号、公司 ID、规格码和数量；服务码由 Vantix 生成，并按生成时配置保存快照。
+- GET /api/service-codes/offline-import/template 下载 .xlsx 模板；上传时通过 POST /api/service-codes/offline-import?companyId=... 单独传入页面选择的公司。
+- GET /api/service-code-generation-batches/{batchNo} 和 orderNo 查询支持批次追溯。
+- 线下导入会先校验整个文件，再在同一个 MySQL 本地事务中创建所有批次和服务码。Excel 不含公司、商品、部件号、金额或配置 ID 列。
+- 内部 B2B 接口需要由部署网关配置服务认证；应用未另建认证机制。
+- 已知部署风险继续保留：sino-cloud-base 的 UserInterceptor 使用 javax.servlet，而 Spring Boot 3 使用 jakarta.servlet；本阶段不调整该风险或认证架构。
+- 线下导入配置项为 vantix.offline-import.max-file-size-bytes、max-rows、max-total-codes 和 max-errors；默认分别为 10 MiB、500 行、5,000 个服务码和 100 条错误。
+- V3 为 service_duration_config 增加稳定且不可变的 spec_code，新增生成批次幂等约束和 service_code.generate_batch_id。V1/V2 保持不变。
 ## 启动
 
 需要 Java 17、Maven 3.9+ 和 MySQL 5.7/8。使用环境变量 `VANTIX_DB_URL`、`VANTIX_DB_USERNAME`、`VANTIX_DB_PASSWORD` 配置数据库。数据库连接驱动固定为 MySQL Connector/J 8.0.33。
@@ -32,4 +43,4 @@ $env:Path="$env:JAVA_HOME\bin;$env:MAVEN_HOME\bin;$env:Path"
 mvn clean test
 ```
 
-第二阶段 TODO：实现 `exchange_*` 业务、CORS `CREATE_ACCOUNT/RENEW_ACCOUNT/FORCE_ACTIVATE` 补偿流程、账号续期/激活/密码敏感接口和公司服务实际同步适配器。
+后续阶段 TODO：实现 `exchange_*` 业务、CORS `CREATE_ACCOUNT/RENEW_ACCOUNT/FORCE_ACTIVATE` 补偿流程、账号续期/激活/密码敏感接口和公司服务实际同步适配器。

@@ -2,6 +2,8 @@ package com.sinognss.cloud.vantix.common.exception;
 
 import com.sinognss.cloud.base.common.api.CommonResult;
 import com.sinognss.cloud.vantix.common.api.CommonResultAdapter;
+import com.sinognss.cloud.vantix.application.offline.OfflineImportFailure;
+import com.sinognss.cloud.vantix.application.offline.OfflineImportValidationException;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,6 +19,11 @@ import java.util.stream.Collectors;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(OfflineImportValidationException.class)
+    public ResponseEntity<OfflineImportFailure> handleOfflineImport(OfflineImportValidationException exception) {
+        return ResponseEntity.badRequest().body(new OfflineImportFailure(false, exception.getErrors()));
+    }
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<CommonResult<?>> handleBusiness(BusinessException exception) {

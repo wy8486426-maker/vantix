@@ -25,6 +25,7 @@
         <mysql.version>8.0.33</mysql.version>
         <flyway.version>10.22.0</flyway.version>
         <testcontainers.version>1.19.8</testcontainers.version>
+        <poi.version>5.5.1</poi.version>
     </properties>
 
     <dependencyManagement>
@@ -92,6 +93,11 @@
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-mysql</artifactId>
             <version>${flyway.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-ooxml</artifactId>
+            <version>${poi.version}</version>
         </dependency>
         <dependency>
             <groupId>com.mysql</groupId>

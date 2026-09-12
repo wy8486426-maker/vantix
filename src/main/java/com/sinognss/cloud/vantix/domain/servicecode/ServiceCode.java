@@ -13,6 +13,7 @@ public class ServiceCode {
     private String code;
     private Long sourceOrderId;
     private String sourceOrderNo;
+    private Long generateBatchId;
     private Long ownerCompanyId;
     private String serviceType;
     private Integer durationValue;
@@ -35,6 +36,8 @@ public class ServiceCode {
     public Long getSourceOrderId() { return sourceOrderId; }
     public void setSourceOrderId(Long sourceOrderId) { this.sourceOrderId = sourceOrderId; }
     public String getSourceOrderNo() { return sourceOrderNo; }
+    public Long getGenerateBatchId() { return generateBatchId; }
+    public void setGenerateBatchId(Long generateBatchId) { this.generateBatchId = generateBatchId; }
     public void setSourceOrderNo(String sourceOrderNo) { this.sourceOrderNo = sourceOrderNo; }
     public Long getOwnerCompanyId() { return ownerCompanyId; }
     public void setOwnerCompanyId(Long ownerCompanyId) { this.ownerCompanyId = ownerCompanyId; }

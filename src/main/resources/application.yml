@@ -6,6 +6,10 @@ spring:
     username: ${VANTIX_DB_USERNAME:root}
     password: ${VANTIX_DB_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
   flyway:
     enabled: true
     locations: classpath:db/migration
@@ -21,6 +25,13 @@ mybatis-plus:
     map-underscore-to-camel-case: true
 
 vantix:
+  service-code-generation:
+    max-quantity-per-request: 5000
+  offline-import:
+    max-file-size-bytes: 10485760
+    max-rows: 500
+    max-total-codes: 5000
+    max-errors: 100
   service-code:
     upcoming-days: ${VANTIX_SERVICE_CODE_UPCOMING_DAYS:30}
 

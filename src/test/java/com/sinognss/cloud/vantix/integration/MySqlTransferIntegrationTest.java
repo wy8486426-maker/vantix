@@ -63,6 +63,7 @@ class MySqlTransferIntegrationTest {
     void resetData() {
         jdbc.update("DELETE FROM service_code_transfer");
         jdbc.update("DELETE FROM service_code");
+        jdbc.update("DELETE FROM service_code_generate_batch");
         jdbc.update("DELETE FROM dealer_relation_log");
         jdbc.update("DELETE FROM dealer_company");
         jdbc.update("DELETE FROM system_config");
@@ -77,7 +78,7 @@ class MySqlTransferIntegrationTest {
 
     @Test
     void flywayRunsAllMigrationsAndBatchTransferStoresTwoRows() {
-        assertEquals(2, jdbc.queryForObject(
+        assertEquals(3, jdbc.queryForObject(
                 "SELECT COUNT(*) FROM flyway_schema_history WHERE success = 1", Integer.class));
 
         ServiceCode first = insertCode("MYSQL-BATCH-1", 10L, ServiceCodeStatus.PENDING);
@@ -103,7 +104,7 @@ class MySqlTransferIntegrationTest {
         jdbc.update("INSERT INTO service_code_transfer (transfer_no, service_code_id, service_code, from_company_id, to_company_id, transfer_type) VALUES ('TR-SAME', 1001, 'A', 10, 20, 'PARENT_CHILD')");
         jdbc.update("INSERT INTO service_code_transfer (transfer_no, service_code_id, service_code, from_company_id, to_company_id, transfer_type) VALUES ('TR-SAME', 1002, 'B', 10, 20, 'PARENT_CHILD')");
 
-        assertEquals(2, jdbc.queryForObject(
+        assertEquals(3, jdbc.queryForObject(
                 "SELECT COUNT(*) FROM service_code_transfer WHERE transfer_no = 'TR-SAME'", Integer.class));
     }
 
