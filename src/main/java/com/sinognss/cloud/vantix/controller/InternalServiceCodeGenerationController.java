@@ -41,7 +41,7 @@ public class InternalServiceCodeGenerationController {
     public record GenerateRequest(@NotBlank @Size(max = 160) String requestId,
                                   @NotBlank @Size(max = 128) String orderNo,
                                   @NotNull @Positive Long companyId,
-                                  @NotBlank @Size(max = 700) String specCode,
+                                  @NotBlank @Size(max = 32) String specCode,
                                   @NotNull @Positive Integer quantity,
                                   LocalDateTime orderTime) {
     }

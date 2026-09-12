@@ -45,7 +45,13 @@ class OfflineOrderExcelTest {
             assertEquals("1个月", workbook.getSheetAt(1).getRow(1).getCell(0).getStringCellValue());
             assertEquals("1年", workbook.getSheetAt(1).getRow(2).getCell(0).getStringCellValue());
             assertEquals("M1", workbook.getSheetAt(1).getRow(1).getCell(1).getStringCellValue());
-            assertTrue(workbook.getSheetAt(1).isColumnHidden(1));
+            var durationSheet = workbook.getSheetAt(1);
+            List<String> displayNames = java.util.stream.IntStream
+                    .rangeClosed(1, durationSheet.getLastRowNum())
+                    .mapToObj(row -> durationSheet.getRow(row).getCell(0).getStringCellValue())
+                    .toList();
+            assertEquals(displayNames.size(), displayNames.stream().distinct().count());
+            assertTrue(durationSheet.isColumnHidden(1));
             List<? extends DataValidation> validations = workbook.getSheetAt(0).getDataValidations();
             assertEquals(2, validations.size());
             assertTrue(validations.stream().anyMatch(validation ->

@@ -104,6 +104,18 @@ class MySqlGenerationIntegrationTest {
     }
 
     @Test
+    void enabledSpecsHaveUniqueDurationDisplayNames() {
+        insertSpec("SDK", 3, "MONTH", 12, true, "M3");
+
+        List<String> displayNames = durationMapper.selectEnabled().stream()
+                .map(spec -> com.sinognss.cloud.vantix.common.DurationDisplayFormatter
+                        .format(spec.getDurationValue(), spec.getDurationUnit()))
+                .toList();
+
+        assertEquals(displayNames.size(), displayNames.stream().distinct().count());
+        assertEquals(List.of("1个月", "3个月"), displayNames);
+    }
+    @Test
     void b2bGenerationPersistsSnapshotsAndSequentialRetriesAreIdempotent() {
         GenerateServiceCodeCommand command = command("B2B:REQ-1", "ORDER-1", 100L, "M1", 3);
         GenerateServiceCodeResult first = generateService.generate(command, IntegrationActor.B2B.operatorIdentity());
@@ -146,6 +158,19 @@ class MySqlGenerationIntegrationTest {
         assertTrue(differentRequestSameBusinessKey.idempotent());
         assertEquals(first.batch().batchNo(), repeated.batch().batchNo());
         assertEquals(first.batch().batchNo(), differentRequestSameBusinessKey.batch().batchNo());
+
+        BusinessException sameRequestDifferentQuantity = assertThrows(BusinessException.class,
+                () -> generateService.generate(command("B2B:REQ-1", "ORDER-1", 100L, "M1", 90),
+                        IntegrationActor.B2B.operatorIdentity()));
+        assertEquals(com.sinognss.cloud.vantix.common.exception.ErrorCode.GENERATION_IDEMPOTENCY_CONFLICT,
+                sameRequestDifferentQuantity.getVantixErrorCode());
+
+        BusinessException businessKeyDifferentQuantity = assertThrows(BusinessException.class,
+                () -> generateService.generate(command("B2B:REQ-3", "ORDER-1", 100L, "M1", 90),
+                        IntegrationActor.B2B.operatorIdentity()));
+        assertEquals(com.sinognss.cloud.vantix.common.exception.ErrorCode.GENERATION_IDEMPOTENCY_CONFLICT,
+                businessKeyDifferentQuantity.getVantixErrorCode());
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM service_code_generate_batch", Integer.class));
         assertEquals(3, jdbc.queryForObject("SELECT COUNT(*) FROM service_code", Integer.class));
     }
 
@@ -154,7 +179,10 @@ class MySqlGenerationIntegrationTest {
         GenerateServiceCodeResult generated = generateService.generate(
                 command("B2B:UNIQUE", "ORDER-UNIQUE", 100L, "M1", 1), IntegrationActor.B2B.operatorIdentity());
 
-        assertThrows(DuplicateKeyException.class, () -> insertSpec("OTHER", 1, "MONTH", 1, true, "M1"));
+        assertThrows(DuplicateKeyException.class, () ->
+                insertSpec("OTHER", 1, "MONTH", 1, true, "OTHER-M1"));
+        assertThrows(DuplicateKeyException.class, () ->
+                insertSpec("OTHER", 2, "MONTH", 1, true, "M1"));
         String hash = ServiceCodeGenerateService.businessKeyHash(
                 GenerationSource.B2B, 100L, "ORDER-UNIQUE", "M1");
         assertThrows(DuplicateKeyException.class, () -> insertBatch(
@@ -166,10 +194,25 @@ class MySqlGenerationIntegrationTest {
                         + "code_silence_months, expire_at) VALUES (?, 100, 'CORS', 1, 'MONTH', 6, ?)",
                 generated.serviceCodes().get(0), LocalDateTime.now().plusMonths(6)));
 
-        jdbc.update("UPDATE service_duration_config SET spec_code = 'CHANGED' WHERE spec_code = 'M1'");
-        assertEquals("M1", jdbc.queryForObject(
-                "SELECT spec_code FROM service_duration_config WHERE service_type = 'CORS' AND duration_unit = 'MONTH'",
-                String.class));
+        assertThrows(DataAccessException.class, () -> jdbc.update(
+                "UPDATE service_duration_config SET spec_code = 'CHANGED' WHERE spec_code = 'M1'"));
+        assertThrows(DataAccessException.class, () -> jdbc.update(
+                "UPDATE service_duration_config SET duration_value = 3 WHERE spec_code = 'M1'"));
+        assertThrows(DataAccessException.class, () -> jdbc.update(
+                "UPDATE service_duration_config SET duration_unit = 'WEEK' WHERE spec_code = 'M1'"));
+        assertThrows(DataAccessException.class, () -> jdbc.update(
+                "UPDATE service_duration_config SET service_type = 'SDK' WHERE spec_code = 'M1'"));
+        jdbc.update("UPDATE service_duration_config "
+                + "SET code_silence_months = 8, enabled = 0, remark = 'changed' WHERE spec_code = 'M1'");
+        var mutableConfig = jdbc.queryForMap(
+                "SELECT spec_code, duration_value, duration_unit, code_silence_months, enabled, remark "
+                        + "FROM service_duration_config WHERE spec_code = 'M1'");
+        assertEquals("M1", mutableConfig.get("spec_code"));
+        assertEquals(1, mutableConfig.get("duration_value"));
+        assertEquals("MONTH", mutableConfig.get("duration_unit"));
+        assertEquals(8, mutableConfig.get("code_silence_months"));
+        assertEquals(false, mutableConfig.get("enabled"));
+        assertEquals("changed", mutableConfig.get("remark"));
         jdbc.update("UPDATE service_code SET code = 'CHANGED' WHERE code = ?", generated.serviceCodes().get(0));
         assertEquals(generated.serviceCodes().get(0), jdbc.queryForObject(
                 "SELECT code FROM service_code WHERE generate_batch_id = "
@@ -223,6 +266,29 @@ class MySqlGenerationIntegrationTest {
     }
 
     @Test
+    void concurrentBusinessKeyWithDifferentQuantitiesNeverOverGenerates() throws Exception {
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> first = executor.submit(() -> generateInWorker(start, "REQ-CQ1", 2));
+            Future<?> second = executor.submit(() -> generateInWorker(start, "REQ-CQ2", 5));
+            start.countDown();
+            first.get();
+            second.get();
+
+            assertEquals(1, jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM service_code_generate_batch", Integer.class));
+            int persistedQuantity = jdbc.queryForObject(
+                    "SELECT quantity FROM service_code_generate_batch LIMIT 1", Integer.class);
+            assertTrue(persistedQuantity == 2 || persistedQuantity == 5);
+            assertEquals(persistedQuantity, jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM service_code", Integer.class));
+            assertTrue(jdbc.queryForObject("SELECT COUNT(*) FROM service_code", Integer.class) < 7);
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+    @Test
     void offlineExcelImportIsCompanyScopedIdempotentAndAllOrNothing() throws Exception {
         asGlobalUser();
         byte[] validFile = xlsx(List.of(
@@ -255,9 +321,13 @@ class MySqlGenerationIntegrationTest {
     }
 
     private Object generateInWorker(CountDownLatch start, String requestId) {
+        return generateInWorker(start, requestId, 2);
+    }
+
+    private Object generateInWorker(CountDownLatch start, String requestId, int quantity) {
         try {
             start.await();
-            generateService.generate(command(requestId, "ORDER-CONCURRENT", 100L, "M1", 2),
+            generateService.generate(command(requestId, "ORDER-CONCURRENT", 100L, "M1", quantity),
                     IntegrationActor.B2B.operatorIdentity());
         } catch (RuntimeException exception) {
             // A competing request may lose the unique-key race; the database is the assertion boundary.

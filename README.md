@@ -31,7 +31,9 @@
 - 内部 B2B 接口需要由部署网关配置服务认证；应用未另建认证机制。
 - 已知部署风险继续保留：sino-cloud-base 的 UserInterceptor 使用 javax.servlet，而 Spring Boot 3 使用 jakarta.servlet；本阶段不调整该风险或认证架构。
 - 线下导入配置项为 vantix.offline-import.max-file-size-bytes、max-rows、max-total-codes 和 max-errors；默认分别为 10 MiB、500 行、5,000 个服务码和 100 条错误。
-- V3 为 service_duration_config 增加稳定且不可变的 spec_code，新增生成批次幂等约束和 service_code.generate_batch_id。V1/V2 保持不变。
+- V3 为 service_duration_config 增加稳定且不可变的 spec_code，新增生成批次幂等约束和 service_code.generate_batch_id。V1/V2 保持不变；Phase 1.5 migration 在正式上线前仍处于开发冻结阶段。
+- 服务时长规格按 duration_value + duration_unit 全局唯一，specCode 固定为 D/W/M/Y + 时长值；创建后不可修改规格身份，只能调整启用状态、沉默月数和备注。
+- V3 不创建数据库外键。修改尚未上线的 V3 后，开发环境应重建空 schema 并从 V1/V2/V3 重新执行 Flyway。
 ## 启动
 
 需要 Java 17、Maven 3.9+ 和 MySQL 5.7/8。使用环境变量 `VANTIX_DB_URL`、`VANTIX_DB_USERNAME`、`VANTIX_DB_PASSWORD` 配置数据库。数据库连接驱动固定为 MySQL Connector/J 8.0.33。

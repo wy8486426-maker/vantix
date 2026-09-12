@@ -137,6 +137,37 @@ class ServiceCodeGenerateServiceTest {
     }
 
     @Test
+    void rejectsDifferentQuantityForExistingBusinessKey() {
+        ServiceCodeGenerateBatch existing = batch("REQ-OLD", "ORDER-1", 3);
+        when(batchMapper.selectByBusinessKeyForUpdate(anyString(), any(), anyString())).thenReturn(existing);
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> service.generate(command("REQ-NEW", "ORDER-1", 90),
+                        IntegrationActor.B2B.operatorIdentity()));
+
+        assertEquals(ErrorCode.GENERATION_IDEMPOTENCY_CONFLICT, exception.getVantixErrorCode());
+        verify(batchMapper, never()).insert(any(ServiceCodeGenerateBatch.class));
+        verify(codeMapper, never()).insert(any(ServiceCode.class));
+        assertTrue(insertedCodes.isEmpty());
+    }
+
+    @Test
+    void duplicateKeyRaceWithDifferentBusinessQuantityIsAnIdempotencyConflict() {
+        ServiceCodeGenerateBatch existing = batch("REQ-WINNER", "ORDER-1", 3);
+        when(batchMapper.selectByBusinessKeyForUpdate(anyString(), any(), anyString()))
+                .thenReturn(null, existing);
+        when(batchMapper.insert(any(ServiceCodeGenerateBatch.class)))
+                .thenThrow(new org.springframework.dao.DuplicateKeyException("business key duplicate"));
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> service.generate(command("REQ-RACER", "ORDER-1", 90),
+                        IntegrationActor.B2B.operatorIdentity()));
+
+        assertEquals(ErrorCode.GENERATION_IDEMPOTENCY_CONFLICT, exception.getVantixErrorCode());
+        verify(codeMapper, never()).insert(any(ServiceCode.class));
+        assertTrue(insertedCodes.isEmpty());
+    }
+    @Test
     void rejectsDisabledSpecAndUnknownCompanyBeforeWriting() {
         when(configMapper.selectEnabledBySpecCode("M1")).thenReturn(null);
         assertThrows(BusinessException.class,

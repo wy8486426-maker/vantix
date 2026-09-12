@@ -85,6 +85,10 @@ public class ServiceCodeGenerateService {
                 throw new BusinessException(ErrorCode.GENERATION_ALREADY_EXISTS,
                         "该订单规格已经导入: " + orderNo + " / " + specCode);
             }
+            if (!command.quantity().equals(byBusinessKey.getQuantity())) {
+                throw new BusinessException(ErrorCode.GENERATION_IDEMPOTENCY_CONFLICT,
+                        "同一订单规格已使用不同服务码数量生成");
+            }
             return result(byBusinessKey, true);
         }
 
@@ -156,6 +160,10 @@ public class ServiceCodeGenerateService {
                         throw new BusinessException(ErrorCode.GENERATION_ALREADY_EXISTS,
                                 "该订单规格已经导入: " + orderNo);
                     }
+                    if (!command.quantity().equals(existingBusiness.getQuantity())) {
+                        throw new BusinessException(ErrorCode.GENERATION_IDEMPOTENCY_CONFLICT,
+                                "同一订单规格已使用不同服务码数量生成");
+                    }
                     throw new BusinessException(ErrorCode.GENERATION_CONCURRENT_RETRY,
                             "该订单规格正在并发生成，请稍后重试");
                 }
@@ -208,7 +216,7 @@ public class ServiceCodeGenerateService {
                 || command.orderNo().codePoints().anyMatch(Character::isISOControl)
                 || command.companyId() == null || command.companyId() <= 0
                 || command.specCode() == null || command.specCode().isBlank()
-                || command.specCode().length() > 700
+                || command.specCode().length() > 32
                 || command.quantity() == null || command.quantity() <= 0
                 || command.quantity() > properties.getMaxQuantityPerRequest()
                 || (command.remark() != null && command.remark().length() > 512)
