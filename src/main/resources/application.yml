@@ -27,6 +27,8 @@ mybatis-plus:
 vantix:
   service-code-generation:
     max-quantity-per-request: 5000
+    max-items-per-order: 50
+    max-total-quantity-per-order: 5000
   offline-import:
     max-file-size-bytes: 10485760
     max-rows: 500

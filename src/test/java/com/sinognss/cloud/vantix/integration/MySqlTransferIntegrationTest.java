@@ -64,6 +64,7 @@ class MySqlTransferIntegrationTest {
         jdbc.update("DELETE FROM service_code_transfer");
         jdbc.update("DELETE FROM service_code");
         jdbc.update("DELETE FROM service_code_generate_batch");
+        jdbc.update("DELETE FROM service_code_generate_order");
         jdbc.update("DELETE FROM dealer_relation_log");
         jdbc.update("DELETE FROM dealer_company");
         jdbc.update("DELETE FROM system_config");

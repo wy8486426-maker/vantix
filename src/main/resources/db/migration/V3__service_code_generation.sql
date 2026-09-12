@@ -30,6 +30,28 @@ BEGIN
     END IF;
 END;
 
+CREATE TABLE service_code_generate_order (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    request_id VARCHAR(160) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+    generation_source VARCHAR(16) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    source_order_no VARCHAR(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+    source_order_time DATETIME(3) NULL,
+    owner_company_id BIGINT NOT NULL,
+    payload_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    item_count INT NOT NULL,
+    total_quantity INT NOT NULL,
+    status VARCHAR(32) NOT NULL,
+    operator_user_id BIGINT NULL,
+    operator_user_name VARCHAR(128) NULL,
+    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_service_code_generate_order_request (request_id),
+    UNIQUE KEY uk_service_code_generate_order_business
+        (generation_source, owner_company_id, source_order_no),
+    KEY idx_service_code_generate_order_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE service_code_generate_batch (
     id BIGINT NOT NULL AUTO_INCREMENT,
     batch_no VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
@@ -49,6 +71,7 @@ CREATE TABLE service_code_generate_batch (
     operator_user_id BIGINT NULL,
     operator_user_name VARCHAR(128) NULL,
     business_key_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    generate_order_id BIGINT NOT NULL,
     created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
     PRIMARY KEY (id),
@@ -56,7 +79,9 @@ CREATE TABLE service_code_generate_batch (
     UNIQUE KEY uk_service_code_generate_request (request_id),
     UNIQUE KEY uk_service_code_generate_business
         (generation_source, owner_company_id, business_key_hash),
+    UNIQUE KEY uk_service_code_generate_order_spec (generate_order_id, spec_code),
     KEY idx_service_code_generate_order (owner_company_id, source_order_no),
+    KEY idx_service_code_generate_order_id (generate_order_id),
     KEY idx_service_code_generate_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

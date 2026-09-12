@@ -17,4 +17,12 @@ public interface ServiceDurationConfigMapper extends BaseMapper<ServiceDurationC
     @Select("SELECT * FROM service_duration_config WHERE spec_code = #{specCode} "
             + "AND enabled = 1 LIMIT 1 FOR UPDATE")
     ServiceDurationConfig selectEnabledBySpecCode(@Param("specCode") String specCode);
+
+    @Select({"<script>",
+            "SELECT * FROM service_duration_config WHERE spec_code IN",
+            "<foreach item='specCode' collection='specCodes' open='(' separator=',' close=')'>",
+            "#{specCode}",
+            "</foreach>",
+            "</script>"})
+    List<ServiceDurationConfig> selectBySpecCodes(@Param("specCodes") List<String> specCodes);
 }

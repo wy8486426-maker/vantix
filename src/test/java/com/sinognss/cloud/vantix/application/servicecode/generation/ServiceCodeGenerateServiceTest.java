@@ -1,39 +1,33 @@
 package com.sinognss.cloud.vantix.application.servicecode.generation;
 
-import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import com.sinognss.cloud.vantix.common.ServiceCodeGenerator;
 import com.sinognss.cloud.vantix.common.exception.BusinessException;
 import com.sinognss.cloud.vantix.common.exception.ErrorCode;
 import com.sinognss.cloud.vantix.common.user.OperatorIdentity;
 import com.sinognss.cloud.vantix.config.GenerationProperties;
 import com.sinognss.cloud.vantix.domain.config.DurationUnit;
 import com.sinognss.cloud.vantix.domain.config.ServiceDurationConfig;
-import com.sinognss.cloud.vantix.domain.company.DealerCompany;
 import com.sinognss.cloud.vantix.domain.servicecode.GenerationSource;
-import com.sinognss.cloud.vantix.domain.servicecode.ServiceCode;
 import com.sinognss.cloud.vantix.domain.servicecode.ServiceCodeGenerateBatch;
-import com.sinognss.cloud.vantix.domain.servicecode.ServiceCodeStatus;
+import com.sinognss.cloud.vantix.domain.servicecode.ServiceCodeGenerateOrder;
 import com.sinognss.cloud.vantix.infrastructure.mapper.DealerCompanyMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceCodeGenerateBatchMapper;
-import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceCodeMapper;
+import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceCodeGenerateOrderMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceDurationConfigMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -42,191 +36,150 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class ServiceCodeGenerateServiceTest {
+    private final ServiceCodeGenerateOrderMapper orderMapper = mock(ServiceCodeGenerateOrderMapper.class);
     private final ServiceCodeGenerateBatchMapper batchMapper = mock(ServiceCodeGenerateBatchMapper.class);
-    private final ServiceCodeMapper codeMapper = mock(ServiceCodeMapper.class);
     private final ServiceDurationConfigMapper configMapper = mock(ServiceDurationConfigMapper.class);
     private final DealerCompanyMapper companyMapper = mock(DealerCompanyMapper.class);
-    private final ServiceCodeGenerator codeGenerator = mock(ServiceCodeGenerator.class);
+    private final ServiceCodeBatchGenerateService batchService = mock(ServiceCodeBatchGenerateService.class);
     private final GenerationProperties properties = new GenerationProperties();
     private final Clock clock = Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC);
-    private final List<ServiceCode> insertedCodes = new ArrayList<>();
-    private ServiceCodeGenerateService service;
+    private ServiceCodeOrderGenerateService service;
 
     @BeforeEach
     void setUp() {
-        insertedCodes.clear();
-        AtomicInteger codeSequence = new AtomicInteger();
-        when(codeGenerator.generate(any(LocalDate.class)))
-                .thenAnswer(invocation -> "VX260101" + String.format("%020d", codeSequence.incrementAndGet()));
-        when(codeGenerator.generateBatchNo(any(LocalDate.class))).thenReturn("GB260101ABCDEFGHIJKLMNOPQRST");
-        when(batchMapper.insert(any(ServiceCodeGenerateBatch.class))).thenAnswer(invocation -> {
-            ((ServiceCodeGenerateBatch) invocation.getArgument(0)).setId(900L);
+        when(orderMapper.insert(any(ServiceCodeGenerateOrder.class))).thenAnswer(invocation -> {
+            ((ServiceCodeGenerateOrder) invocation.getArgument(0)).setId(900L);
             return 1;
         });
-        when(codeMapper.insert(any(ServiceCode.class))).thenAnswer(invocation -> {
-            ServiceCode code = invocation.getArgument(0);
-            code.setId((long) insertedCodes.size() + 1);
-            insertedCodes.add(code);
-            return 1;
-        });
-        when(batchMapper.complete(any(), any(Integer.class), any())).thenReturn(1);
+        when(orderMapper.complete(anyLong(), any())).thenReturn(1);
         when(companyMapper.selectCount(any())).thenReturn(1L);
-        when(configMapper.selectEnabledBySpecCode("M1")).thenReturn(spec(true));
-        properties.setMaxQuantityPerRequest(100);
-        service = new ServiceCodeGenerateService(batchMapper, codeMapper, configMapper,
-                companyMapper, codeGenerator, properties, clock);
+        when(configMapper.selectBySpecCodes(any())).thenReturn(List.of(spec("M1"), spec("W1")));
+        when(batchMapper.selectByGenerateOrderId(900L)).thenReturn(List.of(batch("M1", 6), batch("W1", 5)));
+        service = new ServiceCodeOrderGenerateService(orderMapper, batchMapper, configMapper,
+                companyMapper, batchService, properties, clock);
     }
 
     @Test
-    void createsBatchAndSnapshotsEnabledSpecForEveryPendingCode() {
-        GenerateServiceCodeResult result = service.generate(command("REQ-1", "ORDER-1", 3), IntegrationActor.B2B.operatorIdentity());
+    void generatesAllSortedItemsAsOneOrderAndUsesOneSpecLookup() {
+        var result = service.generate(command("REQ-1", List.of(item("W1", 5), item("M1", 6))),
+                new OperatorIdentity(7L, "operator"));
 
-        assertEquals(3, result.batch().generatedCount());
-        assertEquals(3, result.serviceCodes().size());
         assertFalse(result.idempotent());
-        assertEquals(3, result.serviceCodes().stream().distinct().count());
-        assertTrue(result.serviceCodes().stream().allMatch(code -> code.matches("^VX260101[A-Z0-9]{20}$")));
-        assertEquals(100L, insertedCodes.get(0).getOwnerCompanyId());
-        assertEquals(900L, insertedCodes.get(0).getGenerateBatchId());
-        assertEquals(ServiceCodeStatus.PENDING, insertedCodes.get(0).getStatus());
-        assertEquals(12, insertedCodes.get(0).getCodeSilenceMonths());
-        assertEquals(insertedCodes.get(0).getCreatedAt().plusMonths(12), insertedCodes.get(0).getExpireAt());
-        assertEquals("CORS", insertedCodes.get(0).getServiceType());
-        ArgumentCaptor<ServiceCodeGenerateBatch> batch = ArgumentCaptor.forClass(ServiceCodeGenerateBatch.class);
-        verify(batchMapper).insert(batch.capture());
-        assertEquals("M1", batch.getValue().getSpecCode());
-        verify(batchMapper).complete(org.mockito.ArgumentMatchers.eq(900L), org.mockito.ArgumentMatchers.eq(3), any());
+        assertEquals(2, result.itemCount());
+        assertEquals(11, result.totalQuantity());
+        assertEquals(List.of("M1", "W1"), result.items().stream().map(ServiceCodeGenerateOrderItemView::specCode).toList());
+        verify(configMapper, times(1)).selectBySpecCodes(List.of("M1", "W1"));
+        verify(batchService, times(2)).generateBatch(anyLong(), any(), any(), any(), any());
+        verify(orderMapper).complete(900L, LocalDateTime.now(clock));
     }
 
     @Test
-    void returnsExistingBatchForRepeatedRequestIdWithoutGeneratingAgain() {
-        ServiceCodeGenerateBatch existing = batch("REQ-1", "ORDER-1", 3);
-        when(batchMapper.selectByRequestIdForUpdate("REQ-1")).thenReturn(existing);
-        when(codeMapper.selectByGenerateBatchId(77L)).thenReturn(List.of(code("A"), code("B"), code("C")));
+    void payloadHashIgnoresItemOrderingButChangesWhenQuantityChanges() {
+        String first = ServiceCodeOrderGenerateService.payloadHash(
+                command("REQ-A", List.of(item("W1", 5), item("M1", 6))));
+        String reordered = ServiceCodeOrderGenerateService.payloadHash(
+                command("REQ-A", List.of(item("M1", 6), item("W1", 5))));
+        String changed = ServiceCodeOrderGenerateService.payloadHash(
+                command("REQ-A", List.of(item("M1", 7), item("W1", 5))));
 
-        GenerateServiceCodeResult result = service.generate(command("REQ-1", "ORDER-1", 3), IntegrationActor.B2B.operatorIdentity());
-
-        assertTrue(result.idempotent());
-        assertEquals(existing.getBatchNo(), result.batch().batchNo());
-        assertEquals(3, result.serviceCodes().size());
-        verify(batchMapper, never()).insert(any(ServiceCodeGenerateBatch.class));
-        verify(codeMapper, never()).insert(any(ServiceCode.class));
+        assertEquals(first, reordered);
+        assertTrue(!first.equals(changed));
     }
 
     @Test
-    void rejectsSameRequestIdWithChangedQuantity() {
-        when(batchMapper.selectByRequestIdForUpdate("REQ-1")).thenReturn(batch("REQ-1", "ORDER-1", 3));
+    void sameRequestAndSameOrderWithAnotherRequestAreIdempotent() {
+        var command = command("REQ-1", List.of(item("M1", 6), item("W1", 5)));
+        ServiceCodeGenerateOrder existing = existing(command);
+        when(orderMapper.selectByRequestId("REQ-1")).thenReturn(existing);
 
-        BusinessException exception = assertThrows(BusinessException.class,
-                () -> service.generate(command("REQ-1", "ORDER-1", 4), IntegrationActor.B2B.operatorIdentity()));
+        var replay = service.generate(command, new OperatorIdentity(7L, "operator"));
+        assertTrue(replay.idempotent());
+
+        when(orderMapper.selectByRequestId("REQ-2")).thenReturn(null);
+        when(orderMapper.selectByBusinessKey("B2B", 100L, "ORDER-1")).thenReturn(existing);
+        var otherRequest = service.generate(command("REQ-2", List.of(item("W1", 5), item("M1", 6))),
+                new OperatorIdentity(7L, "operator"));
+        assertTrue(otherRequest.idempotent());
+        verify(orderMapper, never()).insert(any(ServiceCodeGenerateOrder.class));
+    }
+
+    @Test
+    void sameRequestWithChangedPayloadConflictsBeforeAnyWrite() {
+        var original = command("REQ-1", List.of(item("M1", 6), item("W1", 5)));
+        when(orderMapper.selectByRequestId("REQ-1")).thenReturn(existing(original));
+
+        BusinessException exception = assertThrows(BusinessException.class, () -> service.generate(
+                command("REQ-1", List.of(item("M1", 7), item("W1", 5))),
+                new OperatorIdentity(7L, "operator")));
 
         assertEquals(ErrorCode.GENERATION_IDEMPOTENCY_CONFLICT, exception.getVantixErrorCode());
+        verify(orderMapper, never()).insert(any(ServiceCodeGenerateOrder.class));
+        verify(batchService, never()).generateBatch(anyLong(), any(), any(), any(), any());
     }
 
     @Test
-    void returnsPriorBatchWhenDifferentRequestRepeatsSameBusinessKey() {
-        ServiceCodeGenerateBatch existing = batch("REQ-OLD", "ORDER-1", 3);
-        when(batchMapper.selectByBusinessKeyForUpdate(anyString(), any(), anyString())).thenReturn(existing);
-        when(codeMapper.selectByGenerateBatchId(77L)).thenReturn(List.of(code("A"), code("B"), code("C")));
+    void rejectsDuplicateOrUnavailableSpecsBeforeCreatingTheOrder() {
+        assertThrows(BusinessException.class, () -> service.generate(
+                command("REQ-DUP", List.of(item("M1", 1), item("M1", 2))),
+                new OperatorIdentity(7L, "operator")));
+        verify(orderMapper, never()).insert(any(ServiceCodeGenerateOrder.class));
 
-        GenerateServiceCodeResult result = service.generate(command("REQ-NEW", "ORDER-1", 3), IntegrationActor.B2B.operatorIdentity());
-
-        assertTrue(result.idempotent());
-        assertEquals("REQ-OLD", existing.getRequestId());
-        verify(batchMapper, never()).insert(any(ServiceCodeGenerateBatch.class));
+        when(configMapper.selectBySpecCodes(any())).thenReturn(List.of(spec("M1")));
+        assertThrows(BusinessException.class, () -> service.generate(
+                command("REQ-INVALID", List.of(item("M1", 1), item("W1", 1))),
+                new OperatorIdentity(7L, "operator")));
+        verify(batchService, never()).generateBatch(anyLong(), any(), any(), any(), any());
     }
 
-    @Test
-    void rejectsDifferentQuantityForExistingBusinessKey() {
-        ServiceCodeGenerateBatch existing = batch("REQ-OLD", "ORDER-1", 3);
-        when(batchMapper.selectByBusinessKeyForUpdate(anyString(), any(), anyString())).thenReturn(existing);
-
-        BusinessException exception = assertThrows(BusinessException.class,
-                () -> service.generate(command("REQ-NEW", "ORDER-1", 90),
-                        IntegrationActor.B2B.operatorIdentity()));
-
-        assertEquals(ErrorCode.GENERATION_IDEMPOTENCY_CONFLICT, exception.getVantixErrorCode());
-        verify(batchMapper, never()).insert(any(ServiceCodeGenerateBatch.class));
-        verify(codeMapper, never()).insert(any(ServiceCode.class));
-        assertTrue(insertedCodes.isEmpty());
+    private GenerateServiceCodeOrderCommand command(String requestId,
+                                                     List<GenerateServiceCodeItemCommand> items) {
+        return new GenerateServiceCodeOrderCommand(GenerationSource.B2B, requestId, "ORDER-1",
+                null, 100L, items);
     }
 
-    @Test
-    void duplicateKeyRaceWithDifferentBusinessQuantityIsAnIdempotencyConflict() {
-        ServiceCodeGenerateBatch existing = batch("REQ-WINNER", "ORDER-1", 3);
-        when(batchMapper.selectByBusinessKeyForUpdate(anyString(), any(), anyString()))
-                .thenReturn(null, existing);
-        when(batchMapper.insert(any(ServiceCodeGenerateBatch.class)))
-                .thenThrow(new org.springframework.dao.DuplicateKeyException("business key duplicate"));
-
-        BusinessException exception = assertThrows(BusinessException.class,
-                () -> service.generate(command("REQ-RACER", "ORDER-1", 90),
-                        IntegrationActor.B2B.operatorIdentity()));
-
-        assertEquals(ErrorCode.GENERATION_IDEMPOTENCY_CONFLICT, exception.getVantixErrorCode());
-        verify(codeMapper, never()).insert(any(ServiceCode.class));
-        assertTrue(insertedCodes.isEmpty());
-    }
-    @Test
-    void rejectsDisabledSpecAndUnknownCompanyBeforeWriting() {
-        when(configMapper.selectEnabledBySpecCode("M1")).thenReturn(null);
-        assertThrows(BusinessException.class,
-                () -> service.generate(command("REQ-1", "ORDER-1", 1), IntegrationActor.B2B.operatorIdentity()));
-        verify(batchMapper, never()).insert(any(ServiceCodeGenerateBatch.class));
-
-        when(companyMapper.selectCount(any())).thenReturn(0L);
-        when(configMapper.selectEnabledBySpecCode("M1")).thenReturn(spec(true));
-        assertThrows(BusinessException.class,
-                () -> service.generate(command("REQ-2", "ORDER-2", 1), IntegrationActor.B2B.operatorIdentity()));
-        verify(configMapper, times(1)).selectEnabledBySpecCode("M1");
+    private GenerateServiceCodeItemCommand item(String specCode, int quantity) {
+        return new GenerateServiceCodeItemCommand(specCode, quantity, null);
     }
 
-    @Test
-    void rejectsInvalidQuantityBeforeDatabaseWrites() {
-        assertThrows(BusinessException.class,
-                () -> service.generate(command("REQ-1", "ORDER-1", 0), IntegrationActor.B2B.operatorIdentity()));
-        verify(batchMapper, never()).insert(any(ServiceCodeGenerateBatch.class));
+    private ServiceCodeGenerateOrder existing(GenerateServiceCodeOrderCommand command) {
+        ServiceCodeGenerateOrder order = new ServiceCodeGenerateOrder();
+        order.setId(900L);
+        order.setRequestId(command.requestId());
+        order.setGenerationSource(GenerationSource.B2B);
+        order.setSourceOrderNo("ORDER-1");
+        order.setOwnerCompanyId(100L);
+        order.setPayloadHash(ServiceCodeOrderGenerateService.payloadHash(command));
+        order.setItemCount(2);
+        order.setTotalQuantity(11);
+        order.setStatus("COMPLETED");
+        return order;
     }
 
-    private GenerateServiceCodeCommand command(String requestId, String orderNo, int quantity) {
-        return new GenerateServiceCodeCommand(GenerationSource.B2B, requestId, orderNo, null,
-                100L, "M1", quantity, null);
-    }
-
-    private ServiceDurationConfig spec(boolean enabled) {
+    private ServiceDurationConfig spec(String specCode) {
         ServiceDurationConfig config = new ServiceDurationConfig();
-        config.setSpecCode("M1");
+        config.setSpecCode(specCode);
         config.setServiceType("CORS");
         config.setDurationValue(1);
         config.setDurationUnit(DurationUnit.MONTH);
-        config.setCodeSilenceMonths(12);
-        config.setEnabled(enabled);
+        config.setCodeSilenceMonths(6);
+        config.setEnabled(true);
         return config;
     }
 
-    private ServiceCodeGenerateBatch batch(String requestId, String orderNo, int quantity) {
+    private ServiceCodeGenerateBatch batch(String specCode, int quantity) {
         ServiceCodeGenerateBatch batch = new ServiceCodeGenerateBatch();
-        batch.setId(77L);
-        batch.setBatchNo("GB-OLD");
-        batch.setRequestId(requestId);
+        batch.setBatchNo("GB-" + specCode);
+        batch.setRequestId("BATCH-" + specCode);
         batch.setGenerationSource(GenerationSource.B2B);
-        batch.setSourceOrderNo(orderNo);
+        batch.setSourceOrderNo("ORDER-1");
         batch.setOwnerCompanyId(100L);
-        batch.setSpecCode("M1");
+        batch.setSpecCode(specCode);
         batch.setDurationValue(1);
         batch.setDurationUnit("MONTH");
-        batch.setCodeSilenceMonths(12);
+        batch.setCodeSilenceMonths(6);
         batch.setQuantity(quantity);
         batch.setGeneratedCount(quantity);
         batch.setStatus("COMPLETED");
-        batch.setBusinessKeyHash(ServiceCodeGenerateService.businessKeyHash(
-                GenerationSource.B2B, 100L, orderNo, "M1"));
         return batch;
-    }
-
-    private ServiceCode code(String value) {
-        ServiceCode code = new ServiceCode();
-        code.setCode(value);
-        return code;
     }
 }

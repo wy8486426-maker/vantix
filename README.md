@@ -24,14 +24,15 @@
 ## Phase 1.5
 
 - GET /internal/v1/service-code-specs 只返回当前启用的服务时长规格，不暴露数据库 ID 或沉默规则。
-- POST /internal/v1/service-code-generations 接收 B2B 请求号、订单号、公司 ID、规格码和数量；服务码由 Vantix 生成，并按生成时配置保存快照。
+- POST /internal/v1/service-code-generations 接收订单级 requestId、订单号、公司 ID 和 items 多规格列表；每个 item 使用 specCode + quantity。Vantix 在同一事务中生成整单及各规格批次，响应仅返回订单/批次摘要。
+  - 同 requestId、同 payload 重放返回原订单；同来源/公司/订单号但不同 requestId、同 payload 也幂等；payload 不同则冲突。订单上限为 50 个规格、总计 5,000 张，每规格数量上限 5,000。
 - GET /api/service-codes/offline-import/template 下载 .xlsx 模板；上传时通过 POST /api/service-codes/offline-import?companyId=... 单独传入页面选择的公司。
-- GET /api/service-code-generation-batches/{batchNo} 和 orderNo 查询支持批次追溯。
-- 线下导入会先校验整个文件，再在同一个 MySQL 本地事务中创建所有批次和服务码。Excel 不含公司、商品、部件号、金额或配置 ID 列。
+- GET /api/service-code-generation-batches/{batchNo} 与 ?orderNo=... 查询支持批次追溯；GET /api/service-code-generations/orders/{orderNo} 返回订单头及规格批次摘要。
+- 线下导入按订单号聚合多规格，会先校验整个文件，再在同一个 MySQL 本地事务中创建所有订单头、批次和服务码；同一订单的非空下单时间必须一致。Excel 不含公司、商品、部件号、金额或配置 ID 列。
 - 内部 B2B 接口需要由部署网关配置服务认证；应用未另建认证机制。
 - 已知部署风险继续保留：sino-cloud-base 的 UserInterceptor 使用 javax.servlet，而 Spring Boot 3 使用 jakarta.servlet；本阶段不调整该风险或认证架构。
 - 线下导入配置项为 vantix.offline-import.max-file-size-bytes、max-rows、max-total-codes 和 max-errors；默认分别为 10 MiB、500 行、5,000 个服务码和 100 条错误。
-- V3 为 service_duration_config 增加稳定且不可变的 spec_code，新增生成批次幂等约束和 service_code.generate_batch_id。V1/V2 保持不变；Phase 1.5 migration 在正式上线前仍处于开发冻结阶段。
+- V3 为 service_duration_config 增加稳定且不可变的 spec_code，新增 service_code_generate_order 订单头、订单 payloadHash 幂等约束、批次 generate_order_id 关系和 service_code.generate_batch_id。V1/V2 保持不变；Phase 1.5 migration 在正式上线前仍处于开发冻结阶段。
 - 服务时长规格按 duration_value + duration_unit 全局唯一，specCode 固定为 D/W/M/Y + 时长值；创建后不可修改规格身份，只能调整启用状态、沉默月数和备注。
 - V3 不创建数据库外键。修改尚未上线的 V3 后，开发环境应重建空 schema 并从 V1/V2/V3 重新执行 Flyway。
 ## 启动

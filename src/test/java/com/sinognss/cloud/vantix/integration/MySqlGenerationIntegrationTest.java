@@ -5,6 +5,10 @@ import com.sinognss.cloud.base.filter.UserHolder;
 import com.sinognss.cloud.vantix.application.offline.OfflineImportValidationException;
 import com.sinognss.cloud.vantix.application.offline.OfflineOrderImportService;
 import com.sinognss.cloud.vantix.application.servicecode.generation.GenerateServiceCodeCommand;
+import com.sinognss.cloud.vantix.application.servicecode.generation.GenerateServiceCodeItemCommand;
+import com.sinognss.cloud.vantix.application.servicecode.generation.GenerateServiceCodeOrderCommand;
+import com.sinognss.cloud.vantix.application.servicecode.generation.ServiceCodeGenerateOrderView;
+import com.sinognss.cloud.vantix.application.servicecode.generation.ServiceCodeOrderGenerateService;
 import com.sinognss.cloud.vantix.application.servicecode.generation.GenerateServiceCodeResult;
 import com.sinognss.cloud.vantix.application.servicecode.generation.IntegrationActor;
 import com.sinognss.cloud.vantix.application.servicecode.generation.ServiceCodeGenerateService;
@@ -57,6 +61,8 @@ class MySqlGenerationIntegrationTest {
     @Autowired
     private ServiceCodeGenerateService generateService;
     @Autowired
+    private ServiceCodeOrderGenerateService orderGenerateService;
+    @Autowired
     private ServiceDurationConfigMapper durationMapper;
     @Autowired
     private OfflineOrderImportService offlineImportService;
@@ -76,6 +82,7 @@ class MySqlGenerationIntegrationTest {
         jdbc.update("DELETE FROM service_code_transfer");
         jdbc.update("DELETE FROM service_code");
         jdbc.update("DELETE FROM service_code_generate_batch");
+        jdbc.update("DELETE FROM service_code_generate_order");
         jdbc.update("DELETE FROM service_duration_config");
         jdbc.update("DELETE FROM dealer_company");
         jdbc.update("INSERT INTO dealer_company (company_id, company_name, company_status) "
@@ -185,8 +192,11 @@ class MySqlGenerationIntegrationTest {
                 insertSpec("OTHER", 2, "MONTH", 1, true, "M1"));
         String hash = ServiceCodeGenerateService.businessKeyHash(
                 GenerationSource.B2B, 100L, "ORDER-UNIQUE", "M1");
+        String generatedRequestId = jdbc.queryForObject(
+                "SELECT request_id FROM service_code_generate_batch WHERE batch_no = ?", String.class,
+                generated.batch().batchNo());
         assertThrows(DuplicateKeyException.class, () -> insertBatch(
-                "GB-REQUEST-DUP", "B2B:UNIQUE", "OTHER-ORDER", hash + "1"));
+                "GB-REQUEST-DUP", generatedRequestId, "OTHER-ORDER", hash + "1"));
         assertThrows(DuplicateKeyException.class, () -> insertBatch(
                 "GB-BUSINESS-DUP", "B2B:UNIQUE-2", "ORDER-UNIQUE", hash));
         assertThrows(DuplicateKeyException.class, () -> jdbc.update(
@@ -259,7 +269,7 @@ class MySqlGenerationIntegrationTest {
             first.get();
             second.get();
             assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM service_code_generate_batch", Integer.class));
-            assertEquals(2, jdbc.queryForObject("SELECT COUNT(*) FROM service_code", Integer.class));
+            assertEquals(4, jdbc.queryForObject("SELECT COUNT(*) FROM service_code", Integer.class));
         } finally {
             executor.shutdownNow();
         }
@@ -291,23 +301,26 @@ class MySqlGenerationIntegrationTest {
     @Test
     void offlineExcelImportIsCompanyScopedIdempotentAndAllOrNothing() throws Exception {
         asGlobalUser();
+        insertSpec("CORS", 1, "WEEK", 0, true, "W1");
         byte[] validFile = xlsx(List.of(
                 List.of("订单号*", "服务时长*", "服务码数量*", "下单时间", "备注"),
-                List.of("OFF-001", "1个月", "2", "2026-09-12T18:09:22", "first")));
+                List.of("OFF-001", "1个月", "2", "2026-09-12T18:09:22", "first"),
+                List.of("OFF-001", "1周", "2", "2026-09-12T18:09:22", "second")));
         MockMultipartFile upload = new MockMultipartFile("file", "orders.xlsx",
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", validFile);
 
         var imported = offlineImportService.importFile(100L, upload);
-        assertEquals(1, imported.batchCount());
-        assertEquals(2, imported.generatedCount());
-        assertEquals(2, jdbc.queryForObject("SELECT COUNT(*) FROM service_code", Integer.class));
+        assertEquals(2, imported.batchCount());
+        assertEquals(4, imported.generatedCount());
+        assertEquals(4, jdbc.queryForObject("SELECT COUNT(*) FROM service_code", Integer.class));
         OfflineImportValidationException duplicate = assertThrows(OfflineImportValidationException.class,
                 () -> offlineImportService.importFile(100L, upload));
         assertTrue(duplicate.getErrors().get(0).message().contains("已经导入"));
-        assertEquals(2, jdbc.queryForObject("SELECT COUNT(*) FROM service_code", Integer.class));
+        assertEquals(4, jdbc.queryForObject("SELECT COUNT(*) FROM service_code", Integer.class));
 
         jdbc.update("DELETE FROM service_code");
         jdbc.update("DELETE FROM service_code_generate_batch");
+        jdbc.update("DELETE FROM service_code_generate_order");
         byte[] invalidFile = xlsx(List.of(
                 List.of("订单号*", "服务时长*", "服务码数量*", "下单时间", "备注"),
                 List.of("OFF-002", "1个月", "1", "", ""),
@@ -320,6 +333,75 @@ class MySqlGenerationIntegrationTest {
         assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM service_code", Integer.class));
     }
 
+    @Test
+    void oneRequestGeneratesOneMultiSpecOrderAtomicallyAndReplaysByPayload() {
+        insertSpec("CORS", 1, "DAY", 0, true, "D1");
+        insertSpec("CORS", 1, "WEEK", 0, true, "W1");
+        jdbc.update("UPDATE service_duration_config SET enabled = 1 WHERE spec_code = 'Y1'");
+        GenerateServiceCodeOrderCommand command = new GenerateServiceCodeOrderCommand(
+                GenerationSource.B2B, "B2B:ORDER-MULTI", "ORDER-MULTI",
+                LocalDateTime.parse("2026-09-12T18:09:22"), 100L,
+                List.of(new GenerateServiceCodeItemCommand("D1", 6, null),
+                        new GenerateServiceCodeItemCommand("W1", 5, null),
+                        new GenerateServiceCodeItemCommand("M1", 6, null),
+                        new GenerateServiceCodeItemCommand("Y1", 2, null)));
+
+        ServiceCodeGenerateOrderView first = orderGenerateService.generate(
+                command, IntegrationActor.B2B.operatorIdentity());
+
+        assertFalse(first.idempotent());
+        assertEquals(4, first.itemCount());
+        assertEquals(19, first.totalQuantity());
+        assertEquals(List.of("D1", "M1", "W1", "Y1"),
+                first.items().stream().map(item -> item.specCode()).toList());
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM service_code_generate_order", Integer.class));
+        assertEquals(4, jdbc.queryForObject("SELECT COUNT(*) FROM service_code_generate_batch", Integer.class));
+        assertEquals(19, jdbc.queryForObject("SELECT COUNT(*) FROM service_code", Integer.class));
+        assertEquals(1, jdbc.queryForObject(
+                "SELECT COUNT(DISTINCT generate_order_id) FROM service_code_generate_batch", Integer.class));
+
+        ServiceCodeGenerateOrderView sameRequest = orderGenerateService.generate(
+                command, IntegrationActor.B2B.operatorIdentity());
+        ServiceCodeGenerateOrderView sameOrderDifferentRequest = orderGenerateService.generate(
+                new GenerateServiceCodeOrderCommand(GenerationSource.B2B, "B2B:ORDER-MULTI-RETRY",
+                        "ORDER-MULTI", command.orderTime(), 100L, command.items()),
+                IntegrationActor.B2B.operatorIdentity());
+        assertTrue(sameRequest.idempotent());
+        assertTrue(sameOrderDifferentRequest.idempotent());
+        assertEquals(first.items().stream().map(item -> item.batchNo()).toList(),
+                sameRequest.items().stream().map(item -> item.batchNo()).toList());
+
+        assertThrows(BusinessException.class, () -> orderGenerateService.generate(
+                new GenerateServiceCodeOrderCommand(GenerationSource.B2B, "B2B:ORDER-MULTI-CHANGED",
+                        "ORDER-MULTI", command.orderTime(), 100L,
+                        List.of(new GenerateServiceCodeItemCommand("D1", 7, null),
+                                new GenerateServiceCodeItemCommand("W1", 5, null),
+                                new GenerateServiceCodeItemCommand("M1", 6, null),
+                                new GenerateServiceCodeItemCommand("Y1", 2, null))),
+                IntegrationActor.B2B.operatorIdentity()));
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM service_code_generate_order", Integer.class));
+        assertEquals(19, jdbc.queryForObject("SELECT COUNT(*) FROM service_code", Integer.class));
+    }
+    @Test
+    void offlineFileRollsBackAllOrdersWhenAnyServiceCodeInsertFails() throws Exception {
+        asGlobalUser();
+        insertSpec("CORS", 1, "WEEK", 0, true, "W1");
+        jdbc.execute("CREATE TRIGGER trg_test_fail_service_code BEFORE INSERT ON service_code "
+                + "FOR EACH ROW BEGIN IF NEW.source_order_no = 'OFF-FAIL' THEN "
+                + "SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'forced failure'; END IF; END");
+        MockMultipartFile upload = new MockMultipartFile("file", "rollback.xlsx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                xlsx(List.of(
+                        List.of("订单号*", "服务时长*", "服务码数量*", "下单时间", "备注"),
+                        List.of("OFF-FIRST", "1个月", "2", "", ""),
+                        List.of("OFF-FAIL", "1周", "1", "", ""))));
+
+        assertThrows(DataAccessException.class, () -> offlineImportService.importFile(100L, upload));
+
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM service_code_generate_order", Integer.class));
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM service_code_generate_batch", Integer.class));
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM service_code", Integer.class));
+    }
     private Object generateInWorker(CountDownLatch start, String requestId) {
         return generateInWorker(start, requestId, 2);
     }
@@ -355,8 +437,8 @@ class MySqlGenerationIntegrationTest {
     private void insertBatch(String batchNo, String requestId, String orderNo, String hash) {
         jdbc.update("INSERT INTO service_code_generate_batch "
                         + "(batch_no, request_id, generation_source, source_order_no, owner_company_id, spec_code, "
-                        + "duration_value, duration_unit, code_silence_months, quantity, status, business_key_hash) "
-                        + "VALUES (?, ?, 'B2B', ?, 100, 'M1', 1, 'MONTH', 6, 1, 'COMPLETED', ?)",
+                        + "duration_value, duration_unit, code_silence_months, quantity, status, business_key_hash, generate_order_id) "
+                        + "VALUES (?, ?, 'B2B', ?, 100, 'M1', 1, 'MONTH', 6, 1, 'COMPLETED', ?, 9223372036854770000)",
                 batchNo, requestId, orderNo, hash);
     }
 

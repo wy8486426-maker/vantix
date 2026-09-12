@@ -56,7 +56,21 @@ class MySqlV3MigrationIntegrationTest {
                         + "(service_type, duration_value, duration_unit, code_silence_months, enabled, spec_code) "
                         + "VALUES ('OTHER', 1, 'MONTH', 0, 1, 'OTHER-M1')"));
 
+        assertEquals(1, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() "
+                        + "AND table_name = 'service_code_generate_order'", Integer.class));
+        assertEquals(1, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() "
+                        + "AND table_name = 'service_code_generate_batch' AND column_name = 'generate_order_id'", Integer.class));
+        assertEquals(1, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() "
+                        + "AND table_name = 'service_code_generate_batch' "
+                        + "AND index_name = 'uk_service_code_generate_order_spec'", Integer.class));
         assertEquals(0, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.key_column_usage "
+                        + "WHERE table_schema = DATABASE() "
+                        + "AND table_name IN ('service_code_generate_order', 'service_code_generate_batch') "
+                        + "AND referenced_table_name IS NOT NULL", Integer.class));        assertEquals(0, jdbc.queryForObject(
                 "SELECT COUNT(*) FROM information_schema.key_column_usage "
                         + "WHERE table_schema = DATABASE() AND table_name = 'service_code' "
                         + "AND referenced_table_name IS NOT NULL", Integer.class));

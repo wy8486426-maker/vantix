@@ -42,6 +42,10 @@ public interface ServiceCodeGenerateBatchMapper extends BaseMapper<ServiceCodeGe
     List<ServiceCodeGenerateBatch> selectByOrderNo(@Param("orderNo") String orderNo,
                                                     @Param("companyId") Long companyId);
 
+    @Select("SELECT * FROM service_code_generate_batch WHERE generate_order_id = #{orderId} "
+            + "ORDER BY spec_code")
+    List<ServiceCodeGenerateBatch> selectByGenerateOrderId(@Param("orderId") Long orderId);
+
     @Update("UPDATE service_code_generate_batch SET generated_count = #{generatedCount}, "
             + "status = 'COMPLETED', updated_at = #{updatedAt} WHERE id = #{id}")
     int complete(@Param("id") Long id, @Param("generatedCount") int generatedCount,
