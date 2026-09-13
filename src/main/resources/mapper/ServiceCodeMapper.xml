@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sinognss.cloud.vantix.infrastructure.mapper.ServiceCodeMapper">
+    <insert id="insertBatch">
+        INSERT INTO service_code (
+            code,
+            source_order_id,
+            source_order_no,
+            generate_batch_id,
+            owner_company_id,
+            service_type,
+            duration_value,
+            duration_unit,
+            code_silence_months,
+            expire_at,
+            status,
+            processing_type,
+            processing_request_id,
+            consume_type,
+            consumed_at,
+            version,
+            created_at,
+            updated_at
+        )
+        VALUES
+        <foreach collection="codes" item="item" separator=",">
+            (
+                #{item.code},
+                #{item.sourceOrderId},
+                #{item.sourceOrderNo},
+                #{item.generateBatchId},
+                #{item.ownerCompanyId},
+                #{item.serviceType},
+                #{item.durationValue},
+                #{item.durationUnit},
+                #{item.codeSilenceMonths},
+                #{item.expireAt},
+                #{item.status,typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+                #{item.processingType,typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+                #{item.processingRequestId},
+                #{item.consumeType,typeHandler=org.apache.ibatis.type.EnumTypeHandler},
+                #{item.consumedAt},
+                #{item.version},
+                #{item.createdAt},
+                #{item.updatedAt}
+            )
+        </foreach>
+    </insert>
+</mapper>

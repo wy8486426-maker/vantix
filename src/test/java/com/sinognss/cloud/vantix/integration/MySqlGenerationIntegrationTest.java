@@ -15,6 +15,7 @@ import com.sinognss.cloud.vantix.application.servicecode.generation.ServiceCodeG
 import com.sinognss.cloud.vantix.common.ServiceCodeGenerator;
 import com.sinognss.cloud.vantix.common.exception.BusinessException;
 import com.sinognss.cloud.vantix.common.user.OperatorIdentity;
+import com.sinognss.cloud.vantix.config.GenerationProperties;
 import com.sinognss.cloud.vantix.domain.config.ServiceDurationConfig;
 import com.sinognss.cloud.vantix.domain.servicecode.GenerationSource;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceDurationConfigMapper;
@@ -68,6 +69,8 @@ class MySqlGenerationIntegrationTest {
     private OfflineOrderImportService offlineImportService;
     @Autowired
     private ServiceCodeGenerator codeGenerator;
+    @Autowired
+    private GenerationProperties generationProperties;
 
     @DynamicPropertySource
     static void databaseProperties(DynamicPropertyRegistry registry) {
@@ -79,6 +82,7 @@ class MySqlGenerationIntegrationTest {
 
     @BeforeEach
     void resetData() {
+        generationProperties.setBatchInsertSize(500);
         jdbc.update("DELETE FROM service_code_transfer");
         jdbc.update("DELETE FROM service_code");
         jdbc.update("DELETE FROM service_code_generate_batch");
@@ -95,10 +99,12 @@ class MySqlGenerationIntegrationTest {
     void clearUser() {
         UserHolder.removeUser();
         jdbc.execute("DROP TRIGGER IF EXISTS trg_test_fail_service_code");
+        jdbc.execute("DROP TABLE IF EXISTS service_code_insert_counter");
     }
 
     @Test
     void flywayV1V2V3RunAndSpecsExposeEnabledConfigsOnly() {
+        assertEquals(500, generationProperties.getBatchInsertSize());
         assertEquals(3, jdbc.queryForObject(
                 "SELECT COUNT(*) FROM flyway_schema_history WHERE success = 1", Integer.class));
         List<ServiceDurationConfig> specs = durationMapper.selectEnabled();
@@ -329,6 +335,88 @@ class MySqlGenerationIntegrationTest {
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", invalidFile);
         assertThrows(OfflineImportValidationException.class,
                 () -> offlineImportService.importFile(100L, invalidUpload));
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM service_code_generate_batch", Integer.class));
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM service_code", Integer.class));
+    }
+
+    @Test
+    void multiSpecOrdersPersistCorrectChunkedCountsAndUniqueCodes() {
+        insertSpec("CORS", 1, "DAY", 0, true, "D1");
+        GenerateServiceCodeOrderCommand command = new GenerateServiceCodeOrderCommand(
+                GenerationSource.B2B, "B2B:ORDER-CHUNKED", "ORDER-CHUNKED",
+                null, 100L, List.of(new GenerateServiceCodeItemCommand("D1", 600, null),
+                        new GenerateServiceCodeItemCommand("M1", 700, null)));
+
+        ServiceCodeGenerateOrderView result = orderGenerateService.generate(
+                command, IntegrationActor.B2B.operatorIdentity());
+
+        assertEquals(1300, result.totalQuantity());
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM service_code_generate_order", Integer.class));
+        assertEquals(2, jdbc.queryForObject("SELECT COUNT(*) FROM service_code_generate_batch", Integer.class));
+        assertEquals(600, jdbc.queryForObject("SELECT COUNT(*) FROM service_code c "
+                + "JOIN service_code_generate_batch b ON b.id = c.generate_batch_id "
+                + "WHERE b.source_order_no = 'ORDER-CHUNKED' AND b.spec_code = 'D1'", Integer.class));
+        assertEquals(700, jdbc.queryForObject("SELECT COUNT(*) FROM service_code c "
+                + "JOIN service_code_generate_batch b ON b.id = c.generate_batch_id "
+                + "WHERE b.source_order_no = 'ORDER-CHUNKED' AND b.spec_code = 'M1'", Integer.class));
+        assertEquals(1300, jdbc.queryForObject(
+                "SELECT COUNT(DISTINCT code) FROM service_code", Integer.class));
+        assertEquals(600, jdbc.queryForObject("SELECT generated_count FROM service_code_generate_batch "
+                + "WHERE source_order_no = 'ORDER-CHUNKED' AND spec_code = 'D1'", Integer.class));
+        assertEquals(700, jdbc.queryForObject("SELECT generated_count FROM service_code_generate_batch "
+                + "WHERE source_order_no = 'ORDER-CHUNKED' AND spec_code = 'M1'", Integer.class));
+    }
+
+    @Test
+    void mysql57PersistsThreeThousandCodesAcrossThreeSpecs() {
+        insertSpec("CORS", 1, "DAY", 0, true, "D1");
+        jdbc.update("UPDATE service_duration_config SET enabled = 1 WHERE spec_code = 'Y1'");
+        GenerateServiceCodeOrderCommand command = new GenerateServiceCodeOrderCommand(
+                GenerationSource.B2B, "B2B:ORDER-3000", "ORDER-3000",
+                null, 100L, List.of(new GenerateServiceCodeItemCommand("D1", 1000, null),
+                        new GenerateServiceCodeItemCommand("M1", 1000, null),
+                        new GenerateServiceCodeItemCommand("Y1", 1000, null)));
+
+        ServiceCodeGenerateOrderView result = orderGenerateService.generate(
+                command, IntegrationActor.B2B.operatorIdentity());
+
+        assertEquals(3000, result.totalQuantity());
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM service_code_generate_order", Integer.class));
+        assertEquals(3, jdbc.queryForObject("SELECT COUNT(*) FROM service_code_generate_batch", Integer.class));
+        assertEquals(3000, jdbc.queryForObject("SELECT COUNT(*) FROM service_code", Integer.class));
+        assertEquals(3000, jdbc.queryForObject("SELECT COUNT(DISTINCT code) FROM service_code", Integer.class));
+        assertEquals(3, jdbc.queryForObject("SELECT COUNT(DISTINCT spec_code) "
+                + "FROM service_code_generate_batch", Integer.class));
+        assertEquals(3000, jdbc.queryForObject("SELECT SUM(generated_count) "
+                + "FROM service_code_generate_batch", Integer.class));
+        assertEquals("COMPLETED", jdbc.queryForObject(
+                "SELECT status FROM service_code_generate_order LIMIT 1", String.class));
+    }
+
+    @Test
+    void failureInFinalChunkRollsBackEarlierChunksAndTheWholeOrder() {
+        jdbc.execute("CREATE TABLE service_code_insert_counter "
+                + "(id INT NOT NULL PRIMARY KEY, insert_count INT NOT NULL) ENGINE=MyISAM");
+        jdbc.update("INSERT INTO service_code_insert_counter (id, insert_count) VALUES (1, 0)");
+        jdbc.execute("CREATE TRIGGER trg_test_fail_service_code BEFORE INSERT ON service_code "
+                + "FOR EACH ROW BEGIN "
+                + "DECLARE inserted_count INT DEFAULT 0; "
+                + "UPDATE service_code_insert_counter SET insert_count = insert_count + 1 WHERE id = 1; "
+                + "SELECT insert_count INTO inserted_count FROM service_code_insert_counter WHERE id = 1; "
+                + "IF inserted_count > 1000 THEN "
+                + "SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'forced final chunk failure'; "
+                + "END IF; END");
+
+        GenerateServiceCodeOrderCommand command = new GenerateServiceCodeOrderCommand(
+                GenerationSource.B2B, "B2B:ORDER-ROLLBACK-LAST", "ORDER-ROLLBACK-LAST",
+                null, 100L, List.of(new GenerateServiceCodeItemCommand("M1", 1001, null)));
+
+        assertThrows(DataAccessException.class, () -> orderGenerateService.generate(
+                command, IntegrationActor.B2B.operatorIdentity()));
+
+        assertEquals(1001, jdbc.queryForObject(
+                "SELECT insert_count FROM service_code_insert_counter WHERE id = 1", Integer.class));
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM service_code_generate_order", Integer.class));
         assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM service_code_generate_batch", Integer.class));
         assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM service_code", Integer.class));
     }

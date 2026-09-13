@@ -29,6 +29,7 @@ vantix:
     max-quantity-per-request: 5000
     max-items-per-order: 50
     max-total-quantity-per-order: 5000
+    batch-insert-size: 500
   offline-import:
     max-file-size-bytes: 10485760
     max-rows: 500

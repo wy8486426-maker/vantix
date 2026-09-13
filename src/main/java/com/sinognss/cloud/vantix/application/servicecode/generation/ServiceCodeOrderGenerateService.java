@@ -107,9 +107,10 @@ public class ServiceCodeOrderGenerateService {
                     "订单正在并发生成，请使用同一 requestId 重试");
         }
 
+        Set<String> generatedCodes = new HashSet<>();
         for (GenerateServiceCodeItemCommand item : command.items()) {
             batchGenerateService.generateBatch(order.getId(), command, item,
-                    specs.get(item.specCode()), operator);
+                    specs.get(item.specCode()), operator, generatedCodes);
         }
         if (orderMapper.complete(order.getId(), LocalDateTime.now(clock)) != 1) {
             throw new BusinessException(ErrorCode.BATCH_STATUS_INCONSISTENT, "生成订单状态更新失败");

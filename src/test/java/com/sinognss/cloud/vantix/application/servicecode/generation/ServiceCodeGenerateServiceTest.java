@@ -15,15 +15,18 @@ import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceCodeGenerateOrderM
 import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceDurationConfigMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -69,7 +72,9 @@ class ServiceCodeGenerateServiceTest {
         assertEquals(11, result.totalQuantity());
         assertEquals(List.of("M1", "W1"), result.items().stream().map(ServiceCodeGenerateOrderItemView::specCode).toList());
         verify(configMapper, times(1)).selectBySpecCodes(List.of("M1", "W1"));
-        verify(batchService, times(2)).generateBatch(anyLong(), any(), any(), any(), any());
+        ArgumentCaptor<Set> generatedCodes = ArgumentCaptor.forClass(Set.class);
+        verify(batchService, times(2)).generateBatch(anyLong(), any(), any(), any(), any(), generatedCodes.capture());
+        assertSame(generatedCodes.getAllValues().get(0), generatedCodes.getAllValues().get(1));
         verify(orderMapper).complete(900L, LocalDateTime.now(clock));
     }
 
@@ -114,7 +119,7 @@ class ServiceCodeGenerateServiceTest {
 
         assertEquals(ErrorCode.GENERATION_IDEMPOTENCY_CONFLICT, exception.getVantixErrorCode());
         verify(orderMapper, never()).insert(any(ServiceCodeGenerateOrder.class));
-        verify(batchService, never()).generateBatch(anyLong(), any(), any(), any(), any());
+        verify(batchService, never()).generateBatch(anyLong(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -128,7 +133,7 @@ class ServiceCodeGenerateServiceTest {
         assertThrows(BusinessException.class, () -> service.generate(
                 command("REQ-INVALID", List.of(item("M1", 1), item("W1", 1))),
                 new OperatorIdentity(7L, "operator")));
-        verify(batchService, never()).generateBatch(anyLong(), any(), any(), any(), any());
+        verify(batchService, never()).generateBatch(anyLong(), any(), any(), any(), any(), any());
     }
 
     private GenerateServiceCodeOrderCommand command(String requestId,

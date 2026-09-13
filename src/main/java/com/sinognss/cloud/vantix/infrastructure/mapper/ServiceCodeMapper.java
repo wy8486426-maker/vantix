@@ -13,6 +13,8 @@ import java.util.List;
 @Mapper
 public interface ServiceCodeMapper extends BaseMapper<ServiceCode> {
 
+    int insertBatch(@Param("codes") List<ServiceCode> codes);
+
     @Update("UPDATE service_code "
             + "SET owner_company_id = #{toCompanyId}, version = version + 1, updated_at = #{updatedAt} "
             + "WHERE id = #{id} AND owner_company_id = #{fromCompanyId} "
