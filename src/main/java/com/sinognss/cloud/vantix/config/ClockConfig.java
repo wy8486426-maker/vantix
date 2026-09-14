@@ -9,7 +9,8 @@ import java.time.ZoneId;
 
 @Configuration
 @EnableConfigurationProperties({VantixProperties.class, OfflineImportProperties.class,
-        GenerationProperties.class, CorsProperties.class, CorsOperationProperties.class})
+        GenerationProperties.class, CorsProperties.class, CorsOperationProperties.class,
+        CorsAccountStatusSyncProperties.class})
 public class ClockConfig {
     @Bean
     public Clock clock() {

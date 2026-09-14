@@ -41,6 +41,11 @@ vantix:
     base-url: ${VANTIX_CORS_BASE_URL:http://localhost:8081}
     connect-timeout: ${VANTIX_CORS_CONNECT_TIMEOUT:2s}
     read-timeout: ${VANTIX_CORS_READ_TIMEOUT:5s}
+    account-status-sync:
+      enabled: ${VANTIX_CORS_ACCOUNT_STATUS_SYNC_ENABLED:false}
+      fixed-delay: ${VANTIX_CORS_ACCOUNT_STATUS_SYNC_FIXED_DELAY:1m}
+      stale-after: ${VANTIX_CORS_ACCOUNT_STATUS_SYNC_STALE_AFTER:10m}
+      batch-size: ${VANTIX_CORS_ACCOUNT_STATUS_SYNC_BATCH_SIZE:100}
   cors-operation:
     enabled: ${VANTIX_CORS_OPERATION_ENABLED:true}
     poll-interval: ${VANTIX_CORS_OPERATION_POLL_INTERVAL:5s}
