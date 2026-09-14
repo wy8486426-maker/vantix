@@ -37,6 +37,17 @@ vantix:
     max-errors: 100
   service-code:
     upcoming-days: ${VANTIX_SERVICE_CODE_UPCOMING_DAYS:30}
+  cors:
+    base-url: ${VANTIX_CORS_BASE_URL:http://localhost:8081}
+    connect-timeout: ${VANTIX_CORS_CONNECT_TIMEOUT:2s}
+    read-timeout: ${VANTIX_CORS_READ_TIMEOUT:5s}
+  cors-operation:
+    enabled: ${VANTIX_CORS_OPERATION_ENABLED:true}
+    poll-interval: ${VANTIX_CORS_OPERATION_POLL_INTERVAL:5s}
+    max-retries: ${VANTIX_CORS_OPERATION_MAX_RETRIES:10}
+    retry-base-delay: ${VANTIX_CORS_OPERATION_RETRY_BASE_DELAY:30s}
+    claim-timeout: ${VANTIX_CORS_OPERATION_CLAIM_TIMEOUT:2m}
+    worker-batch-size: ${VANTIX_CORS_OPERATION_WORKER_BATCH_SIZE:20}
 
 server:
   port: ${VANTIX_SERVER_PORT:8080}

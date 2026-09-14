@@ -17,6 +17,7 @@ public class ServiceAccount {
     private Long assignedUserId;
     private Long sourceServiceCodeId;
     private Long exchangeBatchId;
+    private Long exchangeDetailId;
     private String serviceType;
     private Integer durationValue;
     private String durationUnit;
@@ -24,8 +25,10 @@ public class ServiceAccount {
     private LocalDateTime exchangeAt;
     private LocalDateTime forceActivateAt;
     private String corsStatus;
+    private String corsActivationStatus;
     private LocalDateTime activatedAt;
     private LocalDateTime expireAt;
+    private LocalDateTime corsCreatedAt;
     private LocalDateTime corsUpdatedAt;
     private LocalDateTime lastSyncAt;
     private Long version;
@@ -46,6 +49,8 @@ public class ServiceAccount {
     public void setSourceServiceCodeId(Long sourceServiceCodeId) { this.sourceServiceCodeId = sourceServiceCodeId; }
     public Long getExchangeBatchId() { return exchangeBatchId; }
     public void setExchangeBatchId(Long exchangeBatchId) { this.exchangeBatchId = exchangeBatchId; }
+    public Long getExchangeDetailId() { return exchangeDetailId; }
+    public void setExchangeDetailId(Long exchangeDetailId) { this.exchangeDetailId = exchangeDetailId; }
     public String getServiceType() { return serviceType; }
     public void setServiceType(String serviceType) { this.serviceType = serviceType; }
     public Integer getDurationValue() { return durationValue; }
@@ -60,10 +65,14 @@ public class ServiceAccount {
     public void setForceActivateAt(LocalDateTime forceActivateAt) { this.forceActivateAt = forceActivateAt; }
     public String getCorsStatus() { return corsStatus; }
     public void setCorsStatus(String corsStatus) { this.corsStatus = corsStatus; }
+    public String getCorsActivationStatus() { return corsActivationStatus; }
+    public void setCorsActivationStatus(String corsActivationStatus) { this.corsActivationStatus = corsActivationStatus; }
     public LocalDateTime getActivatedAt() { return activatedAt; }
     public void setActivatedAt(LocalDateTime activatedAt) { this.activatedAt = activatedAt; }
     public LocalDateTime getExpireAt() { return expireAt; }
     public void setExpireAt(LocalDateTime expireAt) { this.expireAt = expireAt; }
+    public LocalDateTime getCorsCreatedAt() { return corsCreatedAt; }
+    public void setCorsCreatedAt(LocalDateTime corsCreatedAt) { this.corsCreatedAt = corsCreatedAt; }
     public LocalDateTime getCorsUpdatedAt() { return corsUpdatedAt; }
     public void setCorsUpdatedAt(LocalDateTime corsUpdatedAt) { this.corsUpdatedAt = corsUpdatedAt; }
     public LocalDateTime getLastSyncAt() { return lastSyncAt; }

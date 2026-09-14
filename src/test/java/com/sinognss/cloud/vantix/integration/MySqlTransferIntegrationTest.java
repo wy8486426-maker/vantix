@@ -79,7 +79,7 @@ class MySqlTransferIntegrationTest {
 
     @Test
     void flywayRunsAllMigrationsAndBatchTransferStoresTwoRows() {
-        assertEquals(3, jdbc.queryForObject(
+        assertEquals(4, jdbc.queryForObject(
                 "SELECT COUNT(*) FROM flyway_schema_history WHERE success = 1", Integer.class));
 
         ServiceCode first = insertCode("MYSQL-BATCH-1", 10L, ServiceCodeStatus.PENDING);

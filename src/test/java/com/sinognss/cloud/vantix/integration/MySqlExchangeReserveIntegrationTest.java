@@ -1,0 +1,284 @@
+package com.sinognss.cloud.vantix.integration;
+
+import com.sinognss.cloud.base.dto.UserCacheDTO;
+import com.sinognss.cloud.base.filter.UserHolder;
+import com.sinognss.cloud.vantix.application.cors.CorsOperationRetryJob;
+import com.sinognss.cloud.vantix.application.exchange.ExchangeReservation;
+import com.sinognss.cloud.vantix.application.exchange.ServiceCodeExchangeCommand;
+import com.sinognss.cloud.vantix.application.exchange.ServiceCodeExchangeReserveService;
+import com.sinognss.cloud.vantix.application.exchange.ServiceCodeExchangeService;
+import com.sinognss.cloud.vantix.application.exchange.ServiceCodeExchangeView;
+import com.sinognss.cloud.vantix.common.exception.BusinessException;
+import com.sinognss.cloud.vantix.common.exception.ErrorCode;
+import com.sinognss.cloud.vantix.domain.servicecode.GenerationSource;
+import com.sinognss.cloud.vantix.integration.cors.CorsAccountGateway;
+import com.sinognss.cloud.vantix.integration.cors.CorsBatchCreateRequest;
+import com.sinognss.cloud.vantix.integration.cors.CorsBatchResult;
+import com.sinognss.cloud.vantix.integration.cors.CorsOutcome;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.testcontainers.containers.MySQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
+
+@Testcontainers(disabledWithoutDocker = true)
+@SpringBootTest
+class MySqlExchangeReserveIntegrationTest {
+    private static final long COMPANY_ID = 100L;
+    private static final String SPEC_CODE = "M1";
+
+    @Container
+    static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:5.7.44")
+            .withDatabaseName("vantix_exchange_reserve")
+            .withUsername("root")
+            .withPassword("test");
+
+    @Autowired
+    private JdbcTemplate jdbc;
+
+    @Autowired
+    private ServiceCodeExchangeReserveService reserveService;
+
+    @Autowired
+    private ServiceCodeExchangeService exchangeService;
+
+    @MockBean
+    private CorsOperationRetryJob retryJob;
+
+    @MockBean
+    private CorsAccountGateway corsGateway;
+
+    @DynamicPropertySource
+    static void databaseProperties(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.url", MYSQL::getJdbcUrl);
+        registry.add("spring.datasource.username", MYSQL::getUsername);
+        registry.add("spring.datasource.password", MYSQL::getPassword);
+        registry.add("spring.flyway.enabled", () -> true);
+    }
+
+    @BeforeEach
+    void resetData() {
+        jdbc.update("DELETE FROM service_account");
+        jdbc.update("DELETE FROM exchange_detail");
+        jdbc.update("DELETE FROM cors_operation WHERE biz_type = 'EXCHANGE_BATCH'");
+        jdbc.update("DELETE FROM exchange_batch");
+        jdbc.update("DELETE FROM service_code");
+        jdbc.update("DELETE FROM service_code_generate_batch");
+        jdbc.update("DELETE FROM service_code_generate_order");
+        jdbc.update("DELETE FROM service_duration_config");
+        jdbc.update("DELETE FROM dealer_company");
+        jdbc.update("INSERT INTO dealer_company (company_id, company_name, company_status) "
+                + "VALUES (?, 'exchange test company', 'ACTIVE')", COMPANY_ID);
+        jdbc.update("INSERT INTO service_duration_config "
+                        + "(service_type, duration_value, duration_unit, code_silence_months, enabled, spec_code) "
+                        + "VALUES ('CORS', 1, 'MONTH', 6, 0, ?)",
+                SPEC_CODE);
+        jdbc.update("INSERT INTO account_config (id, account_silence_months) VALUES (1, 12) "
+                + "ON DUPLICATE KEY UPDATE account_silence_months = 12");
+    }
+
+    @AfterEach
+    void clearUser() {
+        UserHolder.removeUser();
+    }
+
+    @Test
+    void concurrentReservationsLockEligibleCodesAndKeepSourcesAndExpirySeparate() throws Exception {
+        LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Shanghai"));
+        insertGeneration("B2B", 1001L, "B2B-RESERVE-ORDER", "B2B-RESERVE-BATCH", 16);
+        insertCodes("B2B-ELIG-", 1001L, 14, now.plusMonths(6));
+        List<Long> expiredCodeIds = insertCodes("B2B-EXP-", 1001L, 2, now.minusHours(1));
+        insertGeneration("OFFLINE", 1002L, "OFFLINE-RESERVE-ORDER", "OFFLINE-RESERVE-BATCH", 5);
+        insertCodes("OFFLINE-ELIG-", 1002L, 5, now.plusMonths(6));
+
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        List<Future<ReserveAttempt>> futures;
+        try {
+            futures = List.of(
+                    executor.submit(() -> reserveInWorker(start, "B2B-RESERVE-1", GenerationSource.B2B, 10)),
+                    executor.submit(() -> reserveInWorker(start, "B2B-RESERVE-2", GenerationSource.B2B, 10)));
+            start.countDown();
+
+            List<ReserveAttempt> attempts = List.of(futures.get(0).get(), futures.get(1).get());
+            List<ReserveAttempt> successes = attempts.stream().filter(ReserveAttempt::success).toList();
+            List<ReserveAttempt> failures = attempts.stream().filter(attempt -> !attempt.success()).toList();
+            assertEquals(1, successes.size());
+            assertEquals(1, failures.size());
+            assertEquals(ErrorCode.INSUFFICIENT_SERVICE_CODES, failures.get(0).errorCode());
+
+            long b2bBatchId = successes.get(0).reservation().batchId();
+            assertEquals(10, jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM exchange_detail WHERE exchange_batch_id = ?",
+                    Integer.class, b2bBatchId));
+            assertEquals(10, jdbc.queryForObject(
+                    "SELECT COUNT(DISTINCT service_code_id) FROM exchange_detail WHERE exchange_batch_id = ?",
+                    Integer.class, b2bBatchId));
+            assertEquals(10, jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM exchange_detail d "
+                            + "JOIN service_code c ON c.id = d.service_code_id "
+                            + "JOIN service_code_generate_batch g ON g.id = c.generate_batch_id "
+                            + "WHERE d.exchange_batch_id = ? AND g.generation_source = 'B2B'",
+                    Integer.class, b2bBatchId));
+            assertEquals("B2B", jdbc.queryForObject(
+                    "SELECT generation_source FROM exchange_batch WHERE id = ?", String.class, b2bBatchId));
+            assertEquals(4, countAvailable("B2B", now));
+            assertEquals(2, jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM service_code WHERE code LIKE 'B2B-EXP-%' AND status = 'PENDING'",
+                    Integer.class));
+            assertEquals(0, jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM exchange_detail WHERE service_code_id IN (?, ?)",
+                    Integer.class, expiredCodeIds.get(0), expiredCodeIds.get(1)));
+
+            setGlobalUser();
+            ExchangeReservation offline = reserveService.reserve(new ServiceCodeExchangeCommand(
+                    "OFFLINE-RESERVE", COMPANY_ID, SPEC_CODE, GenerationSource.OFFLINE, 5, null));
+            assertTrue(offline.created());
+            assertEquals(5, jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM exchange_detail WHERE exchange_batch_id = ?",
+                    Integer.class, offline.batchId()));
+            assertEquals(5, jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM exchange_detail d "
+                            + "JOIN service_code c ON c.id = d.service_code_id "
+                            + "JOIN service_code_generate_batch g ON g.id = c.generate_batch_id "
+                            + "WHERE d.exchange_batch_id = ? AND g.generation_source = 'OFFLINE'",
+                    Integer.class, offline.batchId()));
+            assertEquals("OFFLINE", jdbc.queryForObject(
+                    "SELECT generation_source FROM exchange_batch WHERE id = ?",
+                    String.class, offline.batchId()));
+            assertEquals(0, countAvailable("OFFLINE", now));
+            assertEquals(4, countAvailable("B2B", now));
+            assertEquals(2, jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM service_code WHERE code LIKE 'B2B-EXP-%' AND status = 'PENDING'",
+                    Integer.class));
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void remoteGatewayRunsOnlyAfterReservationTransactionCommits() {
+        LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Shanghai"));
+        insertGeneration("B2B", 1003L, "B2B-REMOTE-ORDER", "B2B-REMOTE-BATCH", 1);
+        insertCodes("REMOTE-BOUNDARY-", 1003L, 1, now.plusMonths(6));
+        setGlobalUser();
+
+        String requestId = "REMOTE-BOUNDARY-REQUEST";
+        when(corsGateway.createBatch(any(CorsBatchCreateRequest.class))).thenAnswer(invocation -> {
+            assertFalse(TransactionSynchronizationManager.isActualTransactionActive());
+            assertEquals("PROCESSING", jdbc.queryForObject(
+                    "SELECT status FROM service_code WHERE code = 'REMOTE-BOUNDARY-001'", String.class));
+            assertEquals(requestId, jdbc.queryForObject(
+                    "SELECT processing_request_id FROM service_code WHERE code = 'REMOTE-BOUNDARY-001'",
+                    String.class));
+            assertEquals("PROCESSING", jdbc.queryForObject(
+                    "SELECT status FROM exchange_batch WHERE request_id = ?", String.class, requestId));
+            assertEquals(1, jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM exchange_detail WHERE request_id = ? AND status = 'PROCESSING'",
+                    Integer.class, requestId));
+            return CorsBatchResult.outcome(CorsOutcome.UNKNOWN, requestId, "TIMEOUT", "mock unknown");
+        });
+
+        ServiceCodeExchangeView response = exchangeService.exchange(new ServiceCodeExchangeCommand(
+                requestId, COMPANY_ID, SPEC_CODE, GenerationSource.B2B, 1, null));
+
+        assertEquals("PROCESSING", response.status());
+        assertEquals("PROCESSING", jdbc.queryForObject(
+                "SELECT status FROM exchange_batch WHERE request_id = ?", String.class, requestId));
+        assertEquals("PROCESSING", jdbc.queryForObject(
+                "SELECT status FROM service_code WHERE code = 'REMOTE-BOUNDARY-001'", String.class));
+        assertEquals("RETRY_WAIT", jdbc.queryForObject(
+                "SELECT status FROM cors_operation WHERE request_id = ?", String.class, requestId));
+    }
+
+    private ReserveAttempt reserveInWorker(CountDownLatch start, String requestId,
+                                           GenerationSource source, int quantity) throws InterruptedException {
+        start.await();
+        setGlobalUser();
+        try {
+            ExchangeReservation reservation = reserveService.reserve(new ServiceCodeExchangeCommand(
+                    requestId, COMPANY_ID, SPEC_CODE, source, quantity, null));
+            return new ReserveAttempt(true, null, reservation);
+        } catch (BusinessException exception) {
+            return new ReserveAttempt(false, exception.getVantixErrorCode(), null);
+        } finally {
+            UserHolder.removeUser();
+        }
+    }
+
+    private int countAvailable(String source, LocalDateTime now) {
+        return jdbc.queryForObject(
+                "SELECT COUNT(*) FROM service_code c "
+                        + "JOIN service_code_generate_batch g ON g.id = c.generate_batch_id "
+                        + "WHERE g.owner_company_id = ? AND g.generation_source = ? AND g.spec_code = ? "
+                        + "AND c.status = 'PENDING' AND c.expire_at > ?",
+                Integer.class, COMPANY_ID, source, SPEC_CODE, now);
+    }
+
+    private void insertGeneration(String source, long orderId, String orderNo,
+                                  String batchNo, int quantity) {
+        String hash = String.format("%064x", orderId);
+        jdbc.update("INSERT INTO service_code_generate_order "
+                        + "(id, request_id, generation_source, source_order_no, owner_company_id, payload_hash, "
+                        + "item_count, total_quantity, status) "
+                        + "VALUES (?, ?, ?, ?, ?, ?, 1, ?, 'COMPLETED')",
+                orderId, source + ":" + orderNo, source, orderNo, COMPANY_ID, hash, quantity);
+        jdbc.update("INSERT INTO service_code_generate_batch "
+                        + "(batch_no, request_id, generation_source, source_order_no, owner_company_id, spec_code, "
+                        + "duration_value, duration_unit, code_silence_months, quantity, generated_count, status, "
+                        + "business_key_hash, generate_order_id) "
+                        + "VALUES (?, ?, ?, ?, ?, ?, 1, 'MONTH', 6, ?, ?, 'COMPLETED', ?, ?)",
+                batchNo, source + ":" + batchNo, source, orderNo, COMPANY_ID, SPEC_CODE, quantity, quantity,
+                String.format("%064x", orderId + 1000), orderId);
+    }
+
+    private List<Long> insertCodes(String prefix, long orderId, int quantity, LocalDateTime expireAt) {
+        Long batchId = jdbc.queryForObject(
+                "SELECT id FROM service_code_generate_batch WHERE generate_order_id = ?", Long.class, orderId);
+        assertNotNull(batchId);
+        for (int index = 0; index < quantity; index++) {
+            jdbc.update("INSERT INTO service_code "
+                            + "(code, generate_batch_id, owner_company_id, service_type, duration_value, duration_unit, "
+                            + "code_silence_months, expire_at, status, version) "
+                            + "VALUES (?, ?, ?, 'CORS', 1, 'MONTH', 6, ?, 'PENDING', 0)",
+                    prefix + String.format("%03d", index + 1), batchId, COMPANY_ID, expireAt);
+        }
+        return jdbc.queryForList("SELECT id FROM service_code WHERE code LIKE ? ORDER BY id",
+                Long.class, prefix + "%");
+    }
+
+    private void setGlobalUser() {
+        UserCacheDTO user = new UserCacheDTO();
+        user.setUserId(88L);
+        user.setUserNickname("integration-user");
+        user.setCompanyId(null);
+        user.setDataType(4);
+        UserHolder.setUser(user);
+    }
+
+    private record ReserveAttempt(boolean success, ErrorCode errorCode, ExchangeReservation reservation) {
+    }
+}
