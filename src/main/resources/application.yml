@@ -66,6 +66,14 @@ vantix:
       retry-base-delay: ${VANTIX_CORS_RENEWAL_RETRY_BASE_DELAY:30s}
       retry-max-delay: ${VANTIX_CORS_RENEWAL_RETRY_MAX_DELAY:1h}
       claim-timeout: ${VANTIX_CORS_RENEWAL_CLAIM_TIMEOUT:2m}
+    password:
+      enabled: ${VANTIX_CORS_PASSWORD_ENABLED:false}
+      poll-interval: ${VANTIX_CORS_PASSWORD_POLL_INTERVAL:5s}
+      worker-batch-size: ${VANTIX_CORS_PASSWORD_WORKER_BATCH_SIZE:20}
+      max-retries: ${VANTIX_CORS_PASSWORD_MAX_RETRIES:10}
+      retry-base-delay: ${VANTIX_CORS_PASSWORD_RETRY_BASE_DELAY:30s}
+      retry-max-delay: ${VANTIX_CORS_PASSWORD_RETRY_MAX_DELAY:1h}
+      claim-timeout: ${VANTIX_CORS_PASSWORD_CLAIM_TIMEOUT:2m}
   cors-operation:
     enabled: ${VANTIX_CORS_OPERATION_ENABLED:true}
     poll-interval: ${VANTIX_CORS_OPERATION_POLL_INTERVAL:5s}

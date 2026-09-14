@@ -15,7 +15,9 @@
 
 服务码转赠在一个 MySQL 本地事务内按服务码 ID 升序 `SELECT ... FOR UPDATE`，完成全部校验后使用 `version` CAS 更新并记录流水；任意一张失败都会回滚批次。批量转赠要求所有服务码的 `service_type`、`duration_value`、`duration_unit` 完全一致。服务码过期和即将到期是 DTO 展示状态，不是数据库状态。
 
-公司基础资料的 `CompanyClient` 和 CORS 的 `CorsAccountClient` 仅保留边界，未猜测远程 URL，也未实现真实账号创建、续期、激活、密码查看或密码重置。
+公司基础资料的 `CompanyClient` 和 CORS 的 `CorsAccountClient` 未猜测远程 URL。密码查看与重置流程已实现本地审计、权限和补偿边界，并通过 `CorsAccountPasswordGateway` 留待 CORS 接口契约确认后接入真实适配器；默认 `vantix.cors.password.enabled=false`，缺少 Gateway 时密码路由不会注册。
+
+密码路由为 `POST /api/service-accounts/{serviceAccountId}/password/reveal`、`POST /api/service-accounts/{serviceAccountId}/password/reset` 和本地状态查询 `GET /api/account-password-resets/{requestId}`。查看密码先写审计、成功后仅放入当前 HTTP 响应，并设置 `no-store`；重置使用原 requestId 持久化跟踪，超时恢复先查 CORS 状态，只有确认请求不存在后才会再次 POST。
 
 统一用户中心由 `sino-cloud-base` 提供。`UserHolderBridge` 调用 `com.sinognss.cloud.base.filter.UserHolder` 的 `getUserAndCompanyId()` 作为数据范围、`getUser()` 作为真实操作人；本项目不创建用户、角色、权限或密码字段。
 
@@ -46,4 +48,4 @@ $env:Path="$env:JAVA_HOME\bin;$env:MAVEN_HOME\bin;$env:Path"
 mvn clean test
 ```
 
-后续阶段 TODO：实现 `exchange_*` 业务、CORS `CREATE_ACCOUNT/RENEW_ACCOUNT/FORCE_ACTIVATE` 补偿流程、账号续期/激活/密码敏感接口和公司服务实际同步适配器。
+后续阶段 TODO：实现 `exchange_*` 业务、CORS `CREATE_ACCOUNT/RENEW_ACCOUNT/FORCE_ACTIVATE` 补偿流程和公司服务实际同步适配器；密码 Gateway 的真实适配器需等 CORS 确认接口契约后实现。
