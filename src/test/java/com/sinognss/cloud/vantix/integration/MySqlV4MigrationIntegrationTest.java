@@ -1,6 +1,7 @@
 package com.sinognss.cloud.vantix.integration;
 
 import org.flywaydb.core.Flyway;
+import org.flywaydb.core.api.MigrationVersion;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -27,7 +28,7 @@ class MySqlV4MigrationIntegrationTest {
     @Test
     void appliesV4ExchangeSchemaAndIndexesWithoutForeignKeys() {
         Flyway.configure().dataSource(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())
-                .locations("classpath:db/migration").load().migrate();
+                .locations("classpath:db/migration").target(MigrationVersion.fromVersion("4")).load().migrate();
         JdbcTemplate jdbc = new JdbcTemplate(new DriverManagerDataSource(
                 MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword()));
 

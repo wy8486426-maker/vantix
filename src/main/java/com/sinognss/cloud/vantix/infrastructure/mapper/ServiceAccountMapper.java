@@ -24,6 +24,12 @@ public interface ServiceAccountMapper extends BaseMapper<ServiceAccount> {
     List<Long> selectDueOtherIds(@Param("now") LocalDateTime now,
                                  @Param("limit") int limit);
 
+    List<Long> selectDueForceActivationCandidateIds(@Param("now") LocalDateTime now,
+                                                     @Param("limit") int limit);
+
+    @Select("SELECT * FROM service_account WHERE id = #{id} FOR UPDATE")
+    ServiceAccount selectByIdForUpdate(@Param("id") Long id);
+
     int updateCorsSnapshot(@Param("update") ServiceAccountCorsSnapshotUpdate update);
 
     int updateStatusSyncSuccess(@Param("update") ServiceAccountStatusSyncScheduleUpdate update);

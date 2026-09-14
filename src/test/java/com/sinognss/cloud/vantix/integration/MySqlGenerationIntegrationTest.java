@@ -103,10 +103,9 @@ class MySqlGenerationIntegrationTest {
     }
 
     @Test
-    void flywayV1V2V3RunAndSpecsExposeEnabledConfigsOnly() {
+    void flywayRunsAllMigrationsAndSpecsExposeEnabledConfigsOnly() {
         assertEquals(500, generationProperties.getBatchInsertSize());
-        assertEquals(3, jdbc.queryForObject(
-                "SELECT COUNT(*) FROM flyway_schema_history WHERE success = 1", Integer.class));
+        assertEquals(6, jdbc.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success = 1", Integer.class));
         List<ServiceDurationConfig> specs = durationMapper.selectEnabled();
         assertEquals(1, specs.size());
         assertEquals("M1", specs.get(0).getSpecCode());
