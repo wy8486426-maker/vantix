@@ -19,6 +19,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -32,9 +33,8 @@ class AccountStatusReconcileJobTest {
     void appliesBatchLimitAndContinuesAfterOneAccountFailsInOrder() {
         ServiceAccountMapper mapper = mock(ServiceAccountMapper.class);
         AccountStatusReconcileService service = mock(AccountStatusReconcileService.class);
-        CorsAccountStatusSyncProperties properties = properties(2);
-        AccountStatusReconcileJob job = new AccountStatusReconcileJob(mapper, service, properties, CLOCK);
-        when(mapper.selectSyncCandidates(NOW.minusMinutes(10), 2)).thenReturn(List.of(11L, 12L));
+        AccountStatusReconcileJob job = new AccountStatusReconcileJob(mapper, service, properties(2), CLOCK);
+        when(mapper.selectDueWaitingActivationIds(NOW, 2)).thenReturn(List.of(11L, 12L));
         doThrow(new IllegalStateException("remote payload must not be logged"))
                 .when(service).reconcileOne(11L);
 
@@ -43,7 +43,25 @@ class AccountStatusReconcileJobTest {
         InOrder inOrder = inOrder(service);
         inOrder.verify(service).reconcileOne(11L);
         inOrder.verify(service).reconcileOne(12L);
-        verify(mapper).selectSyncCandidates(NOW.minusMinutes(10), 2);
+        verify(mapper).selectDueWaitingActivationIds(NOW, 2);
+        verify(mapper, never()).selectDueOtherIds(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyInt());
+    }
+
+    @Test
+    void waitingCandidatesRunFirstAndOtherCandidatesFillOnlyRemainingCapacity() {
+        ServiceAccountMapper mapper = mock(ServiceAccountMapper.class);
+        AccountStatusReconcileService service = mock(AccountStatusReconcileService.class);
+        AccountStatusReconcileJob job = new AccountStatusReconcileJob(mapper, service, properties(3), CLOCK);
+        when(mapper.selectDueWaitingActivationIds(NOW, 3)).thenReturn(List.of(21L));
+        when(mapper.selectDueOtherIds(NOW, 2)).thenReturn(List.of(22L, 21L, 23L));
+
+        job.reconcile();
+
+        InOrder inOrder = inOrder(service);
+        inOrder.verify(service).reconcileOne(21L);
+        inOrder.verify(service).reconcileOne(22L);
+        inOrder.verify(service).reconcileOne(23L);
+        verify(mapper).selectDueOtherIds(NOW, 2);
     }
 
     @Test
@@ -53,12 +71,13 @@ class AccountStatusReconcileJobTest {
         AccountStatusReconcileJob job = new AccountStatusReconcileJob(mapper, service, properties(10), CLOCK);
         CountDownLatch entered = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
-        when(mapper.selectSyncCandidates(NOW.minusMinutes(10), 10)).thenReturn(List.of(21L));
+        when(mapper.selectDueWaitingActivationIds(NOW, 10)).thenReturn(List.of(31L));
+        when(mapper.selectDueOtherIds(NOW, 9)).thenReturn(List.of());
         doAnswer(invocation -> {
             entered.countDown();
             assertTrue(release.await(5, TimeUnit.SECONDS));
             return AccountStatusReconcileOutcome.UPDATED;
-        }).when(service).reconcileOne(21L);
+        }).when(service).reconcileOne(31L);
 
         Thread firstRun = new Thread(job::reconcile);
         firstRun.start();
@@ -66,7 +85,7 @@ class AccountStatusReconcileJobTest {
 
         job.reconcile();
 
-        verify(mapper, times(1)).selectSyncCandidates(NOW.minusMinutes(10), 10);
+        verify(mapper, times(1)).selectDueWaitingActivationIds(NOW, 10);
         release.countDown();
         firstRun.join(5000);
         assertFalse(firstRun.isAlive());

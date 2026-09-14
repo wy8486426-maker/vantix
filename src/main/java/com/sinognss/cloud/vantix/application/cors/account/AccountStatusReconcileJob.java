@@ -9,7 +9,9 @@ import org.springframework.scheduling.annotation.Scheduled;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class AccountStatusReconcileJob {
@@ -38,15 +40,15 @@ public class AccountStatusReconcileJob {
             return;
         }
         try {
-            LocalDateTime staleBefore = LocalDateTime.now(clock).minus(properties.getStaleAfter());
-            List<Long> candidateIds = accountMapper.selectSyncCandidates(staleBefore, properties.getBatchSize());
-            if (candidateIds == null) {
-                return;
+            LocalDateTime now = LocalDateTime.now(clock);
+            int batchSize = properties.getBatchSize();
+            Set<Long> candidates = new LinkedHashSet<>();
+            append(accountMapper.selectDueWaitingActivationIds(now, batchSize), candidates, batchSize);
+            int remaining = batchSize - candidates.size();
+            if (remaining > 0) {
+                append(accountMapper.selectDueOtherIds(now, remaining), candidates, batchSize);
             }
-            for (Long id : candidateIds) {
-                if (id == null) {
-                    continue;
-                }
+            for (Long id : candidates) {
                 try {
                     reconcileService.reconcileOne(id);
                 } catch (RuntimeException exception) {
@@ -59,6 +61,17 @@ public class AccountStatusReconcileJob {
                     exception.getClass().getSimpleName());
         } finally {
             running.set(false);
+        }
+    }
+
+    private static void append(List<Long> ids, Set<Long> candidates, int limit) {
+        if (ids == null) {
+            return;
+        }
+        for (Long id : ids) {
+            if (id != null && candidates.size() < limit) {
+                candidates.add(id);
+            }
         }
     }
 

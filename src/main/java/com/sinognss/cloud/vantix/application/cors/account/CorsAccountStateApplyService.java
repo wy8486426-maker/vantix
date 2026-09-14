@@ -4,9 +4,9 @@ import com.sinognss.cloud.vantix.domain.account.ServiceAccount;
 import com.sinognss.cloud.vantix.integration.cors.account.CorsAccountSnapshot;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceAccountCorsSnapshotUpdate;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceAccountMapper;
+import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceAccountStatusSyncScheduleUpdate;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -16,15 +16,14 @@ public class CorsAccountStateApplyService {
     private static final ZoneId CORS_ZONE = ZoneId.of("Asia/Shanghai");
 
     private final ServiceAccountMapper accountMapper;
-    private final Clock clock;
 
-    public CorsAccountStateApplyService(ServiceAccountMapper accountMapper, Clock clock) {
+    public CorsAccountStateApplyService(ServiceAccountMapper accountMapper) {
         this.accountMapper = accountMapper;
-        this.clock = clock;
     }
 
     @Transactional
-    public CorsAccountStateApplyOutcome apply(ServiceAccount local, CorsAccountSnapshot remote) {
+    public CorsAccountStateApplyOutcome apply(ServiceAccount local, CorsAccountSnapshot remote,
+                                             AccountStatusSyncSuccessSchedule schedule) {
         if (!isConsistentIdentity(local, remote) || hasInvalidTimeRange(remote)) {
             return CorsAccountStateApplyOutcome.INCONSISTENT;
         }
@@ -34,7 +33,12 @@ public class CorsAccountStateApplyService {
         if (local.getCorsUpdatedAt() != null) {
             int timestampOrder = remoteUpdatedAt.compareTo(local.getCorsUpdatedAt());
             if (timestampOrder < 0) {
-                return CorsAccountStateApplyOutcome.STALE_IGNORED;
+                ServiceAccountStatusSyncScheduleUpdate successUpdate = new ServiceAccountStatusSyncScheduleUpdate(
+                        local.getId(), local.getVersion(), schedule.syncedAt(), schedule.syncedAt(),
+                        schedule.nextAt(), 0, schedule.syncedAt());
+                return accountMapper.updateStatusSyncSuccess(successUpdate) == 1
+                        ? CorsAccountStateApplyOutcome.STALE_IGNORED
+                        : CorsAccountStateApplyOutcome.CONCURRENT_MODIFICATION;
             }
             if (timestampOrder == 0) {
                 if (!sameBusinessState(local, remote)) {
@@ -44,11 +48,10 @@ public class CorsAccountStateApplyService {
             }
         }
 
-        LocalDateTime now = LocalDateTime.now(clock);
         ServiceAccountCorsSnapshotUpdate update = new ServiceAccountCorsSnapshotUpdate(
                 local.getId(), local.getVersion(), remote.accountStatus(), remote.activationStatus(),
                 local(remote.activatedAt()), local(remote.expireAt()), local(remote.createdAt()),
-                remoteUpdatedAt, now, now);
+                remoteUpdatedAt, schedule.syncedAt(), schedule.syncedAt(), schedule.nextAt(), schedule.syncedAt());
         if (accountMapper.updateCorsSnapshot(update) != 1) {
             return CorsAccountStateApplyOutcome.CONCURRENT_MODIFICATION;
         }

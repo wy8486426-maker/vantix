@@ -12,5 +12,7 @@ public record ServiceAccountCorsSnapshotUpdate(
         LocalDateTime corsCreatedAt,
         LocalDateTime corsUpdatedAt,
         LocalDateTime lastSyncAt,
+        LocalDateTime statusSyncLastAttemptAt,
+        LocalDateTime statusSyncNextAt,
         LocalDateTime updatedAt) {
 }

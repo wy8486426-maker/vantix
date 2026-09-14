@@ -31,6 +31,9 @@ public class ServiceAccount {
     private LocalDateTime corsCreatedAt;
     private LocalDateTime corsUpdatedAt;
     private LocalDateTime lastSyncAt;
+    private LocalDateTime statusSyncNextAt;
+    private LocalDateTime statusSyncLastAttemptAt;
+    private Integer statusSyncFailureCount;
     private Long version;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -77,6 +80,12 @@ public class ServiceAccount {
     public void setCorsUpdatedAt(LocalDateTime corsUpdatedAt) { this.corsUpdatedAt = corsUpdatedAt; }
     public LocalDateTime getLastSyncAt() { return lastSyncAt; }
     public void setLastSyncAt(LocalDateTime lastSyncAt) { this.lastSyncAt = lastSyncAt; }
+    public LocalDateTime getStatusSyncNextAt() { return statusSyncNextAt; }
+    public void setStatusSyncNextAt(LocalDateTime statusSyncNextAt) { this.statusSyncNextAt = statusSyncNextAt; }
+    public LocalDateTime getStatusSyncLastAttemptAt() { return statusSyncLastAttemptAt; }
+    public void setStatusSyncLastAttemptAt(LocalDateTime statusSyncLastAttemptAt) { this.statusSyncLastAttemptAt = statusSyncLastAttemptAt; }
+    public Integer getStatusSyncFailureCount() { return statusSyncFailureCount; }
+    public void setStatusSyncFailureCount(Integer statusSyncFailureCount) { this.statusSyncFailureCount = statusSyncFailureCount; }
     public Long getVersion() { return version; }
     public void setVersion(Long version) { this.version = version; }
     public LocalDateTime getCreatedAt() { return createdAt; }

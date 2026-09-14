@@ -2,6 +2,7 @@ package com.sinognss.cloud.vantix.config;
 
 import com.sinognss.cloud.vantix.application.cors.account.AccountStatusReconcileJob;
 import com.sinognss.cloud.vantix.application.cors.account.AccountStatusReconcileService;
+import com.sinognss.cloud.vantix.application.cors.account.AccountStatusSyncScheduleService;
 import com.sinognss.cloud.vantix.application.cors.account.CorsAccountStateApplyService;
 import com.sinognss.cloud.vantix.integration.cors.account.CorsAccountStatusGateway;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceAccountMapper;
@@ -25,6 +26,7 @@ class CorsAccountStatusSyncConfigurationTest {
             assertTrue(context.containsBean("corsAccountStateApplyService"));
             assertFalse(context.containsBean("accountStatusReconcileService"));
             assertFalse(context.containsBean("accountStatusReconcileJob"));
+            assertFalse(context.containsBean("accountStatusSyncScheduleService"));
         });
     }
 
@@ -37,12 +39,21 @@ class CorsAccountStatusSyncConfigurationTest {
                     assertTrue(context.getBean(AccountStatusReconcileService.class) != null);
                     assertTrue(context.getBean(AccountStatusReconcileJob.class) != null);
                     assertTrue(context.getBean(CorsAccountStateApplyService.class) != null);
+                    assertTrue(context.getBean(AccountStatusSyncScheduleService.class) != null);
                 });
     }
 
     @Test
     void invalidBatchSizeFailsConfigurationBinding() {
         runner.withPropertyValues("vantix.cors.account-status-sync.batch-size=501")
+                .run(context -> assertNotNull(context.getStartupFailure()));
+    }
+
+    @Test
+    void retryMaximumCannotBeSmallerThanRetryBase() {
+        runner.withPropertyValues(
+                        "vantix.cors.account-status-sync.retry-base-delay=2m",
+                        "vantix.cors.account-status-sync.retry-max-delay=1m")
                 .run(context -> assertNotNull(context.getStartupFailure()));
     }
 }

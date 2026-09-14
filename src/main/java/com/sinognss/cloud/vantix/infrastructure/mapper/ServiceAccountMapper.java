@@ -18,8 +18,15 @@ public interface ServiceAccountMapper extends BaseMapper<ServiceAccount> {
             + "WHERE account.exchange_batch_id = #{batchId} ORDER BY detail.detail_index")
     List<ServiceAccount> selectByExchangeBatchId(@Param("batchId") Long batchId);
 
-    List<Long> selectSyncCandidates(@Param("staleBefore") LocalDateTime staleBefore,
-                                    @Param("limit") int limit);
+    List<Long> selectDueWaitingActivationIds(@Param("now") LocalDateTime now,
+                                             @Param("limit") int limit);
+
+    List<Long> selectDueOtherIds(@Param("now") LocalDateTime now,
+                                 @Param("limit") int limit);
 
     int updateCorsSnapshot(@Param("update") ServiceAccountCorsSnapshotUpdate update);
+
+    int updateStatusSyncSuccess(@Param("update") ServiceAccountStatusSyncScheduleUpdate update);
+
+    int updateStatusSyncFailure(@Param("update") ServiceAccountStatusSyncScheduleUpdate update);
 }

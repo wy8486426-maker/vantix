@@ -19,13 +19,16 @@ public class AccountStatusReconcileService {
     private final ServiceAccountMapper accountMapper;
     private final CorsAccountStatusGateway gateway;
     private final CorsAccountStateApplyService applyService;
+    private final AccountStatusSyncScheduleService scheduleService;
 
     public AccountStatusReconcileService(ServiceAccountMapper accountMapper,
                                          CorsAccountStatusGateway gateway,
-                                         CorsAccountStateApplyService applyService) {
+                                         CorsAccountStateApplyService applyService,
+                                         AccountStatusSyncScheduleService scheduleService) {
         this.accountMapper = accountMapper;
         this.gateway = gateway;
         this.applyService = applyService;
+        this.scheduleService = scheduleService;
     }
 
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
@@ -44,36 +47,50 @@ public class AccountStatusReconcileService {
         } catch (RuntimeException exception) {
             log.warn("CORS account status query failed; serviceAccountId={} corsAccountId={} errorCode={}",
                     serviceAccountId, local.getCorsAccountId(), exception.getClass().getSimpleName());
-            return AccountStatusReconcileOutcome.UNKNOWN;
+            return markFailure(local, AccountStatusReconcileOutcome.UNKNOWN);
         }
         if (result == null) {
             log.warn("CORS account status query returned no result; serviceAccountId={} corsAccountId={} errorCode={}",
                     serviceAccountId, local.getCorsAccountId(), "MALFORMED_RESPONSE");
-            return AccountStatusReconcileOutcome.UNKNOWN;
+            return markFailure(local, AccountStatusReconcileOutcome.UNKNOWN);
         }
 
         if (result.outcome() == CorsAccountQueryOutcome.NOT_FOUND) {
             log.warn("CORS account is missing; serviceAccountId={} corsAccountId={} errorCode={}",
                     serviceAccountId, local.getCorsAccountId(), safeErrorCode(result.errorCode(), "NOT_FOUND"));
-            return AccountStatusReconcileOutcome.NOT_FOUND;
+            return markFailure(local, AccountStatusReconcileOutcome.NOT_FOUND);
         }
         if (result.outcome() == CorsAccountQueryOutcome.UNKNOWN) {
             log.warn("CORS account status is unknown; serviceAccountId={} corsAccountId={} errorCode={}",
                     serviceAccountId, local.getCorsAccountId(), safeErrorCode(result.errorCode(), "UNKNOWN"));
-            return AccountStatusReconcileOutcome.UNKNOWN;
+            return markFailure(local, AccountStatusReconcileOutcome.UNKNOWN);
         }
         if (result.snapshot() == null) {
             log.warn("CORS account status response is malformed; serviceAccountId={} corsAccountId={} errorCode={}",
                     serviceAccountId, local.getCorsAccountId(), "MALFORMED_RESPONSE");
-            return AccountStatusReconcileOutcome.UNKNOWN;
+            return markFailure(local, AccountStatusReconcileOutcome.UNKNOWN);
         }
 
-        CorsAccountStateApplyOutcome applyOutcome = applyService.apply(local, result.snapshot());
+        CorsAccountStateApplyOutcome applyOutcome;
+        try {
+            applyOutcome = applyService.apply(local, result.snapshot(), scheduleService.successSchedule());
+        } catch (RuntimeException exception) {
+            log.warn("CORS account snapshot apply failed; serviceAccountId={} corsAccountId={} errorCode={}",
+                    serviceAccountId, local.getCorsAccountId(), exception.getClass().getSimpleName());
+            return markFailure(local, AccountStatusReconcileOutcome.UNKNOWN);
+        }
         if (applyOutcome == CorsAccountStateApplyOutcome.INCONSISTENT) {
             log.warn("CORS account snapshot is inconsistent; serviceAccountId={} corsAccountId={} errorCode={}",
                     serviceAccountId, local.getCorsAccountId(), "SNAPSHOT_INCONSISTENT");
+            return markFailure(local, AccountStatusReconcileOutcome.INCONSISTENT);
         }
         return AccountStatusReconcileOutcome.valueOf(applyOutcome.name());
+    }
+
+    private AccountStatusReconcileOutcome markFailure(ServiceAccount local,
+                                                       AccountStatusReconcileOutcome failureOutcome) {
+        return scheduleService.markFailure(local)
+                ? failureOutcome : AccountStatusReconcileOutcome.CONCURRENT_MODIFICATION;
     }
 
     private static String safeErrorCode(String value, String fallback) {

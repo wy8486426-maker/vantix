@@ -46,6 +46,8 @@ vantix:
       fixed-delay: ${VANTIX_CORS_ACCOUNT_STATUS_SYNC_FIXED_DELAY:1m}
       stale-after: ${VANTIX_CORS_ACCOUNT_STATUS_SYNC_STALE_AFTER:10m}
       batch-size: ${VANTIX_CORS_ACCOUNT_STATUS_SYNC_BATCH_SIZE:100}
+      retry-base-delay: ${VANTIX_CORS_ACCOUNT_STATUS_SYNC_RETRY_BASE_DELAY:1m}
+      retry-max-delay: ${VANTIX_CORS_ACCOUNT_STATUS_SYNC_RETRY_MAX_DELAY:30m}
   cors-operation:
     enabled: ${VANTIX_CORS_OPERATION_ENABLED:true}
     poll-interval: ${VANTIX_CORS_OPERATION_POLL_INTERVAL:5s}

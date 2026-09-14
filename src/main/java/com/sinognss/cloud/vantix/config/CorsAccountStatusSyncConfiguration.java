@@ -2,6 +2,7 @@ package com.sinognss.cloud.vantix.config;
 
 import com.sinognss.cloud.vantix.application.cors.account.AccountStatusReconcileJob;
 import com.sinognss.cloud.vantix.application.cors.account.AccountStatusReconcileService;
+import com.sinognss.cloud.vantix.application.cors.account.AccountStatusSyncScheduleService;
 import com.sinognss.cloud.vantix.application.cors.account.CorsAccountStateApplyService;
 import com.sinognss.cloud.vantix.integration.cors.account.CorsAccountStatusGateway;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceAccountMapper;
@@ -14,8 +15,16 @@ import java.time.Clock;
 @Configuration(proxyBeanMethods = false)
 public class CorsAccountStatusSyncConfiguration {
     @Bean
-    CorsAccountStateApplyService corsAccountStateApplyService(ServiceAccountMapper accountMapper, Clock clock) {
-        return new CorsAccountStateApplyService(accountMapper, clock);
+    CorsAccountStateApplyService corsAccountStateApplyService(ServiceAccountMapper accountMapper) {
+        return new CorsAccountStateApplyService(accountMapper);
+    }
+
+    @Bean
+    @ConditionalOnProperty(prefix = "vantix.cors.account-status-sync", name = "enabled",
+            havingValue = "true")
+    AccountStatusSyncScheduleService accountStatusSyncScheduleService(
+            ServiceAccountMapper accountMapper, CorsAccountStatusSyncProperties properties, Clock clock) {
+        return new AccountStatusSyncScheduleService(accountMapper, properties, clock);
     }
 
     @Bean
@@ -23,8 +32,9 @@ public class CorsAccountStatusSyncConfiguration {
             havingValue = "true")
     AccountStatusReconcileService accountStatusReconcileService(ServiceAccountMapper accountMapper,
                                                                 CorsAccountStatusGateway gateway,
-                                                                CorsAccountStateApplyService applyService) {
-        return new AccountStatusReconcileService(accountMapper, gateway, applyService);
+                                                                CorsAccountStateApplyService applyService,
+                                                                AccountStatusSyncScheduleService scheduleService) {
+        return new AccountStatusReconcileService(accountMapper, gateway, applyService, scheduleService);
     }
 
     @Bean

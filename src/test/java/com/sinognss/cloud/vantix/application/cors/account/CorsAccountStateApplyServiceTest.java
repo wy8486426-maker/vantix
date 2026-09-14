@@ -41,7 +41,7 @@ class CorsAccountStateApplyServiceTest {
     @BeforeEach
     void setUp() {
         Clock clock = Clock.fixed(Instant.parse("2026-09-14T02:30:00Z"), ZoneId.of("Asia/Shanghai"));
-        service = new CorsAccountStateApplyService(accountMapper, clock);
+        service = new CorsAccountStateApplyService(accountMapper);
     }
 
     @Test
@@ -52,7 +52,7 @@ class CorsAccountStateApplyServiceTest {
         CorsAccountSnapshot remote = snapshot("ACTIVE", "ACTIVE", activatedAt, expireAt, SECOND_UPDATE);
         when(accountMapper.updateCorsSnapshot(any())).thenReturn(1);
 
-        CorsAccountStateApplyOutcome outcome = service.apply(local, remote);
+        CorsAccountStateApplyOutcome outcome = apply(local, remote);
 
         assertEquals(CorsAccountStateApplyOutcome.UPDATED, outcome);
         ServiceAccountCorsSnapshotUpdate update = captureUpdate();
@@ -63,6 +63,8 @@ class CorsAccountStateApplyServiceTest {
         assertEquals(CREATED_AT.toLocalDateTime(), update.corsCreatedAt());
         assertEquals(SECOND_UPDATE.toLocalDateTime(), update.corsUpdatedAt());
         assertEquals(NOW, update.lastSyncAt());
+        assertEquals(NOW, update.statusSyncLastAttemptAt());
+        assertEquals(NOW.plusMinutes(10), update.statusSyncNextAt());
         assertEquals(NOW, update.updatedAt());
         assertEquals(41L, update.id());
         assertEquals(3L, update.expectedVersion());
@@ -75,7 +77,7 @@ class CorsAccountStateApplyServiceTest {
         CorsAccountSnapshot remote = snapshot("DISABLED", "ACTIVE", at(8, 30), at(12, 0), SECOND_UPDATE);
         when(accountMapper.updateCorsSnapshot(any())).thenReturn(1);
 
-        assertEquals(CorsAccountStateApplyOutcome.UPDATED, service.apply(local, remote));
+        assertEquals(CorsAccountStateApplyOutcome.UPDATED, apply(local, remote));
         ServiceAccountCorsSnapshotUpdate update = captureUpdate();
         assertEquals("DISABLED", update.corsStatus());
         assertEquals(at(12, 0).toLocalDateTime(), update.expireAt());
@@ -86,10 +88,19 @@ class CorsAccountStateApplyServiceTest {
         ServiceAccount local = local("ACTIVE", "ACTIVE", at(8, 30).toLocalDateTime(),
                 SECOND_UPDATE.toLocalDateTime());
 
+        when(accountMapper.updateStatusSyncSuccess(any())).thenReturn(1);
+
         assertEquals(CorsAccountStateApplyOutcome.STALE_IGNORED,
-                service.apply(local, snapshot("DISABLED", "ACTIVE", at(8, 30), at(12, 0), FIRST_UPDATE)));
+                apply(local, snapshot("DISABLED", "ACTIVE", at(8, 30), at(12, 0), FIRST_UPDATE)));
 
         verify(accountMapper, never()).updateCorsSnapshot(any());
+        ArgumentCaptor<com.sinognss.cloud.vantix.infrastructure.mapper.ServiceAccountStatusSyncScheduleUpdate> captor =
+                ArgumentCaptor.forClass(com.sinognss.cloud.vantix.infrastructure.mapper.ServiceAccountStatusSyncScheduleUpdate.class);
+        verify(accountMapper).updateStatusSyncSuccess(captor.capture());
+        assertEquals(NOW, captor.getValue().lastSyncAt());
+        assertEquals(NOW, captor.getValue().lastAttemptAt());
+        assertEquals(NOW.plusMinutes(10), captor.getValue().nextAt());
+        assertEquals(0, captor.getValue().failureCount());
     }
 
     @Test
@@ -99,9 +110,11 @@ class CorsAccountStateApplyServiceTest {
         CorsAccountSnapshot remote = snapshot("ACTIVE", "ACTIVE", at(8, 30), at(11, 0), SECOND_UPDATE);
         when(accountMapper.updateCorsSnapshot(any())).thenReturn(1);
 
-        assertEquals(CorsAccountStateApplyOutcome.IDEMPOTENT_NOOP, service.apply(local, remote));
+        assertEquals(CorsAccountStateApplyOutcome.IDEMPOTENT_NOOP, apply(local, remote));
         ServiceAccountCorsSnapshotUpdate update = captureUpdate();
         assertEquals(NOW, update.lastSyncAt());
+        assertEquals(NOW, update.statusSyncLastAttemptAt());
+        assertEquals(NOW.plusMinutes(10), update.statusSyncNextAt());
         assertEquals(SECOND_UPDATE.toLocalDateTime(), update.corsUpdatedAt());
     }
 
@@ -111,7 +124,7 @@ class CorsAccountStateApplyServiceTest {
                 SECOND_UPDATE.toLocalDateTime());
 
         assertEquals(CorsAccountStateApplyOutcome.INCONSISTENT,
-                service.apply(local, snapshot("DISABLED", "ACTIVE", at(8, 30), at(11, 0), SECOND_UPDATE)));
+                apply(local, snapshot("DISABLED", "ACTIVE", at(8, 30), at(11, 0), SECOND_UPDATE)));
 
         verify(accountMapper, never()).updateCorsSnapshot(any());
     }
@@ -122,7 +135,7 @@ class CorsAccountStateApplyServiceTest {
                 FIRST_UPDATE.toLocalDateTime());
 
         assertEquals(CorsAccountStateApplyOutcome.INCONSISTENT,
-                service.apply(local, snapshot("ACTIVE", "ACTIVE", at(8, 30), at(11, 0),
+                apply(local, snapshot("ACTIVE", "ACTIVE", at(8, 30), at(11, 0),
                         SECOND_UPDATE, "another-id", "account")));
 
         verify(accountMapper, never()).updateCorsSnapshot(any());
@@ -134,7 +147,7 @@ class CorsAccountStateApplyServiceTest {
                 FIRST_UPDATE.toLocalDateTime());
 
         assertEquals(CorsAccountStateApplyOutcome.INCONSISTENT,
-                service.apply(local, snapshot("ACTIVE", "ACTIVE", at(8, 30), at(11, 0),
+                apply(local, snapshot("ACTIVE", "ACTIVE", at(8, 30), at(11, 0),
                         SECOND_UPDATE, "cors-id", "renamed-account")));
 
         verify(accountMapper, never()).updateCorsSnapshot(any());
@@ -145,7 +158,7 @@ class CorsAccountStateApplyServiceTest {
         ServiceAccount local = local("WAITING_ACTIVATION", null, null, FIRST_UPDATE.toLocalDateTime());
 
         assertEquals(CorsAccountStateApplyOutcome.INCONSISTENT,
-                service.apply(local, snapshot("ACTIVE", "ACTIVE", at(11, 0), at(10, 0), SECOND_UPDATE)));
+                apply(local, snapshot("ACTIVE", "ACTIVE", at(11, 0), at(10, 0), SECOND_UPDATE)));
 
         verify(accountMapper, never()).updateCorsSnapshot(any());
     }
@@ -156,7 +169,7 @@ class CorsAccountStateApplyServiceTest {
         when(accountMapper.updateCorsSnapshot(any())).thenReturn(0);
 
         assertEquals(CorsAccountStateApplyOutcome.CONCURRENT_MODIFICATION,
-                service.apply(local, snapshot("ACTIVE", "ACTIVE", at(9, 30), at(11, 30), SECOND_UPDATE)));
+                apply(local, snapshot("ACTIVE", "ACTIVE", at(9, 30), at(11, 30), SECOND_UPDATE)));
 
         verify(accountMapper).updateCorsSnapshot(any());
     }
@@ -174,6 +187,10 @@ class CorsAccountStateApplyServiceTest {
                         null, null, CREATED_AT, null));
     }
 
+    private CorsAccountStateApplyOutcome apply(ServiceAccount local, CorsAccountSnapshot remote) {
+        return service.apply(local, remote, new AccountStatusSyncSuccessSchedule(NOW, NOW.plusMinutes(10)));
+    }
+
     private ServiceAccountCorsSnapshotUpdate captureUpdate() {
         ArgumentCaptor<ServiceAccountCorsSnapshotUpdate> captor =
                 ArgumentCaptor.forClass(ServiceAccountCorsSnapshotUpdate.class);
@@ -188,6 +205,7 @@ class CorsAccountStateApplyServiceTest {
         account.setCorsAccountId("cors-id");
         account.setAccount("account");
         account.setVersion(3L);
+        account.setStatusSyncFailureCount(0);
         account.setCorsStatus(status);
         account.setCorsActivationStatus(activationStatus);
         account.setActivatedAt(activatedAt);
