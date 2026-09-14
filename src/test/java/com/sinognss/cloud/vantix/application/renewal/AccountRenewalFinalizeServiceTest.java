@@ -110,15 +110,77 @@ class AccountRenewalFinalizeServiceTest {
     }
 
     @Test
-    void staleIgnoredAccountSnapshotMustRollbackRatherThanCompleteRenewal() {
-        when(applyService.apply(account, snapshot, schedule)).thenReturn(CorsAccountStateApplyOutcome.STALE_IGNORED);
+    void staleIgnoredAccountSnapshotCanCompleteWhenLocalStateIsNewer() {
+        CorsAccountSnapshot staleSnapshot = snapshotWithUpdatedAt("2026-09-14T03:00:00Z");
+        ServiceAccount newerLocalState = newerLocalState();
+        stubStaleApply(staleSnapshot, newerLocalState);
+        when(codeMapper.consumeRenewalCode(CODE_ID, REQUEST_ID, CODE_VERSION, NOW)).thenReturn(1);
+        when(renewalMapper.complete(RENEWAL_ID, RENEWAL_VERSION, NOW)).thenReturn(1);
+        when(operationMapper.markSucceeded(OPERATION_ID, OPERATION_VERSION, NOW)).thenReturn(1);
+
+        finalizeService.finalizeSuccess(OPERATION_ID, OPERATION_VERSION,
+                CorsAccountRenewalResult.success(REQUEST_ID, staleSnapshot));
+
+        verify(accountMapper, org.mockito.Mockito.times(2)).selectByIdForUpdate(ACCOUNT_ID);
+        verify(codeMapper).consumeRenewalCode(CODE_ID, REQUEST_ID, CODE_VERSION, NOW);
+        verify(renewalMapper).complete(RENEWAL_ID, RENEWAL_VERSION, NOW);
+        verify(operationMapper).markSucceeded(OPERATION_ID, OPERATION_VERSION, NOW);
+    }
+
+    @Test
+    void staleIgnoredRequiresLocalUpdatedAtAtOrAfterRemoteTimeAfterZoneConversion() {
+        CorsAccountSnapshot staleSnapshot = snapshotWithUpdatedAt("2026-09-14T04:30:00Z");
+        ServiceAccount current = newerLocalState();
+        current.setCorsUpdatedAt(LocalDateTime.of(2026, 9, 14, 12, 0));
+        stubStaleApply(staleSnapshot, current);
 
         assertThrows(IllegalStateException.class,
-                () -> finalizeService.finalizeSuccess(OPERATION_ID, OPERATION_VERSION, result));
+                () -> finalizeService.finalizeSuccess(OPERATION_ID, OPERATION_VERSION,
+                        CorsAccountRenewalResult.success(REQUEST_ID, staleSnapshot)));
 
-        verify(codeMapper, never()).consumeRenewalCode(any(), any(), any(), any());
-        verify(renewalMapper, never()).complete(any(), any(), any());
-        verify(operationMapper, never()).markSucceeded(any(), any(), any());
+        verifyNoCompletion();
+    }
+
+    @Test
+    void staleIgnoredRequiresLocalUpdatedAtToBePresent() {
+        CorsAccountSnapshot staleSnapshot = snapshotWithUpdatedAt("2026-09-14T03:00:00Z");
+        ServiceAccount current = newerLocalState();
+        current.setCorsUpdatedAt(null);
+        stubStaleApply(staleSnapshot, current);
+
+        assertThrows(IllegalStateException.class,
+                () -> finalizeService.finalizeSuccess(OPERATION_ID, OPERATION_VERSION,
+                        CorsAccountRenewalResult.success(REQUEST_ID, staleSnapshot)));
+
+        verifyNoCompletion();
+    }
+
+    @Test
+    void staleIgnoredRejectsChangedCorsAccountIdentity() {
+        CorsAccountSnapshot staleSnapshot = snapshotWithUpdatedAt("2026-09-14T03:00:00Z");
+        ServiceAccount current = newerLocalState();
+        current.setCorsAccountId("different-cors-id");
+        stubStaleApply(staleSnapshot, current);
+
+        assertThrows(IllegalStateException.class,
+                () -> finalizeService.finalizeSuccess(OPERATION_ID, OPERATION_VERSION,
+                        CorsAccountRenewalResult.success(REQUEST_ID, staleSnapshot)));
+
+        verifyNoCompletion();
+    }
+
+    @Test
+    void staleIgnoredRejectsChangedAccountName() {
+        CorsAccountSnapshot staleSnapshot = snapshotWithUpdatedAt("2026-09-14T03:00:00Z");
+        ServiceAccount current = newerLocalState();
+        current.setAccount("different-account");
+        stubStaleApply(staleSnapshot, current);
+
+        assertThrows(IllegalStateException.class,
+                () -> finalizeService.finalizeSuccess(OPERATION_ID, OPERATION_VERSION,
+                        CorsAccountRenewalResult.success(REQUEST_ID, staleSnapshot)));
+
+        verifyNoCompletion();
     }
 
     @Test
@@ -208,6 +270,35 @@ class AccountRenewalFinalizeServiceTest {
         return new CorsAccountSnapshot(CORS_ACCOUNT_ID, ACCOUNT_NAME, "ENABLED", "ACTIVE",
                 time("2026-09-01T00:00:00+08:00"), time("2027-01-01T00:00:00+08:00"),
                 time("2026-08-01T00:00:00+08:00"), time("2026-09-14T12:00:00+08:00"));
+    }
+
+    private static CorsAccountSnapshot snapshotWithUpdatedAt(String updatedAt) {
+        return new CorsAccountSnapshot(CORS_ACCOUNT_ID, ACCOUNT_NAME, "ENABLED", "ACTIVE",
+                time("2026-09-01T00:00:00+08:00"), time("2027-01-01T00:00:00+08:00"),
+                time("2026-08-01T00:00:00+08:00"), OffsetDateTime.parse(updatedAt));
+    }
+
+    private ServiceAccount newerLocalState() {
+        ServiceAccount current = account();
+        current.setCorsStatus("ENABLED");
+        current.setCorsActivationStatus("ACTIVE");
+        current.setActivatedAt(LocalDateTime.of(2026, 9, 1, 0, 0));
+        current.setExpireAt(LocalDateTime.of(2031, 2, 1, 0, 0));
+        current.setCorsUpdatedAt(LocalDateTime.of(2026, 9, 14, 12, 0));
+        current.setVersion(3L);
+        return current;
+    }
+
+    private void stubStaleApply(CorsAccountSnapshot staleSnapshot, ServiceAccount current) {
+        when(applyService.apply(account, staleSnapshot, schedule))
+                .thenReturn(CorsAccountStateApplyOutcome.STALE_IGNORED);
+        when(accountMapper.selectByIdForUpdate(ACCOUNT_ID)).thenReturn(account, current);
+    }
+
+    private void verifyNoCompletion() {
+        verify(codeMapper, never()).consumeRenewalCode(any(), any(), any(), any());
+        verify(renewalMapper, never()).complete(any(), any(), any());
+        verify(operationMapper, never()).markSucceeded(any(), any(), any());
     }
 
     private static OffsetDateTime time(String value) {

@@ -21,8 +21,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
 
 public class AccountRenewalFinalizeService {
+    private static final ZoneId CORS_ZONE = ZoneId.of("Asia/Shanghai");
+
     private final CorsOperationMapper operationMapper;
     private final AccountRenewalMapper renewalMapper;
     private final ServiceAccountMapper accountMapper;
@@ -78,7 +82,9 @@ public class AccountRenewalFinalizeService {
 
         CorsAccountStateApplyOutcome applyOutcome = applyService.apply(
                 account, result.account(), scheduleService.successSchedule());
-        if (applyOutcome != CorsAccountStateApplyOutcome.UPDATED
+        if (applyOutcome == CorsAccountStateApplyOutcome.STALE_IGNORED) {
+            verifyNewerLocalSnapshot(operation, renewal, account, result.account());
+        } else if (applyOutcome != CorsAccountStateApplyOutcome.UPDATED
                 && applyOutcome != CorsAccountStateApplyOutcome.IDEMPOTENT_NOOP) {
             throw new IllegalStateException("CORS account snapshot could not be applied during renewal finalize");
         }
@@ -154,6 +160,34 @@ public class AccountRenewalFinalizeService {
                 && code.getProcessingType() == ProcessingType.RENEWAL
                 && renewal.getRequestId() != null
                 && renewal.getRequestId().equals(code.getProcessingRequestId());
+    }
+
+    private void verifyNewerLocalSnapshot(CorsOperation operation, AccountRenewal renewal,
+                                          ServiceAccount original, CorsAccountSnapshot remote) {
+        ServiceAccount current = accountMapper.selectByIdForUpdate(renewal.getServiceAccountId());
+        if (!hasAccountIdentity(operation, renewal, current)
+                || !same(original.getCorsAccountId(), current.getCorsAccountId())
+                || !same(original.getAccount(), current.getAccount())
+                || current.getCorsUpdatedAt() == null) {
+            throw new IllegalStateException("Newer local CORS account snapshot identity is invalid");
+        }
+
+        LocalDateTime remoteUpdatedAt = toCorsLocalDateTime(remote.updatedAt());
+        if (current.getCorsUpdatedAt().isBefore(remoteUpdatedAt)) {
+            throw new IllegalStateException("Local CORS account snapshot is older than renewal success response");
+        }
+        if (blank(current.getCorsStatus()) || blank(current.getCorsActivationStatus())
+                || (current.getActivatedAt() != null && current.getExpireAt() != null
+                && current.getActivatedAt().isAfter(current.getExpireAt()))
+                || ("ACTIVE".equals(current.getCorsActivationStatus())
+                && (current.getActivatedAt() == null || current.getExpireAt() == null
+                || current.getActivatedAt().isAfter(current.getExpireAt())))) {
+            throw new IllegalStateException("Newer local CORS account state is invalid");
+        }
+    }
+
+    private static LocalDateTime toCorsLocalDateTime(OffsetDateTime value) {
+        return value == null ? null : value.atZoneSameInstant(CORS_ZONE).toLocalDateTime();
     }
 
     private static boolean same(String left, String right) {
