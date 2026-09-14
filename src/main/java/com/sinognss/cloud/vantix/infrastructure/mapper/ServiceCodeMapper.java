@@ -29,6 +29,9 @@ public interface ServiceCodeMapper extends BaseMapper<ServiceCode> {
     @Select("SELECT * FROM service_code WHERE generate_batch_id = #{batchId} ORDER BY id")
     List<ServiceCode> selectByGenerateBatchId(@Param("batchId") Long batchId);
 
+    @Select("SELECT * FROM service_code WHERE id = #{id} FOR UPDATE")
+    ServiceCode selectByIdForUpdate(@Param("id") Long id);
+
     @Select("SELECT code.* FROM service_code code "
             + "JOIN service_code_generate_batch batch ON batch.id = code.generate_batch_id "
             + "WHERE code.owner_company_id = #{companyId} AND code.status = 'PENDING' "
@@ -69,5 +72,30 @@ public interface ServiceCodeMapper extends BaseMapper<ServiceCode> {
             "</script>"})
     int releaseExchangeCodes(@Param("ids") List<Long> ids, @Param("requestId") String requestId,
                              @Param("now") LocalDateTime now);
+
+    @Update("UPDATE service_code SET status = 'PROCESSING', processing_type = 'RENEWAL', "
+            + "processing_request_id = #{requestId}, version = version + 1, updated_at = #{now} "
+            + "WHERE id = #{id} AND owner_company_id = #{companyId} AND status = 'PENDING' "
+            + "AND expire_at > #{now} AND version = #{expectedVersion}")
+    int reserveForRenewal(@Param("id") Long id, @Param("companyId") Long companyId,
+                          @Param("requestId") String requestId, @Param("expectedVersion") Long expectedVersion,
+                          @Param("now") LocalDateTime now);
+
+    @Update("UPDATE service_code SET status = 'PENDING', processing_type = NULL, "
+            + "processing_request_id = NULL, version = version + 1, updated_at = #{now} "
+            + "WHERE id = #{id} AND status = 'PROCESSING' AND processing_type = 'RENEWAL' "
+            + "AND processing_request_id = #{requestId} AND version = #{expectedVersion}")
+    int releaseRenewalCode(@Param("id") Long id, @Param("requestId") String requestId,
+                           @Param("expectedVersion") Long expectedVersion,
+                           @Param("now") LocalDateTime now);
+
+    @Update("UPDATE service_code SET status = 'CONSUMED', processing_type = NULL, "
+            + "processing_request_id = NULL, consume_type = 'RENEWAL', consumed_at = #{now}, "
+            + "version = version + 1, updated_at = #{now} "
+            + "WHERE id = #{id} AND status = 'PROCESSING' AND processing_type = 'RENEWAL' "
+            + "AND processing_request_id = #{requestId} AND version = #{expectedVersion}")
+    int consumeRenewalCode(@Param("id") Long id, @Param("requestId") String requestId,
+                           @Param("expectedVersion") Long expectedVersion,
+                           @Param("now") LocalDateTime now);
 
 }
