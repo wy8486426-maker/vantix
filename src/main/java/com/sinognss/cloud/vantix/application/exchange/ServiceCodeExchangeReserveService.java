@@ -83,11 +83,12 @@ public class ServiceCodeExchangeReserveService {
         validateMaxQuantity(command);
         UserScope scope = userHolder.getUserScope();
         assertCompanyAccess(scope, command.companyId());
+        Long assignedUserId = effectiveAssignedUserId(scope);
 
-        String payloadHash = ExchangePayloadHash.calculate(command);
+        String payloadHash = ExchangePayloadHash.calculate(command, assignedUserId);
         ExchangeBatch existing = batchMapper.selectByRequestId(command.requestId());
         if (existing != null) {
-            verifyPayload(existing, payloadHash);
+            verifyPayload(existing, payloadHash, assignedUserId);
             CorsOperation operation = operationMapper.selectByBusiness(BIZ_TYPE, existing.getId());
             return new ExchangeReservation(existing.getId(), operation == null ? null : operation.getId(), false);
         }
@@ -109,7 +110,8 @@ public class ServiceCodeExchangeReserveService {
 
         LocalDateTime now = LocalDateTime.now(clock);
         OperatorIdentity operator = userHolder.getOperator();
-        ExchangeBatch batch = createBatch(command, spec, accountConfig, operator, payloadHash, now);
+        ExchangeBatch batch = createBatch(command, spec, accountConfig, operator,
+                payloadHash, assignedUserId, now);
         /*
          * Claim the requestId before locking any service codes. A concurrent retry with
          * the same requestId waits on this unique key, then reads the committed batch
@@ -125,7 +127,6 @@ public class ServiceCodeExchangeReserveService {
         }
         validateSnapshots(codes, spec);
 
-        Long assignedUserId = scope.type() == UserScope.Type.PERSONAL ? scope.userId() : null;
         List<ExchangeDetail> details = new ArrayList<>(codes.size());
         for (int index = 0; index < codes.size(); index++) {
             ServiceCode code = codes.get(index);
@@ -179,11 +180,12 @@ public class ServiceCodeExchangeReserveService {
         validateMaxQuantity(command);
         UserScope scope = userHolder.getUserScope();
         assertCompanyAccess(scope, command.companyId());
+        Long assignedUserId = effectiveAssignedUserId(scope);
         ExchangeBatch batch = batchMapper.selectByRequestId(command.requestId());
         if (batch == null) {
             return null;
         }
-        verifyPayload(batch, ExchangePayloadHash.calculate(command));
+        verifyPayload(batch, ExchangePayloadHash.calculate(command, assignedUserId), assignedUserId);
         CorsOperation operation = operationMapper.selectByBusiness(BIZ_TYPE, batch.getId());
         return new ExchangeReservation(batch.getId(), operation == null ? null : operation.getId(), false);
     }
@@ -215,11 +217,12 @@ public class ServiceCodeExchangeReserveService {
 
     private ExchangeBatch createBatch(ServiceCodeExchangeCommand command, ServiceDurationConfig spec,
                                       AccountConfig accountConfig, OperatorIdentity operator,
-                                      String payloadHash, LocalDateTime now) {
+                                      String payloadHash, Long assignedUserId, LocalDateTime now) {
         ExchangeBatch batch = new ExchangeBatch();
         batch.setExchangeBatchNo("EX-" + UUID.randomUUID().toString().replace("-", "").toUpperCase());
         batch.setRequestId(command.requestId());
         batch.setOwnerCompanyId(command.companyId());
+        batch.setAssignedUserId(assignedUserId);
         batch.setGenerationSource(command.generationSource().name());
         batch.setSpecCode(command.specCode());
         batch.setServiceType(spec.getServiceType());
@@ -258,8 +261,9 @@ public class ServiceCodeExchangeReserveService {
         }
     }
 
-    private static void verifyPayload(ExchangeBatch existing, String payloadHash) {
-        if (!payloadHash.equals(existing.getPayloadHash())) {
+    private static void verifyPayload(ExchangeBatch existing, String payloadHash, Long assignedUserId) {
+        if (!java.util.Objects.equals(assignedUserId, existing.getAssignedUserId())
+                || !payloadHash.equals(existing.getPayloadHash())) {
             throw new BusinessException(ErrorCode.EXCHANGE_IDEMPOTENCY_CONFLICT,
                     "requestId 已用于不同的兑换参数");
         }
@@ -269,6 +273,10 @@ public class ServiceCodeExchangeReserveService {
         if (!scope.canAccessCompany(companyId)) {
             throw new BusinessException(ErrorCode.SERVICE_CODE_NOT_OWNED, "无权兑换该公司的服务码");
         }
+    }
+
+    private static Long effectiveAssignedUserId(UserScope scope) {
+        return scope.type() == UserScope.Type.PERSONAL ? scope.userId() : null;
     }
 
     private static boolean hasControl(String value) {

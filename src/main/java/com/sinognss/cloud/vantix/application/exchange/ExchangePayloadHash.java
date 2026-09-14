@@ -9,7 +9,7 @@ import java.util.HexFormat;
 final class ExchangePayloadHash {
     private ExchangePayloadHash() { }
 
-    static String calculate(ServiceCodeExchangeCommand command) {
+    static String calculate(ServiceCodeExchangeCommand command, Long effectiveAssignedUserId) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             update(digest, command.companyId() == null ? null : command.companyId().toString());
@@ -17,6 +17,7 @@ final class ExchangePayloadHash {
             update(digest, command.generationSource() == null ? null : command.generationSource().name());
             update(digest, command.quantity() == null ? null : command.quantity().toString());
             update(digest, command.accountPrefix());
+            update(digest, effectiveAssignedUserId == null ? null : effectiveAssignedUserId.toString());
             return HexFormat.of().formatHex(digest.digest());
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("SHA-256 is unavailable", exception);

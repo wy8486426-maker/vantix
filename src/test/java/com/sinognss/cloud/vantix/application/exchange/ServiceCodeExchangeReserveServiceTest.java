@@ -94,19 +94,20 @@ class ServiceCodeExchangeReserveServiceTest {
     @Test
     void payloadHashIsStableAndIncludesEveryPayloadFieldButNotRequestId() {
         ServiceCodeExchangeCommand command = command("one", 3, "acct");
-        String hash = ExchangePayloadHash.calculate(command);
+        String hash = ExchangePayloadHash.calculate(command, null);
+        assertNotEquals(hash, ExchangePayloadHash.calculate(command, 88L));
 
-        assertEquals(hash, ExchangePayloadHash.calculate(command("different-request", 3, "acct")));
+        assertEquals(hash, ExchangePayloadHash.calculate(command("different-request", 3, "acct"), null));
         assertNotEquals(hash, ExchangePayloadHash.calculate(
-                new ServiceCodeExchangeCommand("one", 2L, "SPEC-1", GenerationSource.B2B, 3, "acct")));
+                new ServiceCodeExchangeCommand("one", 2L, "SPEC-1", GenerationSource.B2B, 3, "acct"), null));
         assertNotEquals(hash, ExchangePayloadHash.calculate(
-                new ServiceCodeExchangeCommand("one", 1L, "SPEC-2", GenerationSource.B2B, 3, "acct")));
+                new ServiceCodeExchangeCommand("one", 1L, "SPEC-2", GenerationSource.B2B, 3, "acct"), null));
         assertNotEquals(hash, ExchangePayloadHash.calculate(
-                new ServiceCodeExchangeCommand("one", 1L, "SPEC-1", GenerationSource.OFFLINE, 3, "acct")));
+                new ServiceCodeExchangeCommand("one", 1L, "SPEC-1", GenerationSource.OFFLINE, 3, "acct"), null));
         assertNotEquals(hash, ExchangePayloadHash.calculate(
-                new ServiceCodeExchangeCommand("one", 1L, "SPEC-1", GenerationSource.B2B, 4, "acct")));
+                new ServiceCodeExchangeCommand("one", 1L, "SPEC-1", GenerationSource.B2B, 4, "acct"), null));
         assertNotEquals(hash, ExchangePayloadHash.calculate(
-                new ServiceCodeExchangeCommand("one", 1L, "SPEC-1", GenerationSource.B2B, 3, "other")));
+                new ServiceCodeExchangeCommand("one", 1L, "SPEC-1", GenerationSource.B2B, 3, "other"), null));
     }
 
     @Test
@@ -114,7 +115,7 @@ class ServiceCodeExchangeReserveServiceTest {
         ServiceCodeExchangeCommand command = command("stable-request", 2, null);
         ExchangeBatch existing = new ExchangeBatch();
         existing.setId(41L);
-        existing.setPayloadHash(ExchangePayloadHash.calculate(command));
+        existing.setPayloadHash(ExchangePayloadHash.calculate(command, null));
         CorsOperation operation = new CorsOperation();
         operation.setId(52L);
         when(batchMapper.selectByRequestId("stable-request")).thenReturn(existing);
@@ -134,7 +135,7 @@ class ServiceCodeExchangeReserveServiceTest {
         ServiceCodeExchangeCommand original = command("reused-request", 2, "a");
         ExchangeBatch existing = new ExchangeBatch();
         existing.setId(41L);
-        existing.setPayloadHash(ExchangePayloadHash.calculate(original));
+        existing.setPayloadHash(ExchangePayloadHash.calculate(original, null));
         when(batchMapper.selectByRequestId("reused-request")).thenReturn(existing);
 
         BusinessException exception = assertThrows(BusinessException.class,
@@ -212,6 +213,54 @@ class ServiceCodeExchangeReserveServiceTest {
                 any(), eq(3));
     }
 
+    @Test
+    void personalReservationFreezesOwnershipAndRejectsSameCompanyDifferentUserRetry() throws Exception {
+        ServiceCodeExchangeCommand command = command("personal-request", 1, null);
+        when(userHolder.getUserScope()).thenReturn(new UserScope(88L, 1L));
+        when(serviceCodeMapper.selectAvailableForExchange(eq(1L), eq("SPEC-1"), eq("B2B"), any(), eq(1)))
+                .thenReturn(List.of(code(101L, LocalDateTime.of(2026, 2, 1, 0, 0))));
+
+        assertTrue(service.reserve(command).created());
+
+        ArgumentCaptor<ExchangeBatch> batchCaptor = ArgumentCaptor.forClass(ExchangeBatch.class);
+        verify(batchMapper).insert(batchCaptor.capture());
+        ExchangeBatch batch = batchCaptor.getValue();
+        assertEquals(88L, batch.getAssignedUserId());
+        assertEquals(ExchangePayloadHash.calculate(command, 88L), batch.getPayloadHash());
+
+        ArgumentCaptor<List<ExchangeDetail>> detailCaptor = ArgumentCaptor.forClass(List.class);
+        verify(detailMapper).insertBatch(detailCaptor.capture());
+        ExchangeCodeSnapshot snapshot = objectMapper.readValue(
+                detailCaptor.getValue().get(0).getServiceCodeSnapshot(), ExchangeCodeSnapshot.class);
+        assertEquals(batch.getAssignedUserId(), snapshot.assignedUserId());
+
+        when(batchMapper.selectByRequestId("personal-request")).thenReturn(batch);
+        when(userHolder.getUserScope()).thenReturn(new UserScope(89L, 1L));
+        BusinessException reserveException = assertThrows(BusinessException.class,
+                () -> service.reserve(command));
+        assertEquals(ErrorCode.EXCHANGE_IDEMPOTENCY_CONFLICT, reserveException.getVantixErrorCode());
+        BusinessException lookupException = assertThrows(BusinessException.class,
+                () -> service.findExisting(command));
+        assertEquals(ErrorCode.EXCHANGE_IDEMPOTENCY_CONFLICT, lookupException.getVantixErrorCode());
+        verify(serviceCodeMapper, times(1)).selectAvailableForExchange(eq(1L), eq("SPEC-1"),
+                eq("B2B"), any(), eq(1));
+    }
+
+    @Test
+    void companyAndGlobalReservationsKeepBatchAssignedUserNull() {
+        when(serviceCodeMapper.selectAvailableForExchange(eq(1L), eq("SPEC-1"), eq("B2B"), any(), eq(1)))
+                .thenReturn(List.of(code(101L, LocalDateTime.of(2026, 2, 1, 0, 0))));
+        when(userHolder.getUserScope()).thenReturn(new UserScope(null, 1L));
+        assertTrue(service.reserve(command("company-request", 1, null)).created());
+
+        when(userHolder.getUserScope()).thenReturn(new UserScope(null, null));
+        assertTrue(service.reserve(command("global-request", 1, null)).created());
+
+        ArgumentCaptor<ExchangeBatch> batchCaptor = ArgumentCaptor.forClass(ExchangeBatch.class);
+        verify(batchMapper, times(2)).insert(batchCaptor.capture());
+        assertTrue(batchCaptor.getAllValues().stream()
+                .allMatch(batch -> batch.getAssignedUserId() == null));
+    }
     private ServiceCodeExchangeCommand command(String requestId, int quantity, String prefix) {
         return new ServiceCodeExchangeCommand(requestId, 1L, "SPEC-1",
                 GenerationSource.B2B, quantity, prefix);

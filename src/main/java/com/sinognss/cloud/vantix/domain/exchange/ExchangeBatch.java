@@ -13,6 +13,7 @@ public class ExchangeBatch {
     private String exchangeBatchNo;
     private String requestId;
     private Long ownerCompanyId;
+    private Long assignedUserId;
     private String generationSource;
     private String specCode;
     private String serviceType;
@@ -39,6 +40,8 @@ public class ExchangeBatch {
     public void setRequestId(String requestId) { this.requestId = requestId; }
     public Long getOwnerCompanyId() { return ownerCompanyId; }
     public void setOwnerCompanyId(Long ownerCompanyId) { this.ownerCompanyId = ownerCompanyId; }
+    public Long getAssignedUserId() { return assignedUserId; }
+    public void setAssignedUserId(Long assignedUserId) { this.assignedUserId = assignedUserId; }
     public String getGenerationSource() { return generationSource; }
     public void setGenerationSource(String generationSource) { this.generationSource = generationSource; }
     public String getSpecCode() { return specCode; }

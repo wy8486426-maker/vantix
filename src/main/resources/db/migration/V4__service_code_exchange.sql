@@ -21,6 +21,7 @@ ALTER TABLE exchange_batch
     ADD COLUMN account_prefix VARCHAR(64) NULL AFTER quantity,
     ADD COLUMN payload_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL AFTER account_prefix,
     ADD COLUMN account_silence_months INT NOT NULL AFTER payload_hash,
+    ADD COLUMN assigned_user_id BIGINT NULL AFTER account_silence_months,
     ADD COLUMN operator_user_id BIGINT NULL AFTER status,
     ADD COLUMN operator_user_name VARCHAR(128) NULL AFTER operator_user_id,
     ADD COLUMN last_error_code VARCHAR(64) NULL AFTER operator_user_name,
@@ -30,6 +31,7 @@ ALTER TABLE exchange_batch
 
 ALTER TABLE exchange_detail
     DROP INDEX uk_exchange_detail_request,
+    DROP INDEX uk_exchange_detail_code,
     ADD COLUMN detail_index INT NOT NULL AFTER exchange_batch_id,
     ADD COLUMN service_code_snapshot JSON NOT NULL AFTER detail_index,
     ADD COLUMN cors_account_id VARCHAR(128) NULL AFTER service_code_snapshot,
@@ -38,7 +40,22 @@ ALTER TABLE exchange_detail
     ADD COLUMN last_error_code VARCHAR(64) NULL AFTER completed_at,
     ADD COLUMN last_error_message VARCHAR(1024) NULL AFTER last_error_code,
     ADD COLUMN updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) AFTER created_at,
+    ADD COLUMN active_service_code_id BIGINT GENERATED ALWAYS AS (
+        CASE
+            WHEN status IN ('PROCESSING', 'COMPLETED') THEN service_code_id
+            ELSE NULL
+        END
+    ) STORED,
+    ADD KEY idx_exchange_detail_code (service_code_id),
+    ADD UNIQUE KEY uk_exchange_detail_active_code (active_service_code_id),
     ADD UNIQUE KEY uk_exchange_detail_batch_index (exchange_batch_id, detail_index);
+
+ALTER TABLE cors_operation
+    ADD KEY idx_cors_operation_due
+        (operation_type, biz_type, status, next_retry_at, created_at, id),
+    ADD KEY idx_cors_operation_claimed
+        (operation_type, biz_type, status, claimed_at, id),
+    ADD UNIQUE KEY uk_cors_operation_biz (biz_type, biz_id);
 
 ALTER TABLE service_account
     ADD COLUMN exchange_detail_id BIGINT NULL AFTER exchange_batch_id,

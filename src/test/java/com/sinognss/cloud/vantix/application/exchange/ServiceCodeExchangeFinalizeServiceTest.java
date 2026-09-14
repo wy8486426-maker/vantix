@@ -58,7 +58,7 @@ class ServiceCodeExchangeFinalizeServiceTest {
                 new ExchangeCodeSnapshot(101L, "CODE-101", 7L, 55L, "PRO", 1, "MONTH", 12,
                         LocalDateTime.of(2027, 1, 1, 0, 0)));
         secondDetail = detail(102L, 1002L, 2,
-                new ExchangeCodeSnapshot(102L, "CODE-102", 7L, 56L, "PRO", 1, "MONTH", 12,
+                new ExchangeCodeSnapshot(102L, "CODE-102", 7L, 55L, "PRO", 1, "MONTH", 12,
                         LocalDateTime.of(2027, 1, 1, 0, 0)));
         when(operationMapper.selectById(41L)).thenReturn(operation);
         when(batchMapper.selectByRequestIdForUpdate("request-1")).thenReturn(batch);
@@ -167,6 +167,7 @@ class ServiceCodeExchangeFinalizeServiceTest {
         batch.setId(9L);
         batch.setRequestId("request-1");
         batch.setOwnerCompanyId(7L);
+        batch.setAssignedUserId(55L);
         batch.setQuantity(2);
         batch.setAccountSilenceMonths(12);
         batch.setStatus(ExchangeStatus.PROCESSING);

@@ -88,7 +88,8 @@ public class ServiceCodeExchangeFinalizeService {
             CorsCreatedAccount cors = corsAccounts.get(i);
             ExchangeCodeSnapshot snapshot = deserialize(detail.getServiceCodeSnapshot());
             if (!detail.getServiceCodeId().equals(snapshot.serviceCodeId())
-                    || !batch.getOwnerCompanyId().equals(snapshot.ownerCompanyId())) {
+                    || !batch.getOwnerCompanyId().equals(snapshot.ownerCompanyId())
+                    || !java.util.Objects.equals(batch.getAssignedUserId(), snapshot.assignedUserId())) {
                 throw new BusinessException(ErrorCode.EXCHANGE_STATE_INCONSISTENT,
                         "兑换明细快照与批次不匹配");
             }
@@ -202,7 +203,7 @@ public class ServiceCodeExchangeFinalizeService {
         account.setCorsAccountId(cors.accountId());
         account.setAccount(cors.account());
         account.setOwnerCompanyId(snapshot.ownerCompanyId());
-        account.setAssignedUserId(snapshot.assignedUserId());
+        account.setAssignedUserId(batch.getAssignedUserId());
         account.setSourceServiceCodeId(detail.getServiceCodeId());
         account.setExchangeBatchId(batch.getId());
         account.setExchangeDetailId(detail.getId());

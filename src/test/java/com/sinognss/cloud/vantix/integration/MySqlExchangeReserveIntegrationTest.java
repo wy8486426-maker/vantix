@@ -4,6 +4,7 @@ import com.sinognss.cloud.base.dto.UserCacheDTO;
 import com.sinognss.cloud.base.filter.UserHolder;
 import com.sinognss.cloud.vantix.application.cors.CorsOperationRetryJob;
 import com.sinognss.cloud.vantix.application.exchange.ExchangeReservation;
+import com.sinognss.cloud.vantix.application.exchange.ExchangeQueryService;
 import com.sinognss.cloud.vantix.application.exchange.ServiceCodeExchangeCommand;
 import com.sinognss.cloud.vantix.application.exchange.ServiceCodeExchangeReserveService;
 import com.sinognss.cloud.vantix.application.exchange.ServiceCodeExchangeService;
@@ -40,6 +41,8 @@ import java.util.concurrent.Future;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
@@ -61,6 +64,9 @@ class MySqlExchangeReserveIntegrationTest {
 
     @Autowired
     private ServiceCodeExchangeReserveService reserveService;
+
+    @Autowired
+    private ExchangeQueryService queryService;
 
     @Autowired
     private ServiceCodeExchangeService exchangeService;
@@ -214,6 +220,68 @@ class MySqlExchangeReserveIntegrationTest {
                 "SELECT status FROM cors_operation WHERE request_id = ?", String.class, requestId));
     }
 
+    @Test
+    void definitiveRejectAllowsSameServiceCodeToBeReservedByANewRequest() {
+        LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Shanghai"));
+        insertGeneration("B2B", 1004L, "B2B-REUSE-ORDER", "B2B-REUSE-BATCH", 1);
+        long serviceCodeId = insertCodes("REUSE-CODE-", 1004L, 1, now.plusMonths(6)).get(0);
+        setGlobalUser();
+
+        when(corsGateway.createBatch(any(CorsBatchCreateRequest.class))).thenReturn(
+                CorsBatchResult.outcome(CorsOutcome.DEFINITIVE_REJECT, "REUSE-REQ-A",
+                        "INVALID_ARGUMENT", "invalid prefix"),
+                CorsBatchResult.outcome(CorsOutcome.UNKNOWN, "REUSE-REQ-B", "TIMEOUT", "unknown"));
+
+        ServiceCodeExchangeView rejected = exchangeService.exchange(new ServiceCodeExchangeCommand(
+                "REUSE-REQ-A", COMPANY_ID, SPEC_CODE, GenerationSource.B2B, 1, null));
+
+        assertEquals("FAILED", rejected.status());
+        assertEquals("FAILED", jdbc.queryForObject(
+                "SELECT status FROM exchange_detail WHERE request_id = 'REUSE-REQ-A'", String.class));
+        assertEquals("FAILED", jdbc.queryForObject(
+                "SELECT status FROM cors_operation WHERE request_id = 'REUSE-REQ-A'", String.class));
+        assertEquals("PENDING", jdbc.queryForObject(
+                "SELECT status FROM service_code WHERE id = ?", String.class, serviceCodeId));
+        assertNull(jdbc.queryForObject(
+                "SELECT active_service_code_id FROM exchange_detail WHERE request_id = 'REUSE-REQ-A'", Long.class));
+
+        ServiceCodeExchangeView retried = exchangeService.exchange(new ServiceCodeExchangeCommand(
+                "REUSE-REQ-B", COMPANY_ID, SPEC_CODE, GenerationSource.B2B, 1, null));
+
+        assertEquals("PROCESSING", retried.status());
+        assertEquals("PROCESSING", jdbc.queryForObject(
+                "SELECT status FROM service_code WHERE id = ?", String.class, serviceCodeId));
+        assertEquals("FAILED", jdbc.queryForObject(
+                "SELECT status FROM exchange_detail WHERE request_id = 'REUSE-REQ-A'", String.class));
+        assertEquals("PROCESSING", jdbc.queryForObject(
+                "SELECT status FROM exchange_detail WHERE request_id = 'REUSE-REQ-B'", String.class));
+        assertEquals(serviceCodeId, jdbc.queryForObject(
+                "SELECT active_service_code_id FROM exchange_detail WHERE request_id = 'REUSE-REQ-B'", Long.class));
+        assertEquals(2, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM exchange_detail WHERE service_code_id = ?", Integer.class, serviceCodeId));
+    }
+
+    @Test
+    void personalReservationPersistsOwnerAndHidesBatchFromAnotherUserInSameCompany() {
+        LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Shanghai"));
+        insertGeneration("B2B", 1005L, "B2B-PERSONAL-ORDER", "B2B-PERSONAL-BATCH", 1);
+        insertCodes("PERSONAL-CODE-", 1005L, 1, now.plusMonths(6));
+        setPersonalUser(88L);
+
+        reserveService.reserve(new ServiceCodeExchangeCommand(
+                "PERSONAL-OWNERSHIP", COMPANY_ID, SPEC_CODE, GenerationSource.B2B, 1, null));
+
+        Long assignedUserId = jdbc.queryForObject(
+                "SELECT assigned_user_id FROM exchange_batch WHERE request_id = ?", Long.class,
+                "PERSONAL-OWNERSHIP");
+        assertEquals(88L, assignedUserId);
+        assertEquals("PROCESSING", queryService.get("PERSONAL-OWNERSHIP").status());
+
+        setPersonalUser(89L);
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> queryService.get("PERSONAL-OWNERSHIP"));
+        assertEquals(ErrorCode.SERVICE_CODE_NOT_OWNED, exception.getVantixErrorCode());
+    }
     private ReserveAttempt reserveInWorker(CountDownLatch start, String requestId,
                                            GenerationSource source, int quantity) throws InterruptedException {
         start.await();
@@ -279,6 +347,14 @@ class MySqlExchangeReserveIntegrationTest {
         UserHolder.setUser(user);
     }
 
+    private void setPersonalUser(long userId) {
+        UserCacheDTO user = new UserCacheDTO();
+        user.setUserId(userId);
+        user.setUserNickname("personal-integration-user-" + userId);
+        user.setCompanyId(COMPANY_ID);
+        user.setDataType(3);
+        UserHolder.setUser(user);
+    }
     private record ReserveAttempt(boolean success, ErrorCode errorCode, ExchangeReservation reservation) {
     }
 }
