@@ -3,7 +3,9 @@ package com.sinognss.cloud.vantix.config;
 import com.sinognss.cloud.vantix.application.cors.account.AccountStatusSyncScheduleService;
 import com.sinognss.cloud.vantix.application.cors.account.CorsAccountRealtimeRefreshService;
 import com.sinognss.cloud.vantix.application.cors.account.CorsAccountStateApplyService;
+import com.sinognss.cloud.vantix.application.cors.account.CorsRealtimeRefreshCoordinator;
 import com.sinognss.cloud.vantix.infrastructure.cors.redis.CorsRedisMessageListener;
+import com.sinognss.cloud.vantix.infrastructure.cors.redis.ResilientCorsRedisMessageListenerContainer;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceAccountMapper;
 import com.sinognss.cloud.vantix.integration.cors.account.CorsUserInfoRepository;
 import com.sinognss.cloud.vantix.integration.cors.account.CorsUserInfoSnapshotMapper;
@@ -13,6 +15,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceClientConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
@@ -21,6 +24,7 @@ import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 @Configuration(proxyBeanMethods = false)
@@ -54,6 +58,11 @@ public class CorsRedisConfiguration {
                 new ThreadPoolExecutor.AbortPolicy());
     }
 
+    @Bean(destroyMethod = "shutdown")
+    ScheduledThreadPoolExecutor corsRedisConfirmationScheduler() {
+        return new ScheduledThreadPoolExecutor(1);
+    }
+
     @Bean
     CorsAccountRealtimeRefreshService corsAccountRealtimeRefreshService(
             ServiceAccountMapper accountMapper, CorsUserInfoRepository repository,
@@ -66,16 +75,24 @@ public class CorsRedisConfiguration {
     @Bean
     CorsRedisMessageListener corsRedisMessageListener(
             com.fasterxml.jackson.databind.ObjectMapper objectMapper,
+            CorsRealtimeRefreshCoordinator coordinator) {
+        return new CorsRedisMessageListener(objectMapper, coordinator);
+    }
+
+    @Bean
+    CorsRealtimeRefreshCoordinator corsRealtimeRefreshCoordinator(
             CorsAccountRealtimeRefreshService refreshService,
-            ThreadPoolExecutor workers) {
-        return new CorsRedisMessageListener(objectMapper, refreshService, workers);
+            @Qualifier("corsRedisRefreshWorkers") ThreadPoolExecutor workers,
+            ScheduledThreadPoolExecutor confirmationScheduler, CorsRedisProperties properties) {
+        return new CorsRealtimeRefreshCoordinator(refreshService, workers, confirmationScheduler, properties);
     }
 
     @Bean(destroyMethod = "stop")
-    RedisMessageListenerContainer corsRedisMessageListenerContainer(
+    ResilientCorsRedisMessageListenerContainer corsRedisMessageListenerContainer(
             LettuceConnectionFactory connectionFactory, CorsRedisProperties properties,
             CorsRedisMessageListener listener) {
-        RedisMessageListenerContainer container = new RedisMessageListenerContainer();
+        ResilientCorsRedisMessageListenerContainer container =
+                new ResilientCorsRedisMessageListenerContainer(properties.getRecoveryInterval().toMillis());
         container.setConnectionFactory(connectionFactory);
         container.setRecoveryInterval(properties.getRecoveryInterval().toMillis());
         container.addMessageListener(listener, new ChannelTopic(properties.getChannel()));

@@ -32,16 +32,16 @@ public class CorsAccountRealtimeRefreshService {
     }
 
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
-    public CorsAccountStateApplyOutcome refresh(String userName, String action) {
+    public CorsAccountRealtimeRefreshOutcome refresh(String userName, String action) {
         ServiceAccount local = accountMapper.selectForCorsRealtimeRefreshByAccount(userName);
         if (local == null) {
             log.warn("CORS realtime refresh skipped; errorCode=LOCAL_ACCOUNT_NOT_FOUND");
-            return CorsAccountStateApplyOutcome.INCONSISTENT;
+            return CorsAccountRealtimeRefreshOutcome.LOCAL_NOT_FOUND;
         }
         if (!userName.equals(local.getAccount())) {
             log.warn("CORS realtime refresh skipped; serviceAccountId={} errorCode=LOCAL_ACCOUNT_IDENTITY_MISMATCH",
                     local.getId());
-            return CorsAccountStateApplyOutcome.INCONSISTENT;
+            return CorsAccountRealtimeRefreshOutcome.INCONSISTENT;
         }
         long corsAccountId;
         try {
@@ -52,7 +52,7 @@ public class CorsAccountRealtimeRefreshService {
         } catch (RuntimeException invalidId) {
             log.warn("CORS realtime refresh skipped; serviceAccountId={} errorCode=INVALID_CORS_ACCOUNT_ID",
                     local.getId());
-            return CorsAccountStateApplyOutcome.INCONSISTENT;
+            return CorsAccountRealtimeRefreshOutcome.INCONSISTENT;
         }
 
         CorsUserInfoStatusRow row;
@@ -61,25 +61,26 @@ public class CorsAccountRealtimeRefreshService {
         } catch (RuntimeException databaseFailure) {
             log.warn("CORS realtime refresh failed; serviceAccountId={} corsAccountId={} action={} errorCode=CORS_DB_UNAVAILABLE",
                     local.getId(), corsAccountId, action);
-            return CorsAccountStateApplyOutcome.CONCURRENT_MODIFICATION;
+            return CorsAccountRealtimeRefreshOutcome.REMOTE_UNAVAILABLE;
         }
         if (row == null) {
             log.warn("CORS realtime refresh skipped; serviceAccountId={} corsAccountId={} action={} errorCode=CORS_ACCOUNT_NOT_FOUND",
                     local.getId(), corsAccountId, action);
-            return CorsAccountStateApplyOutcome.INCONSISTENT;
+            return CorsAccountRealtimeRefreshOutcome.REMOTE_NOT_FOUND;
         }
         if (row.id() != corsAccountId || !userName.equals(row.name()) || !userName.equals(local.getAccount())) {
             log.warn("CORS realtime refresh skipped; serviceAccountId={} corsAccountId={} action={} errorCode=REMOTE_IDENTITY_MISMATCH",
                     local.getId(), corsAccountId, action);
-            return CorsAccountStateApplyOutcome.INCONSISTENT;
+            return CorsAccountRealtimeRefreshOutcome.INCONSISTENT;
         }
         try {
             CorsAccountSnapshot snapshot = snapshotMapper.map(row);
-            return applyService.apply(local, snapshot, scheduleService.successSchedule());
+            return CorsAccountRealtimeRefreshOutcome.valueOf(
+                    applyService.apply(local, snapshot, scheduleService.successSchedule()).name());
         } catch (RuntimeException invalidRemoteState) {
             log.warn("CORS realtime refresh failed; serviceAccountId={} corsAccountId={} action={} errorCode=INVALID_REMOTE_STATE",
                     local.getId(), corsAccountId, action);
-            return CorsAccountStateApplyOutcome.INCONSISTENT;
+            return CorsAccountRealtimeRefreshOutcome.INCONSISTENT;
         }
     }
 }

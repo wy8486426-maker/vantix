@@ -1,7 +1,7 @@
 package com.sinognss.cloud.vantix.infrastructure.cors.redis;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.sinognss.cloud.vantix.application.cors.account.CorsAccountRealtimeRefreshService;
+import com.sinognss.cloud.vantix.application.cors.account.CorsRealtimeRefreshCoordinator;
 import com.sinognss.cloud.vantix.integration.cors.redis.CorsAccountStatusNotification;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,14 +16,11 @@ public final class CorsRedisMessageListener implements MessageListener {
     private static final int MAX_PAYLOAD_BYTES = 4096;
     private static final Set<String> KNOWN_ACTIONS = Set.of("active", "expire", "disable", "updatePass");
     private final ObjectMapper objectMapper;
-    private final CorsAccountRealtimeRefreshService refreshService;
-    private final java.util.concurrent.ThreadPoolExecutor workers;
+    private final CorsRealtimeRefreshCoordinator coordinator;
 
-    public CorsRedisMessageListener(ObjectMapper objectMapper, CorsAccountRealtimeRefreshService refreshService,
-                                    java.util.concurrent.ThreadPoolExecutor workers) {
+    public CorsRedisMessageListener(ObjectMapper objectMapper, CorsRealtimeRefreshCoordinator coordinator) {
         this.objectMapper = objectMapper;
-        this.refreshService = refreshService;
-        this.workers = workers;
+        this.coordinator = coordinator;
     }
 
     @Override
@@ -50,11 +47,6 @@ public final class CorsRedisMessageListener implements MessageListener {
             log.warn("CORS Redis notification has unknown action; action={} errorCode=UNKNOWN_CORS_ACCOUNT_ACTION",
                     notification.action());
         }
-        try {
-            workers.execute(() -> refreshService.refresh(notification.userName(), notification.action()));
-        } catch (java.util.concurrent.RejectedExecutionException full) {
-            log.warn("CORS Redis notification dropped; action={} errorCode=REALTIME_REFRESH_QUEUE_FULL",
-                    notification.action());
-        }
+        coordinator.accept(notification.userName(), notification.action());
     }
 }

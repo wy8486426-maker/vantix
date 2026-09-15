@@ -25,7 +25,7 @@ class CorsAccountRealtimeRefreshServiceTest {
     void missingLocalAccountDoesNotQueryCors() {
         when(accountMapper.selectForCorsRealtimeRefreshByAccount("missing")).thenReturn(null);
 
-        assertEquals(CorsAccountStateApplyOutcome.INCONSISTENT, service.refresh("missing", "updatePass"));
+        assertEquals(CorsAccountRealtimeRefreshOutcome.LOCAL_NOT_FOUND, service.refresh("missing", "updatePass"));
         verifyNoInteractions(repository, applyService);
     }
 
@@ -34,8 +34,19 @@ class CorsAccountRealtimeRefreshServiceTest {
         ServiceAccount local = local("account", "0");
         when(accountMapper.selectForCorsRealtimeRefreshByAccount("account")).thenReturn(local);
 
-        assertEquals(CorsAccountStateApplyOutcome.INCONSISTENT, service.refresh("account", "active"));
+        assertEquals(CorsAccountRealtimeRefreshOutcome.INCONSISTENT, service.refresh("account", "active"));
         verifyNoInteractions(repository, applyService);
+    }
+
+    @Test
+    void corsDatabaseFailureHasDedicatedRealtimeOutcome() {
+        ServiceAccount local = local("account", "501");
+        when(accountMapper.selectForCorsRealtimeRefreshByAccount("account")).thenReturn(local);
+        when(repository.findById(501L)).thenThrow(new IllegalStateException("unavailable"));
+
+        assertEquals(CorsAccountRealtimeRefreshOutcome.REMOTE_UNAVAILABLE,
+                service.refresh("account", "active"));
+        verifyNoInteractions(applyService);
     }
 
     @Test
@@ -44,7 +55,7 @@ class CorsAccountRealtimeRefreshServiceTest {
         when(accountMapper.selectForCorsRealtimeRefreshByAccount("account")).thenReturn(local);
         when(repository.findById(501L)).thenReturn(new CorsUserInfoStatusRow(501L, "other", 0, 0,
                 null, null, LocalDateTime.of(2026, 9, 15, 10, 0)));
-        assertEquals(CorsAccountStateApplyOutcome.INCONSISTENT, service.refresh("account", "disable"));
+        assertEquals(CorsAccountRealtimeRefreshOutcome.INCONSISTENT, service.refresh("account", "disable"));
         verifyNoInteractions(applyService);
 
         when(repository.findById(501L)).thenReturn(new CorsUserInfoStatusRow(501L, "account", 0, 1,
@@ -53,7 +64,7 @@ class CorsAccountRealtimeRefreshServiceTest {
                 LocalDateTime.of(2026, 9, 15, 10, 1), LocalDateTime.of(2026, 9, 15, 10, 11)));
         when(applyService.apply(eq(local), any(), any())).thenReturn(CorsAccountStateApplyOutcome.UPDATED);
 
-        assertEquals(CorsAccountStateApplyOutcome.UPDATED, service.refresh("account", "disable"));
+        assertEquals(CorsAccountRealtimeRefreshOutcome.UPDATED, service.refresh("account", "disable"));
         verify(applyService).apply(eq(local), any(), any());
     }
 
