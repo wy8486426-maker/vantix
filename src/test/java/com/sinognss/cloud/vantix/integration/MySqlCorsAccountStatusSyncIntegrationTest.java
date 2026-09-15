@@ -15,6 +15,8 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.util.TimeZone;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -55,6 +57,10 @@ class MySqlCorsAccountStatusSyncIntegrationTest {
                 "SHOULD_NEVER_BE_READ", "SHOULD_NEVER_BE_READ",
                 LocalDateTime.of(2026, 9, 15, 8, 0), LocalDateTime.of(2026, 10, 15, 8, 0),
                 LocalDateTime.of(2026, 9, 15, 9, 0));
+        corsJdbc.update("INSERT INTO userinfo (ID, name, active_status, account_status, active_time, "
+                        + "expiredate, lastupdatetime) VALUES (502, 'cors-account-502', 0, 0, ?, ?, ?)",
+                LocalDateTime.of(2026, 9, 15, 8, 0), LocalDateTime.of(2026, 10, 15, 8, 0),
+                LocalDateTime.of(2026, 9, 15, 9, 0));
     }
 
     @AfterAll
@@ -65,29 +71,56 @@ class MySqlCorsAccountStatusSyncIntegrationTest {
 
     @Test
     void readsOnlyTheStatusProjectionAndAppliesItToThePrimaryDatabase() {
+        TimeZone previous = TimeZone.getDefault();
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
+        try {
+            insertServiceAccount(70001, 71001, 501, "DISABLED", "WAITING_ACTIVATION", null);
+
+            CorsAccountStatusResult result = gateway.getAccount("501");
+            assertNotNull(result.snapshot());
+            assertEquals("ACTIVE", result.snapshot().activationStatus());
+            assertEquals("ENABLED", result.snapshot().accountStatus());
+            assertEquals(OffsetDateTime.parse("2026-09-15T08:00:00+08:00"),
+                    result.snapshot().activatedAt());
+            assertEquals(OffsetDateTime.parse("2026-10-15T08:00:00+08:00"),
+                    result.snapshot().expireAt());
+            assertEquals(OffsetDateTime.parse("2026-09-15T09:00:00+08:00"),
+                    result.snapshot().updatedAt());
+
+            insertServiceAccount(70002, 71002, 502, "DISABLED", "WAITING_ACTIVATION",
+                    LocalDateTime.of(2026, 9, 15, 10, 0));
+            job.sync();
+
+            assertEquals("ENABLED", vantixJdbc.queryForObject(
+                    "SELECT cors_status FROM service_account WHERE id = 71001", String.class));
+            assertEquals("ACTIVE", vantixJdbc.queryForObject(
+                    "SELECT cors_activation_status FROM service_account WHERE id = 71001", String.class));
+            assertEquals("2026-10-15 08:00:00.000000", vantixJdbc.queryForObject(
+                    "SELECT DATE_FORMAT(expire_at, '%Y-%m-%d %H:%i:%s.%f') FROM service_account WHERE id = 71001",
+                    String.class));
+            assertEquals("2026-09-15 10:00:00.000000", vantixJdbc.queryForObject(
+                    "SELECT DATE_FORMAT(cors_updated_at, '%Y-%m-%d %H:%i:%s.%f') FROM service_account WHERE id = 71002",
+                    String.class));
+            assertEquals("DISABLED", vantixJdbc.queryForObject(
+                    "SELECT cors_status FROM service_account WHERE id = 71002", String.class));
+            assertEquals("WAITING_ACTIVATION", vantixJdbc.queryForObject(
+                    "SELECT cors_activation_status FROM service_account WHERE id = 71002", String.class));
+        } finally {
+            TimeZone.setDefault(previous);
+        }
+    }
+
+    private void insertServiceAccount(long codeId, long accountId, long corsAccountId, String status,
+                                      String activationStatus, LocalDateTime corsUpdatedAt) {
         vantixJdbc.update("INSERT INTO service_code (id, code, owner_company_id, service_type, duration_value, "
                         + "duration_unit, code_silence_months, expire_at, status, version) VALUES "
-                        + "(70001, 'SYNC-CODE-70001', 1, 'CORS', 1, 'MONTH', 6, ?, 'PENDING', 0)",
-                LocalDateTime.of(2027, 1, 1, 0, 0));
+                        + "(?, ?, 1, 'CORS', 1, 'MONTH', 6, ?, 'PENDING', 0)",
+                codeId, "SYNC-CODE-" + codeId, LocalDateTime.of(2027, 1, 1, 0, 0));
         vantixJdbc.update("INSERT INTO service_account (id, cors_account_id, account, owner_company_id, "
                         + "source_service_code_id, service_type, duration_value, duration_unit, account_silence_months, "
-                        + "cors_status, cors_activation_status, version) VALUES "
-                        + "(71001, '501', 'cors-account-501', 1, 70001, 'CORS', 1, 'MONTH', 6, "
-                        + "'DISABLED', 'WAITING_ACTIVATION', 0)");
-
-        CorsAccountStatusResult result = gateway.getAccount("501");
-        assertNotNull(result.snapshot());
-        assertEquals("ACTIVE", result.snapshot().activationStatus());
-        assertEquals("ENABLED", result.snapshot().accountStatus());
-
-        job.sync();
-
-        assertEquals("ENABLED", vantixJdbc.queryForObject(
-                "SELECT cors_status FROM service_account WHERE id = 71001", String.class));
-        assertEquals("ACTIVE", vantixJdbc.queryForObject(
-                "SELECT cors_activation_status FROM service_account WHERE id = 71001", String.class));
-        assertEquals("2026-10-15 08:00:00.000000", vantixJdbc.queryForObject(
-                "SELECT DATE_FORMAT(expire_at, '%Y-%m-%d %H:%i:%s.%f') FROM service_account WHERE id = 71001",
-                String.class));
+                        + "cors_status, cors_activation_status, activated_at, expire_at, cors_updated_at, version) VALUES "
+                        + "(?, ?, ?, 1, ?, 'CORS', 1, 'MONTH', 6, ?, ?, ?, ?, ?, 0)",
+                accountId, String.valueOf(corsAccountId), "cors-account-" + corsAccountId, codeId, status, activationStatus,
+                LocalDateTime.of(2026, 9, 15, 8, 0), LocalDateTime.of(2026, 10, 15, 8, 0), corsUpdatedAt);
     }
 }

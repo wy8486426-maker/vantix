@@ -49,7 +49,6 @@ public final class CorsUserInfoRepository {
     }
 
     private static java.time.LocalDateTime localDateTime(ResultSet rs, String column) throws SQLException {
-        java.sql.Timestamp value = rs.getTimestamp(column);
-        return value == null ? null : value.toLocalDateTime();
+        return rs.getObject(column, java.time.LocalDateTime.class);
     }
 }

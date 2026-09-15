@@ -10,10 +10,8 @@ import com.sinognss.cloud.vantix.application.cors.account.AccountForceActivation
 import com.sinognss.cloud.vantix.application.cors.account.AccountForceActivationRetryJob;
 import com.sinognss.cloud.vantix.application.cors.account.AccountStatusReconcileJob;
 import com.sinognss.cloud.vantix.application.cors.account.AccountStatusReconcileService;
-import com.sinognss.cloud.vantix.application.cors.account.AccountStatusSyncScheduleService;
 import com.sinognss.cloud.vantix.application.cors.account.CorsAccountStateApplyService;
 import com.sinognss.cloud.vantix.config.CorsForceActivationProperties;
-import com.sinognss.cloud.vantix.config.CorsAccountStatusSyncProperties;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceAccountMapper;
 import com.sinognss.cloud.vantix.integration.cors.CorsAccountGateway;
 import com.sinognss.cloud.vantix.integration.cors.CorsOutcome;
@@ -113,19 +111,6 @@ class MySqlForceActivationWorkflowIntegrationTest {
             return org.mockito.Mockito.mock(CorsAccountStatusGateway.class);
         }
 
-        @Bean
-        AccountStatusSyncScheduleService accountStatusSyncScheduleService(
-                ServiceAccountMapper mapper, CorsAccountStatusSyncProperties properties, Clock clock,
-                CorsAccountStatusGateway gateway) {
-            return new AccountStatusSyncScheduleService(mapper, properties, clock);
-        }
-
-        @Bean
-        AccountStatusReconcileService accountStatusReconcileService(
-                ServiceAccountMapper mapper, CorsAccountStatusGateway gateway,
-                CorsAccountStateApplyService applyService, AccountStatusSyncScheduleService scheduleService) {
-            return new AccountStatusReconcileService(mapper, gateway, applyService, scheduleService);
-        }
     }
     @MockBean
     private CorsForceActivationGateway forceActivationGateway;

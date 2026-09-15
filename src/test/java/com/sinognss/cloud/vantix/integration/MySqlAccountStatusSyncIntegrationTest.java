@@ -88,19 +88,6 @@ class MySqlAccountStatusSyncIntegrationTest {
             return org.mockito.Mockito.mock(CorsAccountStatusGateway.class);
         }
 
-        @Bean
-        AccountStatusSyncScheduleService accountStatusSyncScheduleService(
-                ServiceAccountMapper mapper, CorsAccountStatusSyncProperties properties, Clock clock,
-                CorsAccountStatusGateway gateway) {
-            return new AccountStatusSyncScheduleService(mapper, properties, clock);
-        }
-
-        @Bean
-        AccountStatusReconcileService accountStatusReconcileService(
-                ServiceAccountMapper mapper, CorsAccountStatusGateway gateway,
-                CorsAccountStateApplyService applyService, AccountStatusSyncScheduleService scheduleService) {
-            return new AccountStatusReconcileService(mapper, gateway, applyService, scheduleService);
-        }
     }
     @MockBean
     private CorsOperationRetryJob corsOperationRetryJob;

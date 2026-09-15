@@ -46,7 +46,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * Runs against MySQL 5.7.44 in Testcontainers, or an isolated temporary schema
- * on a developer-provided local MySQL server when VANTIX_RENEWAL_TEST_MYSQL_* is set.
+ * on a developer-provided local MySQL server when VANTIX_TEST_MYSQL_* is set.
  */
 @EnabledIf("com.sinognss.cloud.vantix.integration.LocalMySqlTestDatabase#isAvailable")
 class MySqlAccountRenewalStaleIgnoredFinalizeIntegrationTest {

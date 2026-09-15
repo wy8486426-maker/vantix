@@ -25,6 +25,8 @@ public final class CorsReadOnlyDatabaseClient implements AutoCloseable {
         config.setMaximumPoolSize(maximumPoolSize);
         config.setMinimumIdle(minimumIdle);
         config.setPoolName("VantixCorsReadOnlyPool");
+        config.setInitializationFailTimeout(-1);
+        config.setConnectionTimeout(1_000L);
         this.dataSource = new HikariDataSource(config);
         this.jdbc = new NamedParameterJdbcTemplate(dataSource);
     }

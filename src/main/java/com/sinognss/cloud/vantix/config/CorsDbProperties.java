@@ -32,6 +32,18 @@ public class CorsDbProperties {
     public StatusSync getStatusSync() { return statusSync; }
     public void setStatusSync(StatusSync statusSync) { this.statusSync = statusSync; }
 
+    public void validate() {
+        if (maximumPoolSize < 1) {
+            throw new IllegalArgumentException("maximumPoolSize must be positive");
+        }
+        if (minimumIdle < 0 || minimumIdle > maximumPoolSize) {
+            throw new IllegalArgumentException("minimumIdle must be between 0 and maximumPoolSize");
+        }
+        if (statusSync == null || statusSync.getBatchSize() < 1 || statusSync.getBatchSize() > 1000) {
+            throw new IllegalArgumentException("statusSync.batchSize must be between 1 and 1000");
+        }
+    }
+
     public static class StatusSync {
         private boolean enabled;
         private String cron = "0 0 2 * * ?";

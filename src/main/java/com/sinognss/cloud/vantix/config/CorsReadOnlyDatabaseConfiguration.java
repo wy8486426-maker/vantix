@@ -8,13 +8,10 @@ import com.sinognss.cloud.vantix.application.cors.account.CorsMySqlAccountStatus
 import com.sinognss.cloud.vantix.application.cors.account.CorsAccountStateApplyService;
 import com.sinognss.cloud.vantix.application.cors.account.AccountStatusSyncScheduleService;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceAccountMapper;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-
-import java.time.Clock;
 
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(CorsDbProperties.class)
@@ -22,6 +19,7 @@ import java.time.Clock;
 public class CorsReadOnlyDatabaseConfiguration {
     @Bean(destroyMethod = "close")
     CorsReadOnlyDatabaseClient corsReadOnlyDatabaseClient(CorsDbProperties properties) {
+        properties.validate();
         return new CorsReadOnlyDatabaseClient(properties.getJdbcUrl(), properties.getUsername(),
                 properties.getPassword(), properties.getDriverClassName(), properties.getMaximumPoolSize(),
                 properties.getMinimumIdle());
@@ -41,13 +39,6 @@ public class CorsReadOnlyDatabaseConfiguration {
     CorsMySqlAccountStatusGateway corsMySqlAccountStatusGateway(CorsUserInfoRepository repository,
                                                                 CorsUserInfoSnapshotMapper mapper) {
         return new CorsMySqlAccountStatusGateway(repository, mapper);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean(AccountStatusSyncScheduleService.class)
-    AccountStatusSyncScheduleService corsDbAccountStatusSyncScheduleService(
-            ServiceAccountMapper accountMapper, CorsAccountStatusSyncProperties properties, Clock clock) {
-        return new AccountStatusSyncScheduleService(accountMapper, properties, clock);
     }
 
     @Bean
