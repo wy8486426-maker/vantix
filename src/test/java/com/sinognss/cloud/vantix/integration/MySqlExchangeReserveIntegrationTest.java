@@ -26,9 +26,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
-import org.testcontainers.containers.MySQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -47,17 +44,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
-@Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest
 class MySqlExchangeReserveIntegrationTest {
     private static final long COMPANY_ID = 100L;
     private static final String SPEC_CODE = "M1";
 
-    @Container
-    static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:5.7.44")
-            .withDatabaseName("vantix_exchange_reserve")
-            .withUsername("root")
-            .withPassword("test");
+    static final LocalMySqlTestDatabase MYSQL = LocalMySqlTestDatabase.create("vantix_exchange_reserve");
 
     @Autowired
     private JdbcTemplate jdbc;

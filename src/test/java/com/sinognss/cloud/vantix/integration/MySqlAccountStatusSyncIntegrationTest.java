@@ -20,16 +20,16 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
-import org.testcontainers.containers.MySQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
@@ -48,17 +48,13 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(properties = {
         "vantix.cors.account-status-sync.enabled=true",
         "vantix.cors-operation.enabled=false"
 })
+@Import(MySqlAccountStatusSyncIntegrationTest.ConditionalGatewayDefinition.class)
 class MySqlAccountStatusSyncIntegrationTest {
-    @Container
-    static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:5.7.44")
-            .withDatabaseName("vantix_account_status_sync")
-            .withUsername("root")
-            .withPassword("test");
+    static final LocalMySqlTestDatabase MYSQL = LocalMySqlTestDatabase.create("vantix_account_status_sync");
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -75,10 +71,33 @@ class MySqlAccountStatusSyncIntegrationTest {
     @Autowired
     private Clock clock;
 
-    @MockBean
+    @Autowired
     private CorsAccountStatusGateway statusGateway;
+
     @MockBean
     private CorsAccountGateway corsAccountGateway;
+
+    @TestConfiguration(proxyBeanMethods = false)
+    static class ConditionalGatewayDefinition {
+        @Bean
+        CorsAccountStatusGateway conditionalGatewayDefinition() {
+            return org.mockito.Mockito.mock(CorsAccountStatusGateway.class);
+        }
+
+        @Bean
+        AccountStatusSyncScheduleService accountStatusSyncScheduleService(
+                ServiceAccountMapper mapper, CorsAccountStatusSyncProperties properties, Clock clock,
+                CorsAccountStatusGateway gateway) {
+            return new AccountStatusSyncScheduleService(mapper, properties, clock);
+        }
+
+        @Bean
+        AccountStatusReconcileService accountStatusReconcileService(
+                ServiceAccountMapper mapper, CorsAccountStatusGateway gateway,
+                CorsAccountStateApplyService applyService, AccountStatusSyncScheduleService scheduleService) {
+            return new AccountStatusReconcileService(mapper, gateway, applyService, scheduleService);
+        }
+    }
     @MockBean
     private CorsOperationRetryJob corsOperationRetryJob;
     @MockBean

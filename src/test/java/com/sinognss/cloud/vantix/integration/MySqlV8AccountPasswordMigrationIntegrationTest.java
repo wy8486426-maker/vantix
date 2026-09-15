@@ -5,9 +5,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
-import org.testcontainers.containers.MySQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -25,13 +22,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@Testcontainers(disabledWithoutDocker = true)
 class MySqlV8AccountPasswordMigrationIntegrationTest {
-    @Container
-    static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:5.7.44")
-            .withDatabaseName("vantix_v8_account_password")
-            .withUsername("root")
-            .withPassword("test");
+    static final LocalMySqlTestDatabase MYSQL = LocalMySqlTestDatabase.create("vantix_v8_account_password");
 
     @Test
     void appliesV1ThroughV8AndEnforcesPasswordActionStorageRules() throws Exception {

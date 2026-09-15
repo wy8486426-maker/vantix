@@ -10,7 +10,10 @@ import com.sinognss.cloud.vantix.application.cors.account.AccountForceActivation
 import com.sinognss.cloud.vantix.application.cors.account.AccountForceActivationRetryJob;
 import com.sinognss.cloud.vantix.application.cors.account.AccountStatusReconcileJob;
 import com.sinognss.cloud.vantix.application.cors.account.AccountStatusReconcileService;
+import com.sinognss.cloud.vantix.application.cors.account.AccountStatusSyncScheduleService;
+import com.sinognss.cloud.vantix.application.cors.account.CorsAccountStateApplyService;
 import com.sinognss.cloud.vantix.config.CorsForceActivationProperties;
+import com.sinognss.cloud.vantix.config.CorsAccountStatusSyncProperties;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceAccountMapper;
 import com.sinognss.cloud.vantix.integration.cors.CorsAccountGateway;
 import com.sinognss.cloud.vantix.integration.cors.CorsOutcome;
@@ -24,7 +27,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
@@ -34,9 +40,6 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.MySQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.sql.PreparedStatement;
 import java.sql.Statement;
@@ -65,19 +68,15 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-@Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(properties = {
         "vantix.cors.force-activation.enabled=true",
         "vantix.cors.force-activation.candidate-batch-size=1",
         "vantix.cors.account-status-sync.enabled=true",
         "vantix.cors-operation.enabled=false"
 })
+@Import(MySqlForceActivationWorkflowIntegrationTest.ConditionalGatewayDefinition.class)
 class MySqlForceActivationWorkflowIntegrationTest {
-    @Container
-    static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:5.7.44")
-            .withDatabaseName("vantix_force_activation_workflow")
-            .withUsername("root")
-            .withPassword("test");
+    static final LocalMySqlTestDatabase MYSQL = LocalMySqlTestDatabase.create("vantix_force_activation_workflow");
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -100,8 +99,30 @@ class MySqlForceActivationWorkflowIntegrationTest {
     @Autowired
     private Clock clock;
 
-    @MockBean
+    @Autowired
     private CorsAccountStatusGateway statusGateway;
+
+    @TestConfiguration(proxyBeanMethods = false)
+    static class ConditionalGatewayDefinition {
+        @Bean
+        CorsAccountStatusGateway conditionalGatewayDefinition() {
+            return org.mockito.Mockito.mock(CorsAccountStatusGateway.class);
+        }
+
+        @Bean
+        AccountStatusSyncScheduleService accountStatusSyncScheduleService(
+                ServiceAccountMapper mapper, CorsAccountStatusSyncProperties properties, Clock clock,
+                CorsAccountStatusGateway gateway) {
+            return new AccountStatusSyncScheduleService(mapper, properties, clock);
+        }
+
+        @Bean
+        AccountStatusReconcileService accountStatusReconcileService(
+                ServiceAccountMapper mapper, CorsAccountStatusGateway gateway,
+                CorsAccountStateApplyService applyService, AccountStatusSyncScheduleService scheduleService) {
+            return new AccountStatusReconcileService(mapper, gateway, applyService, scheduleService);
+        }
+    }
     @MockBean
     private CorsForceActivationGateway forceActivationGateway;
     @MockBean

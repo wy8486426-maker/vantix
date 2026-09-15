@@ -6,9 +6,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
-import org.testcontainers.containers.MySQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.HashSet;
 import java.util.List;
@@ -18,13 +15,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-@Testcontainers(disabledWithoutDocker = true)
 class MySqlV3MigrationIntegrationTest {
-    @Container
-    static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:5.7.44")
-            .withDatabaseName("vantix_migration")
-            .withUsername("root")
-            .withPassword("test");
+    static final LocalMySqlTestDatabase MYSQL = LocalMySqlTestDatabase.create("vantix_v3_migration");
 
     @Test
     void v3BackfillsCanonicalSpecsAddsGlobalDurationUniquenessAndNoForeignKeys() {
@@ -63,7 +55,7 @@ class MySqlV3MigrationIntegrationTest {
                 "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() "
                         + "AND table_name = 'service_code_generate_batch' AND column_name = 'generate_order_id'", Integer.class));
         assertEquals(1, jdbc.queryForObject(
-                "SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() "
+                "SELECT COUNT(DISTINCT index_name) FROM information_schema.statistics WHERE table_schema = DATABASE() "
                         + "AND table_name = 'service_code_generate_batch' "
                         + "AND index_name = 'uk_service_code_generate_order_spec'", Integer.class));
         assertEquals(0, jdbc.queryForObject(

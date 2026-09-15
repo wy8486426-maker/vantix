@@ -17,9 +17,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.MySQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -33,14 +30,9 @@ import java.util.concurrent.Future;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-@Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest
 class MySqlTransferIntegrationTest {
-    @Container
-    static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:5.7.44")
-            .withDatabaseName("vantix")
-            .withUsername("root")
-            .withPassword("test");
+    static final LocalMySqlTestDatabase MYSQL = LocalMySqlTestDatabase.create("vantix_transfer");
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -79,7 +71,7 @@ class MySqlTransferIntegrationTest {
 
     @Test
     void flywayRunsAllMigrationsAndBatchTransferStoresTwoRows() {
-        assertEquals(6, jdbc.queryForObject(
+        assertEquals(8, jdbc.queryForObject(
                 "SELECT COUNT(*) FROM flyway_schema_history WHERE success = 1", Integer.class));
 
         ServiceCode first = insertCode("MYSQL-BATCH-1", 10L, ServiceCodeStatus.PENDING);
@@ -105,7 +97,7 @@ class MySqlTransferIntegrationTest {
         jdbc.update("INSERT INTO service_code_transfer (transfer_no, service_code_id, service_code, from_company_id, to_company_id, transfer_type) VALUES ('TR-SAME', 1001, 'A', 10, 20, 'PARENT_CHILD')");
         jdbc.update("INSERT INTO service_code_transfer (transfer_no, service_code_id, service_code, from_company_id, to_company_id, transfer_type) VALUES ('TR-SAME', 1002, 'B', 10, 20, 'PARENT_CHILD')");
 
-        assertEquals(3, jdbc.queryForObject(
+        assertEquals(2, jdbc.queryForObject(
                 "SELECT COUNT(*) FROM service_code_transfer WHERE transfer_no = 'TR-SAME'", Integer.class));
     }
 

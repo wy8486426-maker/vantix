@@ -9,9 +9,6 @@ import org.apache.ibatis.session.SqlSessionFactory;
 import org.mybatis.spring.SqlSessionFactoryBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
-import org.testcontainers.containers.MySQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -30,13 +27,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@Testcontainers(disabledWithoutDocker = true)
 class MySqlV7AccountRenewalConcurrencyIntegrationTest {
-    @Container
-    static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:5.7.44")
-            .withDatabaseName("vantix_v7_account_renewal_concurrency")
-            .withUsername("root")
-            .withPassword("test");
+    static final LocalMySqlTestDatabase MYSQL = LocalMySqlTestDatabase.create("vantix_v7_account_renewal_concurrency");
 
     @Test
     void databaseUniquenessAndReserveRollbackHoldUnderConcurrentConnections() throws Exception {
@@ -182,12 +174,21 @@ class MySqlV7AccountRenewalConcurrencyIntegrationTest {
             throws Exception {
         long serviceAccountId = 37_001L;
         String requestId = "RENEWAL-LOCK-ORDER";
+        long serviceCodeId = insertPendingServiceCode(jdbc, "RENEWAL-LOCK-CODE");
         jdbc.update("INSERT INTO service_account (id, owner_company_id, source_service_code_id, service_type, "
                         + "duration_value, duration_unit, account_silence_months) "
                         + "VALUES (?, 100, ?, 'CORS', 1, 'MONTH', 6)",
-                serviceAccountId, serviceAccountId);
-        insertRenewal(jdbc, new RenewalInsert(serviceAccountId, 47_001L, requestId, "PROCESSING"));
+                serviceAccountId, serviceCodeId);
+        insertRenewal(jdbc, new RenewalInsert(serviceAccountId, serviceCodeId, requestId, "PROCESSING"));
         SqlSessionFactory sqlSessionFactory = accountRenewalSqlSessionFactory(dataSource);
+        assertEquals("PROCESSING", jdbc.queryForObject(
+                "SELECT status FROM account_renewal WHERE request_id = ?", String.class, requestId));
+        try (SqlSession probe = sqlSessionFactory.openSession()) {
+            AccountRenewal active = probe.getMapper(AccountRenewalMapper.class)
+                    .selectActiveByAccount(serviceAccountId);
+            assertTrue(active != null, "MyBatis should see the committed active renewal fixture");
+            assertEquals("PROCESSING", active.getStatus());
+        }
 
         CountDownLatch renewalLocked = new CountDownLatch(1);
         CountDownLatch accountLocked = new CountDownLatch(1);

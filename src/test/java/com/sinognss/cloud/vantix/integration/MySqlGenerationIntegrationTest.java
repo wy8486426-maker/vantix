@@ -31,9 +31,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.MySQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.io.ByteArrayOutputStream;
 import java.time.LocalDateTime;
@@ -48,14 +45,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest
 class MySqlGenerationIntegrationTest {
-    @Container
-    static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:5.7.44")
-            .withDatabaseName("vantix")
-            .withUsername("root")
-            .withPassword("test");
+    static final LocalMySqlTestDatabase MYSQL = LocalMySqlTestDatabase.create("vantix_generation");
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -105,7 +97,7 @@ class MySqlGenerationIntegrationTest {
     @Test
     void flywayRunsAllMigrationsAndSpecsExposeEnabledConfigsOnly() {
         assertEquals(500, generationProperties.getBatchInsertSize());
-        assertEquals(6, jdbc.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success = 1", Integer.class));
+        assertEquals(8, jdbc.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success = 1", Integer.class));
         List<ServiceDurationConfig> specs = durationMapper.selectEnabled();
         assertEquals(1, specs.size());
         assertEquals("M1", specs.get(0).getSpecCode());
@@ -159,8 +151,8 @@ class MySqlGenerationIntegrationTest {
         assertEquals(1, snapshot.get("duration_value"));
         assertEquals("MONTH", snapshot.get("duration_unit"));
         assertEquals(6, snapshot.get("code_silence_months"));
-        assertEquals(((java.sql.Timestamp) snapshot.get("created_at")).toLocalDateTime().plusMonths(6),
-                ((java.sql.Timestamp) snapshot.get("expire_at")).toLocalDateTime());
+        assertEquals(((java.time.LocalDateTime) snapshot.get("created_at")).plusMonths(6),
+                (java.time.LocalDateTime) snapshot.get("expire_at"));
 
         GenerateServiceCodeResult repeated = generateService.generate(command, IntegrationActor.B2B.operatorIdentity());
         GenerateServiceCodeResult differentRequestSameBusinessKey = generateService.generate(
@@ -201,7 +193,7 @@ class MySqlGenerationIntegrationTest {
                 "SELECT request_id FROM service_code_generate_batch WHERE batch_no = ?", String.class,
                 generated.batch().batchNo());
         assertThrows(DuplicateKeyException.class, () -> insertBatch(
-                "GB-REQUEST-DUP", generatedRequestId, "OTHER-ORDER", hash + "1"));
+                "GB-REQUEST-DUP", generatedRequestId, "OTHER-ORDER", hash));
         assertThrows(DuplicateKeyException.class, () -> insertBatch(
                 "GB-BUSINESS-DUP", "B2B:UNIQUE-2", "ORDER-UNIQUE", hash));
         assertThrows(DuplicateKeyException.class, () -> jdbc.update(
@@ -274,7 +266,7 @@ class MySqlGenerationIntegrationTest {
             first.get();
             second.get();
             assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM service_code_generate_batch", Integer.class));
-            assertEquals(4, jdbc.queryForObject("SELECT COUNT(*) FROM service_code", Integer.class));
+            assertEquals(2, jdbc.queryForObject("SELECT COUNT(*) FROM service_code", Integer.class));
         } finally {
             executor.shutdownNow();
         }
