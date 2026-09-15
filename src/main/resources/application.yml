@@ -38,6 +38,21 @@ vantix:
       cron: ${VANTIX_CORS_DB_STATUS_SYNC_CRON:0 0 2 * * ?}
       zone: ${VANTIX_CORS_DB_STATUS_SYNC_ZONE:Asia/Shanghai}
       batch-size: ${VANTIX_CORS_DB_STATUS_SYNC_BATCH_SIZE:500}
+  cors-redis:
+    enabled: ${VANTIX_CORS_REDIS_ENABLED:false}
+    host: ${VANTIX_CORS_REDIS_HOST:}
+    port: ${VANTIX_CORS_REDIS_PORT:6379}
+    username: ${VANTIX_CORS_REDIS_USERNAME:}
+    password: ${VANTIX_CORS_REDIS_PASSWORD:}
+    database: ${VANTIX_CORS_REDIS_DATABASE:0}
+    ssl: ${VANTIX_CORS_REDIS_SSL:false}
+    channel: ${VANTIX_CORS_REDIS_CHANNEL:LW_WEBCORS_PLATUPDATE}
+    connect-timeout: ${VANTIX_CORS_REDIS_CONNECT_TIMEOUT:2s}
+    recovery-interval: ${VANTIX_CORS_REDIS_RECOVERY_INTERVAL:5s}
+    worker-core-size: ${VANTIX_CORS_REDIS_WORKER_CORE_SIZE:2}
+    worker-max-size: ${VANTIX_CORS_REDIS_WORKER_MAX_SIZE:4}
+    queue-capacity: ${VANTIX_CORS_REDIS_QUEUE_CAPACITY:1000}
+    confirmation-delay: ${VANTIX_CORS_REDIS_CONFIRMATION_DELAY:500ms}
   service-code-generation:
     max-quantity-per-request: 5000
     max-items-per-order: 50

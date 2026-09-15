@@ -38,4 +38,6 @@ public interface ServiceAccountMapper extends BaseMapper<ServiceAccount> {
 
     List<ServiceAccount> selectCorsStatusSyncCandidatesAfterId(@Param("lastId") Long lastId,
                                                                 @Param("limit") int limit);
+
+    ServiceAccount selectForCorsRealtimeRefreshByAccount(@Param("account") String account);
 }
