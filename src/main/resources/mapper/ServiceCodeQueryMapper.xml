@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sinognss.cloud.vantix.infrastructure.mapper.ServiceCodeQueryMapper">
+    <sql id="frontendColumns">
+        sc.id,
+        sc.code,
+        sc.source_order_id,
+        sc.source_order_no,
+        sc.generate_batch_id,
+        sc.owner_company_id,
+        dc.company_name AS owner_company_name,
+        sc.spec_code,
+        sc.service_type,
+        sc.duration_days,
+        sc.code_silence_days,
+        sc.expire_at,
+        sc.status,
+        sc.processing_type,
+        sc.processing_request_id,
+        sc.consume_type,
+        sc.consumed_at,
+        sc.version,
+        sc.created_at,
+        sc.updated_at,
+        batch.batch_no,
+        batch.display_name
+    </sql>
+
+    <sql id="frontendJoins">
+        FROM service_code sc
+        LEFT JOIN service_code_generate_batch batch ON batch.id = sc.generate_batch_id
+        LEFT JOIN dealer_company dc ON dc.company_id = sc.owner_company_id
+    </sql>
+
+    <sql id="frontendFilters">
+        <if test="scopeCompanyId != null">
+            AND sc.owner_company_id = #{scopeCompanyId}
+        </if>
+        <if test="ownerCompanyId != null">
+            AND sc.owner_company_id = #{ownerCompanyId}
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND (
+                sc.code LIKE CONCAT('%', #{keyword}, '%')
+                OR sc.source_order_no LIKE CONCAT('%', #{keyword}, '%')
+                OR batch.display_name LIKE CONCAT('%', #{keyword}, '%')
+                OR dc.company_name LIKE CONCAT('%', #{keyword}, '%')
+            )
+        </if>
+        <if test="specCode != null and specCode != ''">
+            AND sc.spec_code = #{specCode}
+        </if>
+        <if test="durationDays != null">
+            AND sc.duration_days = #{durationDays}
+        </if>
+        <if test="sourceOrderNo != null and sourceOrderNo != ''">
+            AND sc.source_order_no = #{sourceOrderNo}
+        </if>
+        <if test="status != null and status != ''">
+            AND sc.status = #{status}
+        </if>
+        <if test="displayStatus == 'WAITING'">
+            AND sc.status = 'PENDING'
+            AND sc.expire_at &gt; #{upcomingAt}
+        </if>
+        <if test="displayStatus == 'EXPIRING'">
+            AND sc.status = 'PENDING'
+            AND sc.expire_at &gt; #{now}
+            AND sc.expire_at &lt;= #{upcomingAt}
+        </if>
+        <if test="displayStatus == 'EXPIRED'">
+            AND sc.status = 'PENDING'
+            AND sc.expire_at &lt;= #{now}
+        </if>
+        <if test="displayStatus == 'PROCESSING'">
+            AND sc.status = 'PROCESSING'
+        </if>
+        <if test="displayStatus == 'CONSUMED'">
+            AND sc.status = 'CONSUMED'
+        </if>
+    </sql>
+
+    <select id="pageForFrontend" resultType="com.sinognss.cloud.vantix.application.servicecode.ServiceCodeQueryRow">
+        SELECT
+        <include refid="frontendColumns"/>
+        <include refid="frontendJoins"/>
+        <where>
+            <include refid="frontendFilters"/>
+        </where>
+        ORDER BY sc.created_at DESC, sc.id DESC
+    </select>
+
+    <select id="detailForFrontend" resultType="com.sinognss.cloud.vantix.application.servicecode.ServiceCodeQueryRow">
+        SELECT
+        <include refid="frontendColumns"/>
+        <include refid="frontendJoins"/>
+        WHERE sc.id = #{id}
+    </select>
+
+    <select id="statistics" resultType="com.sinognss.cloud.vantix.application.servicecode.ServiceCodeStatisticsRow">
+        SELECT
+            COUNT(sc.id) AS total,
+            SUM(CASE WHEN sc.status = 'PENDING' AND sc.expire_at &gt; #{upcomingAt} THEN 1 ELSE 0 END) AS waiting,
+            SUM(CASE WHEN sc.status = 'PENDING'
+                          AND sc.expire_at &gt; #{now}
+                          AND sc.expire_at &lt;= #{upcomingAt} THEN 1 ELSE 0 END) AS expiring,
+            SUM(CASE WHEN sc.status = 'PENDING' AND sc.expire_at &lt;= #{now} THEN 1 ELSE 0 END) AS expired,
+            SUM(CASE WHEN sc.status = 'PROCESSING' THEN 1 ELSE 0 END) AS processing,
+            SUM(CASE WHEN sc.status = 'CONSUMED' THEN 1 ELSE 0 END) AS consumed
+        <include refid="frontendJoins"/>
+        <where>
+            <include refid="frontendFilters"/>
+        </where>
+    </select>
+</mapper>

@@ -8,11 +8,11 @@
 - `PUT /api/companies/{companyId}/parent`
 - `GET/POST/PUT /api/config/service-durations`
 - `GET/PUT /api/config/system-company`
-- `GET /api/service-codes`、`GET /api/service-codes/{id}`（列表支持 `status` 与动态 `displayStatus=WAITING|EXPIRING|EXPIRED|PROCESSING|CONSUMED`）
+- `GET /api/service-codes`、`GET /api/service-codes/{id}`、`GET /api/service-codes/statistics`（列表支持分页、筛选与动态 `displayStatus=WAITING|EXPIRING|EXPIRED|PROCESSING|CONSUMED`）
 - `POST /api/service-codes/transfers`
 - `GET /api/service-codes/{id}/transfers`
 
-服务码转赠在一个 MySQL 本地事务内按服务码 ID 升序 `SELECT ... FOR UPDATE`，完成全部校验后使用 `version` CAS 更新并记录流水；任意一张失败都会回滚批次。批量转赠要求所有服务码的 `service_type`、`spec_code`、`duration_days`、`code_silence_days` 完全一致。服务码过期和即将到期是 DTO 展示状态，不是数据库状态。
+服务码转赠在一个 MySQL 本地事务内按服务码 ID 升序 `SELECT ... FOR UPDATE`，完成全部校验后使用 `version` CAS 更新并记录流水；任意一张失败都会回滚批次。批量转赠要求所有服务码的 `service_type`、`spec_code`、`duration_days` 完全一致。服务码过期和即将到期是 DTO 展示状态，不是数据库状态。
 
 公司基础资料的 `CompanyClient` 和 CORS 的 `CorsAccountClient` 未猜测远程 URL。密码查看与重置流程已实现本地审计、权限和补偿边界，并通过 `CorsAccountPasswordGateway` 留待 CORS 接口契约确认后接入真实适配器；默认 `vantix.cors.password.enabled=false`，缺少 Gateway 时密码路由不会注册。
 
@@ -20,7 +20,7 @@
 
 统一用户中心由 `sino-cloud-base` 提供。`UserHolderBridge` 调用 `com.sinognss.cloud.base.filter.UserHolder` 的 `getUserAndCompanyId()` 作为数据范围、`getUser()` 作为真实操作人；本项目不创建用户、角色、权限或密码字段。
 
-本阶段不引入 Redis、分布式事务或 CORS 密码存储。无用户上下文或不支持的数据范围会拒绝请求；定时任务/MQ/system 身份需在后续阶段显式建模。
+无用户上下文或不支持的数据范围会拒绝请求；定时任务/MQ/system 身份需在后续阶段显式建模。
 
 ## Phase 1.5
 

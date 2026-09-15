@@ -1,7 +1,9 @@
 package com.sinognss.cloud.vantix.controller;
 
 import com.sinognss.cloud.vantix.application.servicecode.DisplayStatus;
+import com.sinognss.cloud.vantix.application.servicecode.ServiceCodePageQuery;
 import com.sinognss.cloud.vantix.application.servicecode.ServiceCodeService;
+import com.sinognss.cloud.vantix.application.servicecode.ServiceCodeStatisticsQuery;
 import com.sinognss.cloud.vantix.application.servicecode.ServiceCodeTransferService;
 import com.sinognss.cloud.vantix.application.servicecode.TransferServiceCodeCommand;
 import com.sinognss.cloud.vantix.common.api.CommonResultAdapter;
@@ -36,9 +38,26 @@ public class ServiceCodeController {
     @GetMapping
     public Object page(@RequestParam(defaultValue = "1") long current,
                        @RequestParam(defaultValue = "20") long size,
+                       @RequestParam(required = false) String keyword,
                        @RequestParam(required = false) ServiceCodeStatus status,
-                       @RequestParam(required = false) DisplayStatus displayStatus) {
-        return CommonResultAdapter.success(serviceCodeService.page(current, size, status, displayStatus));
+                       @RequestParam(required = false) DisplayStatus displayStatus,
+                       @RequestParam(required = false) String specCode,
+                       @RequestParam(required = false) Integer durationDays,
+                       @RequestParam(required = false) String sourceOrderNo,
+                       @RequestParam(required = false) Long ownerCompanyId) {
+        return CommonResultAdapter.success(serviceCodeService.page(new ServiceCodePageQuery(
+                current, size, keyword, status, displayStatus, specCode, durationDays,
+                sourceOrderNo, ownerCompanyId)));
+    }
+
+    @GetMapping("/statistics")
+    public Object statistics(@RequestParam(required = false) String keyword,
+                             @RequestParam(required = false) String specCode,
+                             @RequestParam(required = false) Integer durationDays,
+                             @RequestParam(required = false) String sourceOrderNo,
+                             @RequestParam(required = false) Long ownerCompanyId) {
+        return CommonResultAdapter.success(serviceCodeService.statistics(new ServiceCodeStatisticsQuery(
+                keyword, specCode, durationDays, sourceOrderNo, ownerCompanyId)));
     }
 
     @GetMapping("/{id}")

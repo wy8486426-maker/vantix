@@ -1,91 +1,93 @@
 package com.sinognss.cloud.vantix.application.servicecode;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.sinognss.cloud.vantix.application.servicecode.generation.ServiceCodeBatchView;
 import com.sinognss.cloud.vantix.common.exception.BusinessException;
 import com.sinognss.cloud.vantix.common.exception.ErrorCode;
 import com.sinognss.cloud.vantix.common.user.UserHolderBridge;
 import com.sinognss.cloud.vantix.common.user.UserScope;
 import com.sinognss.cloud.vantix.config.VantixProperties;
 import com.sinognss.cloud.vantix.domain.servicecode.ServiceCode;
-import com.sinognss.cloud.vantix.domain.servicecode.ServiceCodeGenerateBatch;
 import com.sinognss.cloud.vantix.domain.servicecode.ServiceCodeStatus;
-import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceCodeGenerateBatchMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceCodeMapper;
+import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceCodeQueryMapper;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
-import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
+import java.util.Objects;
 
 @Service
 public class ServiceCodeService {
     private final ServiceCodeMapper serviceCodeMapper;
-    private final ServiceCodeGenerateBatchMapper batchMapper;
+    private final ServiceCodeQueryMapper queryMapper;
     private final UserHolderBridge userHolder;
     private final Clock clock;
     private final VantixProperties properties;
 
     public ServiceCodeService(ServiceCodeMapper serviceCodeMapper,
-                              ServiceCodeGenerateBatchMapper batchMapper,
+                              ServiceCodeQueryMapper queryMapper,
                               UserHolderBridge userHolder,
                               Clock clock,
                               VantixProperties properties) {
         this.serviceCodeMapper = serviceCodeMapper;
-        this.batchMapper = batchMapper;
+        this.queryMapper = queryMapper;
         this.userHolder = userHolder;
         this.clock = clock;
         this.properties = properties;
     }
 
     public PageResponse<ServiceCodeView> page(long current, long size, ServiceCodeStatus status) {
-        return page(current, size, status, null);
+        return page(new ServiceCodePageQuery(current, size, null, status, null,
+                null, null, null, null));
     }
 
     public PageResponse<ServiceCodeView> page(long current, long size,
                                               ServiceCodeStatus status,
                                               DisplayStatus displayStatus) {
-        if (current < 1 || size < 1 || size > 500) {
-            throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "分页参数非法");
-        }
+        return page(new ServiceCodePageQuery(current, size, null, status, displayStatus,
+                null, null, null, null));
+    }
+
+    public PageResponse<ServiceCodeView> page(ServiceCodePageQuery request) {
+        ServiceCodePageQuery query = validatePageQuery(request);
+        UserScope scope = resolveScope(query.ownerCompanyId());
         LocalDateTime now = LocalDateTime.now(clock);
-        validateStatusFilters(status, displayStatus);
-        UserScope scope = userHolder.getUserScope();
-        var query = Wrappers.<ServiceCode>lambdaQuery();
-        if (displayStatus == null) {
-            query.eq(status != null, ServiceCode::getStatus, status);
-        } else {
-            applyDisplayStatus(query, displayStatus, now);
-        }
-        query.orderByAsc(ServiceCode::getId);
-        if (!scope.isGlobal()) {
-            query.eq(ServiceCode::getOwnerCompanyId, scope.companyId());
-        }
-        IPage<ServiceCode> page = serviceCodeMapper.selectPage(new Page<>(current, size), query);
-        Map<Long, ServiceCodeGenerateBatch> batches = page.getRecords().stream()
-                .map(ServiceCode::getGenerateBatchId).filter(java.util.Objects::nonNull).distinct()
-                .collect(Collectors.collectingAndThen(Collectors.toList(), ids -> ids.isEmpty()
-                        ? Map.of()
-                        : batchMapper.selectList(Wrappers.<ServiceCodeGenerateBatch>lambdaQuery()
-                                .in(ServiceCodeGenerateBatch::getId, ids))
-                        .stream().collect(Collectors.toMap(ServiceCodeGenerateBatch::getId, Function.identity()))));
+        LocalDateTime upcomingAt = now.plusDays(properties.getUpcomingDays());
+        IPage<ServiceCodeQueryRow> page = queryMapper.pageForFrontend(
+                new Page<>(query.current(), query.size()),
+                query.keyword(), enumName(query.status()), enumName(query.displayStatus()), query.specCode(),
+                query.durationDays(), query.sourceOrderNo(), query.ownerCompanyId(), scopedCompanyId(scope),
+                now, upcomingAt);
         var records = page.getRecords().stream()
-                .map(code -> ServiceCodeView.from(code, displayStatus(code, now),
-                        batches.get(code.getGenerateBatchId())))
+                .map(row -> ServiceCodeView.from(row, displayStatus(row.getStatus(), row.getExpireAt(), now)))
                 .toList();
         return new PageResponse<>(records, page.getCurrent(), page.getSize(), page.getTotal(), page.getPages());
     }
 
+    public ServiceCodeStatistics statistics(ServiceCodeStatisticsQuery request) {
+        ServiceCodeStatisticsQuery query = validateStatisticsQuery(request);
+        UserScope scope = resolveScope(query.ownerCompanyId());
+        LocalDateTime now = LocalDateTime.now(clock);
+        LocalDateTime upcomingAt = now.plusDays(properties.getUpcomingDays());
+        ServiceCodeStatisticsRow row = queryMapper.statistics(
+                query.keyword(), query.specCode(), query.durationDays(), query.sourceOrderNo(),
+                query.ownerCompanyId(), scopedCompanyId(scope), now, upcomingAt);
+        if (row == null) {
+            return new ServiceCodeStatistics(0, 0, 0, 0, 0, 0);
+        }
+        return new ServiceCodeStatistics(value(row.getTotal()), value(row.getWaiting()), value(row.getExpiring()),
+                value(row.getExpired()), value(row.getProcessing()), value(row.getConsumed()));
+    }
+
     public ServiceCodeView get(Long id) {
-        ServiceCode code = getRequired(id);
-        assertCompanyAccess(code.getOwnerCompanyId());
-        ServiceCodeGenerateBatch batch = code.getGenerateBatchId() == null
-                ? null : batchMapper.selectById(code.getGenerateBatchId());
-        return ServiceCodeView.from(code, displayStatus(code, LocalDateTime.now(clock)), batch);
+        ServiceCodeQueryRow row = id == null ? null : queryMapper.detailForFrontend(id);
+        if (row == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "服务码不存在: " + id);
+        }
+        assertCompanyAccess(row.getOwnerCompanyId());
+        LocalDateTime now = LocalDateTime.now(clock);
+        return ServiceCodeView.from(row, displayStatus(row.getStatus(), row.getExpireAt(), now));
     }
 
     public ServiceCode getRequired(Long id) {
@@ -97,23 +99,103 @@ public class ServiceCodeService {
     }
 
     DisplayStatus displayStatus(ServiceCode code, LocalDateTime now) {
-        if (code.getStatus() == ServiceCodeStatus.PROCESSING) {
+        return displayStatus(code.getStatus(), code.getExpireAt(), now);
+    }
+
+    DisplayStatus displayStatus(ServiceCodeStatus status, LocalDateTime expireAt, LocalDateTime now) {
+        if (status == ServiceCodeStatus.PROCESSING) {
             return DisplayStatus.PROCESSING;
         }
-        if (code.getStatus() == ServiceCodeStatus.CONSUMED) {
+        if (status == ServiceCodeStatus.CONSUMED) {
             return DisplayStatus.CONSUMED;
         }
-        if (code.getExpireAt() == null || !code.getExpireAt().isAfter(now)) {
+        if (expireAt == null || !expireAt.isAfter(now)) {
             return DisplayStatus.EXPIRED;
         }
-        return code.getExpireAt().isAfter(now.plusDays(properties.getUpcomingDays()))
+        return expireAt.isAfter(now.plusDays(properties.getUpcomingDays()))
                 ? DisplayStatus.WAITING : DisplayStatus.EXPIRING;
     }
 
     private void assertCompanyAccess(Long companyId) {
-        if (!userHolder.getUserScope().canAccessCompany(companyId)) {
+        if (!resolveScope(null).canAccessCompany(companyId)) {
             throw new BusinessException(ErrorCode.SERVICE_CODE_NOT_OWNED, "服务码不属于当前公司");
         }
+    }
+
+    private UserScope resolveScope(Long requestedCompanyId) {
+        UserScope scope = userHolder.getUserScope();
+        if (scope == null || !scope.isSupported()) {
+            throw new BusinessException(ErrorCode.UNSUPPORTED_USER_SCOPE, "当前用户数据范围不受支持");
+        }
+        if (!scope.isGlobal() && requestedCompanyId != null
+                && !Objects.equals(requestedCompanyId, scope.companyId())) {
+            throw new BusinessException(ErrorCode.SERVICE_CODE_NOT_OWNED, "无权访问指定公司的服务码");
+        }
+        return scope;
+    }
+
+    private Long scopedCompanyId(UserScope scope) {
+        return scope.isGlobal() ? null : scope.companyId();
+    }
+
+    private ServiceCodePageQuery validatePageQuery(ServiceCodePageQuery request) {
+        if (request == null || request.current() < 1 || request.size() < 1 || request.size() > 500) {
+            throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "分页参数非法");
+        }
+        String keyword = normalize(request.keyword());
+        if (keyword != null && keyword.length() > 100) {
+            throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "keyword 长度不能超过 100");
+        }
+        Integer durationDays = validateDuration(request.durationDays());
+        Long ownerCompanyId = validateCompanyId(request.ownerCompanyId());
+        String specCode = normalize(request.specCode());
+        String sourceOrderNo = normalize(request.sourceOrderNo());
+        validateStatusFilters(request.status(), request.displayStatus());
+        return new ServiceCodePageQuery(request.current(), request.size(), keyword, request.status(),
+                request.displayStatus(), specCode, durationDays, sourceOrderNo, ownerCompanyId);
+    }
+
+    private ServiceCodeStatisticsQuery validateStatisticsQuery(ServiceCodeStatisticsQuery request) {
+        if (request == null) {
+            throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "统计查询参数不能为空");
+        }
+        String keyword = normalize(request.keyword());
+        if (keyword != null && keyword.length() > 100) {
+            throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "keyword 长度不能超过 100");
+        }
+        return new ServiceCodeStatisticsQuery(keyword, normalize(request.specCode()),
+                validateDuration(request.durationDays()), normalize(request.sourceOrderNo()),
+                validateCompanyId(request.ownerCompanyId()));
+    }
+
+    private Integer validateDuration(Integer durationDays) {
+        if (durationDays != null && durationDays <= 0) {
+            throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "durationDays 必须大于 0");
+        }
+        return durationDays;
+    }
+
+    private Long validateCompanyId(Long companyId) {
+        if (companyId != null && companyId <= 0) {
+            throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "ownerCompanyId 必须大于 0");
+        }
+        return companyId;
+    }
+
+    private String normalize(String value) {
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.trim();
+        return normalized.isEmpty() ? null : normalized;
+    }
+
+    private String enumName(Enum<?> value) {
+        return value == null ? null : value.name();
+    }
+
+    private long value(Long value) {
+        return value == null ? 0 : value;
     }
 
     private void validateStatusFilters(ServiceCodeStatus status, DisplayStatus displayStatus) {
@@ -130,20 +212,4 @@ public class ServiceCodeService {
         }
     }
 
-    private void applyDisplayStatus(
-            com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ServiceCode> query,
-            DisplayStatus displayStatus, LocalDateTime now) {
-        LocalDateTime upcomingAt = now.plusDays(properties.getUpcomingDays());
-        switch (displayStatus) {
-            case WAITING -> query.eq(ServiceCode::getStatus, ServiceCodeStatus.PENDING)
-                    .gt(ServiceCode::getExpireAt, upcomingAt);
-            case EXPIRING -> query.eq(ServiceCode::getStatus, ServiceCodeStatus.PENDING)
-                    .gt(ServiceCode::getExpireAt, now)
-                    .le(ServiceCode::getExpireAt, upcomingAt);
-            case EXPIRED -> query.eq(ServiceCode::getStatus, ServiceCodeStatus.PENDING)
-                    .le(ServiceCode::getExpireAt, now);
-            case PROCESSING -> query.eq(ServiceCode::getStatus, ServiceCodeStatus.PROCESSING);
-            case CONSUMED -> query.eq(ServiceCode::getStatus, ServiceCodeStatus.CONSUMED);
-        }
-    }
 }
