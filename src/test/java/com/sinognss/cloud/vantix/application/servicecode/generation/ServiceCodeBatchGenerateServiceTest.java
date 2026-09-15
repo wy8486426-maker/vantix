@@ -5,7 +5,6 @@ import com.sinognss.cloud.vantix.common.exception.BusinessException;
 import com.sinognss.cloud.vantix.common.exception.ErrorCode;
 import com.sinognss.cloud.vantix.common.user.OperatorIdentity;
 import com.sinognss.cloud.vantix.config.GenerationProperties;
-import com.sinognss.cloud.vantix.domain.config.DurationUnit;
 import com.sinognss.cloud.vantix.domain.config.ServiceDurationConfig;
 import com.sinognss.cloud.vantix.domain.servicecode.GenerationSource;
 import com.sinognss.cloud.vantix.domain.servicecode.ServiceCode;
@@ -191,9 +190,10 @@ class ServiceCodeBatchGenerateServiceTest {
         ServiceDurationConfig spec = new ServiceDurationConfig();
         spec.setSpecCode(specCode);
         spec.setServiceType("CORS");
-        spec.setDurationValue(1);
-        spec.setDurationUnit(DurationUnit.MONTH);
-        spec.setCodeSilenceMonths(6);
+        spec.setDisplayName("30天");
+        spec.setDurationDays(30);
+        spec.setCodeSilenceDays(180);
+        spec.setAccountSilenceDays(360);
         spec.setEnabled(true);
         return spec;
     }

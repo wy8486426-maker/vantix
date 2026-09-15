@@ -4,7 +4,6 @@ import com.sinognss.cloud.vantix.common.exception.BusinessException;
 import com.sinognss.cloud.vantix.common.exception.ErrorCode;
 import com.sinognss.cloud.vantix.common.user.OperatorIdentity;
 import com.sinognss.cloud.vantix.config.GenerationProperties;
-import com.sinognss.cloud.vantix.domain.config.DurationUnit;
 import com.sinognss.cloud.vantix.domain.config.ServiceDurationConfig;
 import com.sinognss.cloud.vantix.domain.servicecode.GenerationSource;
 import com.sinognss.cloud.vantix.domain.servicecode.ServiceCodeGenerateBatch;
@@ -164,9 +163,10 @@ class ServiceCodeGenerateServiceTest {
         ServiceDurationConfig config = new ServiceDurationConfig();
         config.setSpecCode(specCode);
         config.setServiceType("CORS");
-        config.setDurationValue(1);
-        config.setDurationUnit(DurationUnit.MONTH);
-        config.setCodeSilenceMonths(6);
+        config.setDisplayName("30天");
+        config.setDurationDays(30);
+        config.setCodeSilenceDays(180);
+        config.setAccountSilenceDays(360);
         config.setEnabled(true);
         return config;
     }
@@ -179,9 +179,9 @@ class ServiceCodeGenerateServiceTest {
         batch.setSourceOrderNo("ORDER-1");
         batch.setOwnerCompanyId(100L);
         batch.setSpecCode(specCode);
-        batch.setDurationValue(1);
-        batch.setDurationUnit("MONTH");
-        batch.setCodeSilenceMonths(6);
+        batch.setDisplayName("30天");
+        batch.setDurationDays(30);
+        batch.setCodeSilenceDays(180);
         batch.setQuantity(quantity);
         batch.setGeneratedCount(quantity);
         batch.setStatus("COMPLETED");

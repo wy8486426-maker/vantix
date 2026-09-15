@@ -2,7 +2,6 @@ package com.sinognss.cloud.vantix.infrastructure.cors;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import com.sinognss.cloud.vantix.domain.config.DurationUnit;
 import com.sinognss.cloud.vantix.integration.cors.CorsBatchCreateRequest;
 import com.sinognss.cloud.vantix.integration.cors.CorsBatchResult;
 import com.sinognss.cloud.vantix.integration.cors.CorsOutcome;
@@ -86,7 +85,7 @@ class RestCorsAccountGatewayTest {
                                 """));
 
         CorsBatchResult result = fixture.gateway.createBatch(
-                new CorsBatchCreateRequest(REQUEST_ID, 1, DurationUnit.DAY, 1, null));
+                new CorsBatchCreateRequest(REQUEST_ID, 1, 0, 1, null));
 
         assertEquals(CorsOutcome.DEFINITIVE_REJECT, result.outcome());
         assertEquals("INVALID_ARGUMENT", result.errorCode());
@@ -104,7 +103,7 @@ class RestCorsAccountGatewayTest {
                                 """));
 
         CorsBatchResult result = fixture.gateway.createBatch(
-                new CorsBatchCreateRequest(REQUEST_ID, 1, DurationUnit.DAY, 1, null));
+                new CorsBatchCreateRequest(REQUEST_ID, 1, 0, 1, null));
 
         assertEquals(CorsOutcome.UNKNOWN, result.outcome());
         fixture.server.verify();
@@ -121,7 +120,7 @@ class RestCorsAccountGatewayTest {
                                 """));
 
         CorsBatchResult result = fixture.gateway.createBatch(
-                new CorsBatchCreateRequest(REQUEST_ID, 1, DurationUnit.DAY, 1, null));
+                new CorsBatchCreateRequest(REQUEST_ID, 1, 0, 1, null));
 
         assertEquals(CorsOutcome.IDEMPOTENCY_CONFLICT, result.outcome());
         fixture.server.verify();
@@ -134,7 +133,7 @@ class RestCorsAccountGatewayTest {
                 .andRespond(withStatus(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE));
 
         CorsBatchResult serverError = serverErrorFixture.gateway.createBatch(
-                new CorsBatchCreateRequest(REQUEST_ID, 1, DurationUnit.DAY, 1, null));
+                new CorsBatchCreateRequest(REQUEST_ID, 1, 0, 1, null));
 
         assertEquals(CorsOutcome.UNKNOWN, serverError.outcome());
         serverErrorFixture.server.verify();
@@ -146,7 +145,7 @@ class RestCorsAccountGatewayTest {
                         """, MediaType.APPLICATION_JSON));
 
         CorsBatchResult malformedSuccess = malformedFixture.gateway.createBatch(
-                new CorsBatchCreateRequest(REQUEST_ID, 1, DurationUnit.DAY, 1, null));
+                new CorsBatchCreateRequest(REQUEST_ID, 1, 0, 1, null));
 
         assertEquals(CorsOutcome.UNKNOWN, malformedSuccess.outcome());
         assertEquals("MALFORMED_SUCCESS", malformedSuccess.errorCode());
@@ -185,7 +184,7 @@ class RestCorsAccountGatewayTest {
             RestCorsAccountGateway gateway = new RestCorsAccountGateway(client, objectMapper());
 
             CorsBatchResult result = gateway.createBatch(
-                    new CorsBatchCreateRequest(REQUEST_ID, 1, DurationUnit.DAY, 1, null));
+                    new CorsBatchCreateRequest(REQUEST_ID, 1, 0, 1, null));
 
             assertEquals(CorsOutcome.UNKNOWN, result.outcome());
             assertEquals("TRANSPORT_ERROR", result.errorCode());

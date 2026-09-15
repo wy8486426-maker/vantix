@@ -144,21 +144,21 @@ class MySqlAccountRenewalStaleIgnoredFinalizeIntegrationTest {
 
     private static void insertFixture(JdbcTemplate jdbc, long accountId, long codeId, String requestId) {
         jdbc.update("INSERT INTO service_account (id, cors_account_id, account, owner_company_id, "
-                        + "source_service_code_id, service_type, duration_value, duration_unit, "
-                        + "account_silence_months, cors_status, cors_activation_status, activated_at, expire_at, "
+                        + "source_service_code_id, spec_code, service_type, duration_days, account_silence_days, "
+                        + "cors_status, cors_activation_status, activated_at, expire_at, "
                         + "cors_updated_at, last_sync_at, version) "
-                        + "VALUES (?, ?, ?, 901, ?, 'CORS', 1, 'MONTH', 6, 'ENABLED', 'ACTIVE', "
+                        + "VALUES (?, ?, ?, 901, ?, 'STALE', 'CORS', 30, 180, 'ENABLED', 'ACTIVE', "
                         + "'2030-01-01 00:00:00.000', '2031-02-01 00:00:00.000', "
                         + "'2031-01-20 12:00:00.000', '2031-01-20 12:00:00.000', 10)",
                 accountId, "cors-renewal-" + accountId, "renewal-account-" + accountId, accountId);
-        jdbc.update("INSERT INTO service_code (id, code, owner_company_id, service_type, duration_value, "
-                        + "duration_unit, code_silence_months, expire_at, status, processing_type, "
-                        + "processing_request_id, version) VALUES (?, ?, 901, 'CORS', 3, 'MONTH', 6, "
+        jdbc.update("INSERT INTO service_code (id, code, owner_company_id, spec_code, service_type, duration_days, "
+                        + "code_silence_days, expire_at, status, processing_type, "
+                        + "processing_request_id, version) VALUES (?, ?, 901, 'STALE', 'CORS', 30, 180, "
                         + "'2032-01-01 00:00:00.000', 'PROCESSING', 'RENEWAL', ?, 7)",
                 codeId, "VANTIX-STALE-" + codeId, requestId);
         jdbc.update("INSERT INTO account_renewal (service_account_id, service_code_id, owner_company_id, "
-                        + "service_type, duration_value, duration_unit, service_code_snapshot, request_id, "
-                        + "status, version) VALUES (?, ?, 901, 'CORS', 3, 'MONTH', CAST('{}' AS JSON), ?, "
+                        + "spec_code, service_type, duration_days, code_silence_days, service_code_snapshot, request_id, "
+                        + "status, version) VALUES (?, ?, 901, 'STALE', 'CORS', 30, 180, CAST('{}' AS JSON), ?, "
                         + "'PROCESSING', 5)", accountId, codeId, requestId);
         Long renewalId = jdbc.queryForObject(
                 "SELECT id FROM account_renewal WHERE request_id = ?", Long.class, requestId);

@@ -3,8 +3,6 @@ package com.sinognss.cloud.vantix.domain.servicecode;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.sinognss.cloud.vantix.common.LegacyDurationCompatibility;
-
 import java.time.LocalDateTime;
 
 @TableName("service_code_generate_batch")
@@ -23,10 +21,6 @@ public class ServiceCodeGenerateBatch {
     private String serviceType;
     private Integer durationDays;
     private Integer codeSilenceDays;
-    /** Legacy columns retained for compatibility reads only. */
-    private Integer durationValue;
-    private String durationUnit;
-    private Integer codeSilenceMonths;
     private Integer quantity;
     private Integer generatedCount;
     private String status;
@@ -59,22 +53,10 @@ public class ServiceCodeGenerateBatch {
     public void setDisplayName(String displayName) { this.displayName = displayName; }
     public String getServiceType() { return serviceType; }
     public void setServiceType(String serviceType) { this.serviceType = serviceType; }
-    /** New rows always have this value; the fallback only keeps pre-V9 reads usable. */
-    public Integer getDurationDays() {
-        return durationDays != null ? durationDays : LegacyDurationCompatibility.toDays(durationValue, durationUnit);
-    }
+    public Integer getDurationDays() { return durationDays; }
     public void setDurationDays(Integer durationDays) { this.durationDays = durationDays; }
-    /** New rows always have this value; the fallback only keeps pre-V9 reads usable. */
-    public Integer getCodeSilenceDays() {
-        return codeSilenceDays != null ? codeSilenceDays : LegacyDurationCompatibility.monthsToDays(codeSilenceMonths);
-    }
+    public Integer getCodeSilenceDays() { return codeSilenceDays; }
     public void setCodeSilenceDays(Integer codeSilenceDays) { this.codeSilenceDays = codeSilenceDays; }
-    public Integer getDurationValue() { return durationValue; }
-    public void setDurationValue(Integer durationValue) { this.durationValue = durationValue; }
-    public String getDurationUnit() { return durationUnit; }
-    public void setDurationUnit(String durationUnit) { this.durationUnit = durationUnit; }
-    public Integer getCodeSilenceMonths() { return codeSilenceMonths; }
-    public void setCodeSilenceMonths(Integer codeSilenceMonths) { this.codeSilenceMonths = codeSilenceMonths; }
     public Integer getQuantity() { return quantity; }
     public void setQuantity(Integer quantity) { this.quantity = quantity; }
     public Integer getGeneratedCount() { return generatedCount; }

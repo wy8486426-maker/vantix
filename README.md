@@ -1,19 +1,18 @@
 # Vantix 账号运营平台
 
-第一阶段是单 Spring Boot 服务，负责公司上下级关系、服务时长/账号沉默配置、服务码资产和批量转赠。数据库由 Flyway 从空库执行 `V1__init_schema.sql` 和后续版本迁移初始化。
+第一阶段是单 Spring Boot 服务，负责公司上下级关系、服务时长/账号沉默配置、服务码资产和批量转赠。数据库由 Flyway 从空库执行当前完整的 `V1__init_schema.sql` baseline 初始化。
 
 ## 本阶段接口
 
 - `GET /api/companies`、`GET /api/companies/{companyId}`、`GET /api/companies/{companyId}/children`
 - `PUT /api/companies/{companyId}/parent`
 - `GET/POST/PUT /api/config/service-durations`
-- `GET/PUT /api/config/account`
 - `GET/PUT /api/config/system-company`
 - `GET /api/service-codes`、`GET /api/service-codes/{id}`（列表支持 `status` 与动态 `displayStatus=WAITING|EXPIRING|EXPIRED|PROCESSING|CONSUMED`）
 - `POST /api/service-codes/transfers`
 - `GET /api/service-codes/{id}/transfers`
 
-服务码转赠在一个 MySQL 本地事务内按服务码 ID 升序 `SELECT ... FOR UPDATE`，完成全部校验后使用 `version` CAS 更新并记录流水；任意一张失败都会回滚批次。批量转赠要求所有服务码的 `service_type`、`duration_value`、`duration_unit` 完全一致。服务码过期和即将到期是 DTO 展示状态，不是数据库状态。
+服务码转赠在一个 MySQL 本地事务内按服务码 ID 升序 `SELECT ... FOR UPDATE`，完成全部校验后使用 `version` CAS 更新并记录流水；任意一张失败都会回滚批次。批量转赠要求所有服务码的 `service_type`、`spec_code`、`duration_days`、`code_silence_days` 完全一致。服务码过期和即将到期是 DTO 展示状态，不是数据库状态。
 
 公司基础资料的 `CompanyClient` 和 CORS 的 `CorsAccountClient` 未猜测远程 URL。密码查看与重置流程已实现本地审计、权限和补偿边界，并通过 `CorsAccountPasswordGateway` 留待 CORS 接口契约确认后接入真实适配器；默认 `vantix.cors.password.enabled=false`，缺少 Gateway 时密码路由不会注册。
 
@@ -34,9 +33,22 @@
 - 内部 B2B 接口需要由部署网关配置服务认证；应用未另建认证机制。
 - 已知部署风险继续保留：sino-cloud-base 的 UserInterceptor 使用 javax.servlet，而 Spring Boot 3 使用 jakarta.servlet；本阶段不调整该风险或认证架构。
 - 线下导入配置项为 vantix.offline-import.max-file-size-bytes、max-rows、max-total-codes 和 max-errors；默认分别为 10 MiB、500 行、5,000 个服务码和 100 条错误。
-- V3 为 service_duration_config 增加稳定且不可变的 spec_code，新增 service_code_generate_order 订单头、订单 payloadHash 幂等约束、批次 generate_order_id 关系和 service_code.generate_batch_id。V1/V2 保持不变；Phase 1.5 migration 在正式上线前仍处于开发冻结阶段。
-- 服务时长规格按 duration_value + duration_unit 全局唯一，specCode 固定为 D/W/M/Y + 时长值；创建后不可修改规格身份，只能调整启用状态、沉默月数和备注。
-- V3 不创建数据库外键。修改尚未上线的 V3 后，开发环境应重建空 schema 并从 V1/V2/V3 重新执行 Flyway。
+- 服务时长规格使用全局唯一的 `spec_code` 和 `display_name`，业务时长统一使用 `duration_days`；创建后不可修改 `spec_code`、`service_type` 和 `duration_days`，只能调整展示名称、沉默天数、启用状态和备注。
+- 当前 CORS 创建账号 wire contract 使用 `requestId`、`durationDays`、`silenceDays`、`quantity`、`accountPrefix`；字段名仍需与 CORS 团队独立联调确认。
+- Redis 实时状态通知保留即时 authoritative read 和 500ms confirmation；CORS MySQL 状态同步保留 `0 0 2 * * ?`、`Asia/Shanghai` fallback。
+
+## Pre-release database policy
+
+Vantix 尚未正式生产发布，当前 schema 已 squash 为新的 V1 baseline。任何使用旧 V1~V9 migration 的开发/测试数据库都必须由开发人员手工删除并重新创建；不支持把 pre-release legacy business data 原地升级到新 baseline。正式第一次生产部署后，V1 将被冻结，后续 schema 变化才使用 V2/V3/...。
+
+开发环境重建示例：
+
+```sql
+DROP DATABASE vantix;
+CREATE DATABASE vantix CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```
+
+应用启动和 Flyway migration 不会自动执行 `DROP DATABASE`。
 ## 启动
 
 需要 Java 17、Maven 3.9+ 和 MySQL 5.7/8。使用环境变量 `VANTIX_DB_URL`、`VANTIX_DB_USERNAME`、`VANTIX_DB_PASSWORD` 配置数据库。数据库连接驱动固定为 MySQL Connector/J 8.0.33。
@@ -48,4 +60,4 @@ $env:Path="$env:JAVA_HOME\bin;$env:MAVEN_HOME\bin;$env:Path"
 mvn clean test
 ```
 
-后续阶段 TODO：实现 `exchange_*` 业务、CORS `CREATE_ACCOUNT/RENEW_ACCOUNT/FORCE_ACTIVATE` 补偿流程和公司服务实际同步适配器；密码 Gateway 的真实适配器需等 CORS 确认接口契约后实现。
+后续阶段 TODO：完善公司服务实际同步适配器；密码 Gateway 的真实适配器需等 CORS 确认接口契约后实现。

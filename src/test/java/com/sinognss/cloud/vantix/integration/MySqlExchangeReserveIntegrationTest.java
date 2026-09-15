@@ -95,11 +95,9 @@ class MySqlExchangeReserveIntegrationTest {
         jdbc.update("INSERT INTO dealer_company (company_id, company_name, company_status) "
                 + "VALUES (?, 'exchange test company', 'ACTIVE')", COMPANY_ID);
         jdbc.update("INSERT INTO service_duration_config "
-                        + "(service_type, duration_value, duration_unit, code_silence_months, enabled, spec_code) "
-                        + "VALUES ('CORS', 1, 'MONTH', 6, 0, ?)",
+                        + "(service_type, display_name, duration_days, code_silence_days, account_silence_days, "
+                        + "enabled, spec_code) VALUES ('CORS', '1个月', 30, 180, 360, 0, ?)",
                 SPEC_CODE);
-        jdbc.update("INSERT INTO account_config (id, account_silence_months) VALUES (1, 12) "
-                + "ON DUPLICATE KEY UPDATE account_silence_months = 12");
     }
 
     @AfterEach
@@ -111,10 +109,10 @@ class MySqlExchangeReserveIntegrationTest {
     void concurrentReservationsLockEligibleCodesAndKeepSourcesAndExpirySeparate() throws Exception {
         LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Shanghai"));
         insertGeneration("B2B", 1001L, "B2B-RESERVE-ORDER", "B2B-RESERVE-BATCH", 16);
-        insertCodes("B2B-ELIG-", 1001L, 14, now.plusMonths(6));
+        insertCodes("B2B-ELIG-", 1001L, 14, now.plusDays(180));
         List<Long> expiredCodeIds = insertCodes("B2B-EXP-", 1001L, 2, now.minusHours(1));
         insertGeneration("OFFLINE", 1002L, "OFFLINE-RESERVE-ORDER", "OFFLINE-RESERVE-BATCH", 5);
-        insertCodes("OFFLINE-ELIG-", 1002L, 5, now.plusMonths(6));
+        insertCodes("OFFLINE-ELIG-", 1002L, 5, now.plusDays(180));
 
         CountDownLatch start = new CountDownLatch(1);
         ExecutorService executor = Executors.newFixedThreadPool(2);
@@ -185,7 +183,7 @@ class MySqlExchangeReserveIntegrationTest {
     void remoteGatewayRunsOnlyAfterReservationTransactionCommits() {
         LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Shanghai"));
         insertGeneration("B2B", 1003L, "B2B-REMOTE-ORDER", "B2B-REMOTE-BATCH", 1);
-        insertCodes("REMOTE-BOUNDARY-", 1003L, 1, now.plusMonths(6));
+        insertCodes("REMOTE-BOUNDARY-", 1003L, 1, now.plusDays(180));
         setGlobalUser();
 
         String requestId = "REMOTE-BOUNDARY-REQUEST";
@@ -220,7 +218,7 @@ class MySqlExchangeReserveIntegrationTest {
     void definitiveRejectAllowsSameServiceCodeToBeReservedByANewRequest() {
         LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Shanghai"));
         insertGeneration("B2B", 1004L, "B2B-REUSE-ORDER", "B2B-REUSE-BATCH", 1);
-        long serviceCodeId = insertCodes("REUSE-CODE-", 1004L, 1, now.plusMonths(6)).get(0);
+        long serviceCodeId = insertCodes("REUSE-CODE-", 1004L, 1, now.plusDays(180)).get(0);
         setGlobalUser();
 
         when(corsGateway.createBatch(any(CorsBatchCreateRequest.class))).thenReturn(
@@ -261,7 +259,7 @@ class MySqlExchangeReserveIntegrationTest {
     void personalReservationPersistsOwnerAndHidesBatchFromAnotherUserInSameCompany() {
         LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Shanghai"));
         insertGeneration("B2B", 1005L, "B2B-PERSONAL-ORDER", "B2B-PERSONAL-BATCH", 1);
-        insertCodes("PERSONAL-CODE-", 1005L, 1, now.plusMonths(6));
+        insertCodes("PERSONAL-CODE-", 1005L, 1, now.plusDays(180));
         setPersonalUser(88L);
 
         reserveService.reserve(new ServiceCodeExchangeCommand(
@@ -312,9 +310,9 @@ class MySqlExchangeReserveIntegrationTest {
                 orderId, source + ":" + orderNo, source, orderNo, COMPANY_ID, hash, quantity);
         jdbc.update("INSERT INTO service_code_generate_batch "
                         + "(batch_no, request_id, generation_source, source_order_no, owner_company_id, spec_code, "
-                        + "duration_value, duration_unit, code_silence_months, quantity, generated_count, status, "
+                        + "display_name, service_type, duration_days, code_silence_days, quantity, generated_count, status, "
                         + "business_key_hash, generate_order_id) "
-                        + "VALUES (?, ?, ?, ?, ?, ?, 1, 'MONTH', 6, ?, ?, 'COMPLETED', ?, ?)",
+                        + "VALUES (?, ?, ?, ?, ?, ?, '1个月', 'CORS', 30, 180, ?, ?, 'COMPLETED', ?, ?)",
                 batchNo, source + ":" + batchNo, source, orderNo, COMPANY_ID, SPEC_CODE, quantity, quantity,
                 String.format("%064x", orderId + 1000), orderId);
     }
@@ -325,9 +323,9 @@ class MySqlExchangeReserveIntegrationTest {
         assertNotNull(batchId);
         for (int index = 0; index < quantity; index++) {
             jdbc.update("INSERT INTO service_code "
-                            + "(code, generate_batch_id, owner_company_id, service_type, duration_value, duration_unit, "
-                            + "code_silence_months, expire_at, status, version) "
-                            + "VALUES (?, ?, ?, 'CORS', 1, 'MONTH', 6, ?, 'PENDING', 0)",
+                            + "(code, generate_batch_id, owner_company_id, spec_code, service_type, duration_days, "
+                            + "code_silence_days, expire_at, status, version) "
+                            + "VALUES (?, ?, ?, 'M1', 'CORS', 30, 180, ?, 'PENDING', 0)",
                     prefix + String.format("%03d", index + 1), batchId, COMPANY_ID, expireAt);
         }
         return jdbc.queryForList("SELECT id FROM service_code WHERE code LIKE ? ORDER BY id",

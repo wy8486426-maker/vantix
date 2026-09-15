@@ -74,8 +74,8 @@ class MySqlTransferIntegrationTest {
     }
 
     @Test
-    void flywayRunsAllMigrationsAndBatchTransferStoresTwoRows() {
-        assertEquals(8, jdbc.queryForObject(
+    void flywayRunsSingleBaselineAndBatchTransferStoresTwoRows() {
+        assertEquals(1, jdbc.queryForObject(
                 "SELECT COUNT(*) FROM flyway_schema_history WHERE success = 1", Integer.class));
 
         ServiceCode first = insertCode("MYSQL-BATCH-1", 10L, ServiceCodeStatus.PENDING);
@@ -160,11 +160,11 @@ class MySqlTransferIntegrationTest {
         ServiceCode code = new ServiceCode();
         code.setCode(value);
         code.setOwnerCompanyId(ownerCompanyId);
+        code.setSpecCode("M1");
         code.setServiceType("CORS");
-        code.setDurationValue(1);
-        code.setDurationUnit("MONTH");
-        code.setCodeSilenceMonths(12);
-        code.setExpireAt(now.plusMonths(12));
+        code.setDurationDays(30);
+        code.setCodeSilenceDays(180);
+        code.setExpireAt(now.plusDays(180));
         code.setStatus(status);
         code.setVersion(0L);
         code.setCreatedAt(now);

@@ -87,8 +87,8 @@ class MySqlGenerationIntegrationTest {
         jdbc.update("DELETE FROM dealer_company");
         jdbc.update("INSERT INTO dealer_company (company_id, company_name, company_status) "
                 + "VALUES (100, 'test company', 'ACTIVE'), (200, 'other company', 'ACTIVE')");
-        insertSpec("CORS", 1, "MONTH", 6, true, "M1");
-        insertSpec("CORS", 1, "YEAR", 12, false, "Y1");
+        insertSpec("CORS", 30, "1个月", 180, true, "M1");
+        insertSpec("CORS", 365, "1年", 360, false, "Y1");
     }
 
     @AfterEach
@@ -99,13 +99,13 @@ class MySqlGenerationIntegrationTest {
     }
 
     @Test
-    void flywayRunsAllMigrationsAndSpecsExposeEnabledConfigsOnly() {
+    void flywayRunsSingleBaselineAndSpecsExposeEnabledConfigsOnly() {
         assertEquals(500, generationProperties.getBatchInsertSize());
-        assertEquals(8, jdbc.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success = 1", Integer.class));
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success = 1", Integer.class));
         List<ServiceDurationConfig> specs = durationMapper.selectEnabled();
         assertEquals(1, specs.size());
         assertEquals("M1", specs.get(0).getSpecCode());
-        assertEquals(6, specs.get(0).getCodeSilenceMonths());
+        assertEquals(180, specs.get(0).getCodeSilenceDays());
         assertEquals(1, jdbc.queryForObject(
                 "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() "
                         + "AND table_name = 'service_code' AND column_name = 'generate_batch_id'", Integer.class));
@@ -113,11 +113,10 @@ class MySqlGenerationIntegrationTest {
 
     @Test
     void enabledSpecsHaveUniqueDurationDisplayNames() {
-        insertSpec("SDK", 3, "MONTH", 12, true, "M3");
+        insertSpec("SDK", 90, "3个月", 360, true, "M3");
 
         List<String> displayNames = durationMapper.selectEnabled().stream()
-                .map(spec -> com.sinognss.cloud.vantix.common.DurationDisplayFormatter
-                        .format(spec.getDurationValue(), spec.getDurationUnit()))
+                .map(ServiceDurationConfig::getDisplayName)
                 .toList();
 
         assertEquals(displayNames.size(), displayNames.stream().distinct().count());
@@ -147,15 +146,14 @@ class MySqlGenerationIntegrationTest {
         assertEquals("COMPLETED", first.batch().status());
 
         var snapshot = jdbc.queryForMap(
-                "SELECT status, duration_value, duration_unit, code_silence_months, expire_at, created_at "
+                "SELECT status, duration_days, code_silence_days, expire_at, created_at "
                         + "FROM service_code WHERE generate_batch_id = ? LIMIT 1",
                 jdbc.queryForObject("SELECT id FROM service_code_generate_batch WHERE batch_no = ?",
                         Long.class, first.batch().batchNo()));
         assertEquals("PENDING", snapshot.get("status"));
-        assertEquals(1, snapshot.get("duration_value"));
-        assertEquals("MONTH", snapshot.get("duration_unit"));
-        assertEquals(6, snapshot.get("code_silence_months"));
-        assertEquals(((java.time.LocalDateTime) snapshot.get("created_at")).plusMonths(6),
+        assertEquals(30, snapshot.get("duration_days"));
+        assertEquals(180, snapshot.get("code_silence_days"));
+        assertEquals(((java.time.LocalDateTime) snapshot.get("created_at")).plusDays(180),
                 (java.time.LocalDateTime) snapshot.get("expire_at"));
 
         GenerateServiceCodeResult repeated = generateService.generate(command, IntegrationActor.B2B.operatorIdentity());
@@ -187,10 +185,11 @@ class MySqlGenerationIntegrationTest {
         GenerateServiceCodeResult generated = generateService.generate(
                 command("B2B:UNIQUE", "ORDER-UNIQUE", 100L, "M1", 1), IntegrationActor.B2B.operatorIdentity());
 
+        insertSpec("OTHER", 30, "另一个30天规格", 180, true, "OTHER-M1");
         assertThrows(DuplicateKeyException.class, () ->
-                insertSpec("OTHER", 1, "MONTH", 1, true, "OTHER-M1"));
+                insertSpec("OTHER", 31, "另一个规格", 180, true, "M1"));
         assertThrows(DuplicateKeyException.class, () ->
-                insertSpec("OTHER", 2, "MONTH", 1, true, "M1"));
+                insertSpec("OTHER", 31, "1个月", 180, true, "OTHER-M2"));
         String hash = ServiceCodeGenerateService.businessKeyHash(
                 GenerationSource.B2B, 100L, "ORDER-UNIQUE", "M1");
         String generatedRequestId = jdbc.queryForObject(
@@ -201,27 +200,24 @@ class MySqlGenerationIntegrationTest {
         assertThrows(DuplicateKeyException.class, () -> insertBatch(
                 "GB-BUSINESS-DUP", "B2B:UNIQUE-2", "ORDER-UNIQUE", hash));
         assertThrows(DuplicateKeyException.class, () -> jdbc.update(
-                "INSERT INTO service_code (code, owner_company_id, service_type, duration_value, duration_unit, "
-                        + "code_silence_months, expire_at) VALUES (?, 100, 'CORS', 1, 'MONTH', 6, ?)",
-                generated.serviceCodes().get(0), LocalDateTime.now().plusMonths(6)));
+                "INSERT INTO service_code (code, owner_company_id, spec_code, service_type, duration_days, "
+                        + "code_silence_days, expire_at) VALUES (?, 100, 'M1', 'CORS', 30, 180, ?)",
+                generated.serviceCodes().get(0), LocalDateTime.now().plusDays(180)));
 
         assertThrows(DataAccessException.class, () -> jdbc.update(
                 "UPDATE service_duration_config SET spec_code = 'CHANGED' WHERE spec_code = 'M1'"));
         assertThrows(DataAccessException.class, () -> jdbc.update(
-                "UPDATE service_duration_config SET duration_value = 3 WHERE spec_code = 'M1'"));
-        assertThrows(DataAccessException.class, () -> jdbc.update(
-                "UPDATE service_duration_config SET duration_unit = 'WEEK' WHERE spec_code = 'M1'"));
+                "UPDATE service_duration_config SET duration_days = 31 WHERE spec_code = 'M1'"));
         assertThrows(DataAccessException.class, () -> jdbc.update(
                 "UPDATE service_duration_config SET service_type = 'SDK' WHERE spec_code = 'M1'"));
         jdbc.update("UPDATE service_duration_config "
-                + "SET code_silence_months = 8, enabled = 0, remark = 'changed' WHERE spec_code = 'M1'");
+                + "SET code_silence_days = 200, enabled = 0, remark = 'changed' WHERE spec_code = 'M1'");
         var mutableConfig = jdbc.queryForMap(
-                "SELECT spec_code, duration_value, duration_unit, code_silence_months, enabled, remark "
+                "SELECT spec_code, duration_days, code_silence_days, enabled, remark "
                         + "FROM service_duration_config WHERE spec_code = 'M1'");
         assertEquals("M1", mutableConfig.get("spec_code"));
-        assertEquals(1, mutableConfig.get("duration_value"));
-        assertEquals("MONTH", mutableConfig.get("duration_unit"));
-        assertEquals(8, mutableConfig.get("code_silence_months"));
+        assertEquals(30, mutableConfig.get("duration_days"));
+        assertEquals(200, mutableConfig.get("code_silence_days"));
         assertEquals(false, mutableConfig.get("enabled"));
         assertEquals("changed", mutableConfig.get("remark"));
         jdbc.update("UPDATE service_code SET code = 'CHANGED' WHERE code = ?", generated.serviceCodes().get(0));
@@ -302,7 +298,7 @@ class MySqlGenerationIntegrationTest {
     @Test
     void offlineExcelImportIsCompanyScopedIdempotentAndAllOrNothing() throws Exception {
         asGlobalUser();
-        insertSpec("CORS", 1, "WEEK", 0, true, "W1");
+        insertSpec("CORS", 7, "1周", 0, true, "W1");
         byte[] validFile = xlsx(List.of(
                 List.of("订单号*", "服务时长*", "服务码数量*", "下单时间", "备注"),
                 List.of("OFF-001", "1个月", "2", "2026-09-12T18:09:22", "first"),
@@ -336,7 +332,7 @@ class MySqlGenerationIntegrationTest {
 
     @Test
     void multiSpecOrdersPersistCorrectChunkedCountsAndUniqueCodes() {
-        insertSpec("CORS", 1, "DAY", 0, true, "D1");
+        insertSpec("CORS", 1, "1天", 0, true, "D1");
         GenerateServiceCodeOrderCommand command = new GenerateServiceCodeOrderCommand(
                 GenerationSource.B2B, "B2B:ORDER-CHUNKED", "ORDER-CHUNKED",
                 null, 100L, List.of(new GenerateServiceCodeItemCommand("D1", 600, null),
@@ -364,7 +360,7 @@ class MySqlGenerationIntegrationTest {
 
     @Test
     void mysql57PersistsThreeThousandCodesAcrossThreeSpecs() {
-        insertSpec("CORS", 1, "DAY", 0, true, "D1");
+        insertSpec("CORS", 1, "1天", 0, true, "D1");
         jdbc.update("UPDATE service_duration_config SET enabled = 1 WHERE spec_code = 'Y1'");
         GenerateServiceCodeOrderCommand command = new GenerateServiceCodeOrderCommand(
                 GenerationSource.B2B, "B2B:ORDER-3000", "ORDER-3000",
@@ -418,8 +414,8 @@ class MySqlGenerationIntegrationTest {
 
     @Test
     void oneRequestGeneratesOneMultiSpecOrderAtomicallyAndReplaysByPayload() {
-        insertSpec("CORS", 1, "DAY", 0, true, "D1");
-        insertSpec("CORS", 1, "WEEK", 0, true, "W1");
+        insertSpec("CORS", 1, "1天", 0, true, "D1");
+        insertSpec("CORS", 7, "1周", 0, true, "W1");
         jdbc.update("UPDATE service_duration_config SET enabled = 1 WHERE spec_code = 'Y1'");
         GenerateServiceCodeOrderCommand command = new GenerateServiceCodeOrderCommand(
                 GenerationSource.B2B, "B2B:ORDER-MULTI", "ORDER-MULTI",
@@ -468,7 +464,7 @@ class MySqlGenerationIntegrationTest {
     @Test
     void offlineFileRollsBackAllOrdersWhenAnyServiceCodeInsertFails() throws Exception {
         asGlobalUser();
-        insertSpec("CORS", 1, "WEEK", 0, true, "W1");
+        insertSpec("CORS", 7, "1周", 0, true, "W1");
         jdbc.execute("CREATE TRIGGER trg_test_fail_service_code BEFORE INSERT ON service_code "
                 + "FOR EACH ROW BEGIN IF NEW.source_order_no = 'OFF-FAIL' THEN "
                 + "SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'forced failure'; END IF; END");
@@ -509,19 +505,20 @@ class MySqlGenerationIntegrationTest {
                 companyId, specCode, quantity, null);
     }
 
-    private void insertSpec(String serviceType, int duration, String unit, int silence,
+    private void insertSpec(String serviceType, int durationDays, String displayName, int codeSilenceDays,
                             boolean enabled, String specCode) {
         jdbc.update("INSERT INTO service_duration_config "
-                        + "(service_type, duration_value, duration_unit, code_silence_months, enabled, spec_code) "
-                        + "VALUES (?, ?, ?, ?, ?, ?)",
-                serviceType, duration, unit, silence, enabled, specCode);
+                        + "(service_type, display_name, duration_days, code_silence_days, account_silence_days, "
+                        + "enabled, spec_code) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                serviceType, displayName, durationDays, codeSilenceDays, codeSilenceDays, enabled, specCode);
     }
 
     private void insertBatch(String batchNo, String requestId, String orderNo, String hash) {
         jdbc.update("INSERT INTO service_code_generate_batch "
                         + "(batch_no, request_id, generation_source, source_order_no, owner_company_id, spec_code, "
-                        + "duration_value, duration_unit, code_silence_months, quantity, status, business_key_hash, generate_order_id) "
-                        + "VALUES (?, ?, 'B2B', ?, 100, 'M1', 1, 'MONTH', 6, 1, 'COMPLETED', ?, 9223372036854770000)",
+                        + "display_name, service_type, duration_days, code_silence_days, quantity, status, "
+                        + "business_key_hash, generate_order_id) "
+                        + "VALUES (?, ?, 'B2B', ?, 100, 'M1', '1个月', 'CORS', 30, 180, 1, 'COMPLETED', ?, 9223372036854770000)",
                 batchNo, requestId, orderNo, hash);
     }
 

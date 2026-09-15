@@ -1,8 +1,5 @@
 package com.sinognss.cloud.vantix.integration.cors;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import java.util.Objects;
-
 /** Day-based CORS batch-create request built from the frozen exchange snapshot. */
 public record CorsBatchCreateRequest(String requestId, int durationDays, int silenceDays,
                                      int quantity, String accountPrefix) {
@@ -26,23 +23,4 @@ public record CorsBatchCreateRequest(String requestId, int durationDays, int sil
         }
     }
 
-    @Deprecated
-    @JsonIgnore
-    public int durationValue() { return durationDays; }
-
-    @Deprecated
-    @JsonIgnore
-    public com.sinognss.cloud.vantix.domain.config.DurationUnit durationUnit() {
-        return com.sinognss.cloud.vantix.domain.config.DurationUnit.DAY;
-    }
-
-    /** Compatibility constructor for source callers using the retired unit contract. */
-    @Deprecated
-    public CorsBatchCreateRequest(String requestId, int durationValue,
-                                  com.sinognss.cloud.vantix.domain.config.DurationUnit durationUnit,
-                                  int quantity, String accountPrefix) {
-        this(requestId, com.sinognss.cloud.vantix.common.LegacyDurationCompatibility
-                        .toDays(durationValue, Objects.requireNonNull(durationUnit)),
-                0, quantity, accountPrefix);
-    }
 }

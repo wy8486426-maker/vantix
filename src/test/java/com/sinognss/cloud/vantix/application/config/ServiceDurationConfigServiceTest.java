@@ -84,19 +84,19 @@ class ServiceDurationConfigServiceTest {
     }
 
     @Test
-    void rejectsChangingDurationValueAfterCreation() {
+    void rejectsChangingDurationDaysAfterCreation() {
         assertImmutableUpdateRejected(new ServiceDurationConfigCommand(
                 "月度规格", "CORS", 90, 6, 30, false, "changed"));
     }
 
     @Test
-    void rejectsChangingDurationUnitAfterCreation() {
+    void rejectsChangingDurationDaysToAnotherValueAfterCreation() {
         assertImmutableUpdateRejected(new ServiceDurationConfigCommand(
                 "月度规格", "CORS", 365, 6, 30, false, "changed"));
     }
 
     @Test
-    void rejectsChangingLegacyServiceTypeAfterCreation() {
+    void rejectsChangingServiceTypeAfterCreation() {
         assertImmutableUpdateRejected(new ServiceDurationConfigCommand(
                 "月度规格", "SDK", 30, 6, 30, false, "changed"));
     }

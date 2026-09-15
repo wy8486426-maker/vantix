@@ -44,14 +44,6 @@ public interface ServiceCodeExchangeGroupMapper {
         public void setServiceType(String serviceType) { this.serviceType = serviceType; }
         public Integer getDurationDays() { return durationDays; }
         public void setDurationDays(Integer durationDays) { this.durationDays = durationDays; }
-        @Deprecated
-        public Integer getDurationValue() { return durationDays; }
-        @Deprecated
-        public void setDurationValue(Integer durationValue) { this.durationDays = durationValue; }
-        @Deprecated
-        public String getDurationUnit() { return "DAY"; }
-        @Deprecated
-        public void setDurationUnit(String ignored) { }
         public Long getAvailableCount() { return availableCount; }
         public void setAvailableCount(Long availableCount) { this.availableCount = availableCount; }
         public LocalDateTime getEarliestExpireAt() { return earliestExpireAt; }

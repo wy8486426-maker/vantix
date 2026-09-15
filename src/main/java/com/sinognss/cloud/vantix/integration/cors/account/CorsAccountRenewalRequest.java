@@ -1,9 +1,5 @@
 package com.sinognss.cloud.vantix.integration.cors.account;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.sinognss.cloud.vantix.common.LegacyDurationCompatibility;
-import com.sinognss.cloud.vantix.domain.config.DurationUnit;
-
 /** The renewal input sent to CORS; duration is taken from the immutable code snapshot. */
 public record CorsAccountRenewalRequest(String requestId, String accountId, int durationDays) {
     public CorsAccountRenewalRequest {
@@ -18,21 +14,6 @@ public record CorsAccountRenewalRequest(String requestId, String accountId, int 
         if (durationDays <= 0) {
             throw new IllegalArgumentException("durationDays must be positive");
         }
-    }
-
-    @Deprecated
-    @JsonIgnore
-    public int durationValue() { return durationDays; }
-
-    @Deprecated
-    @JsonIgnore
-    public DurationUnit durationUnit() { return DurationUnit.DAY; }
-
-    /** Compatibility constructor for source callers using the retired unit contract. */
-    @Deprecated
-    public CorsAccountRenewalRequest(String requestId, String accountId, int durationValue,
-                                     DurationUnit durationUnit) {
-        this(requestId, accountId, LegacyDurationCompatibility.toDays(durationValue, durationUnit));
     }
 
     private static void requireText(String value, String name) {

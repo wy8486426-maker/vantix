@@ -1,7 +1,6 @@
 package com.sinognss.cloud.vantix.application.config;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import com.sinognss.cloud.vantix.common.LegacyDurationCompatibility;
 import com.sinognss.cloud.vantix.common.exception.BusinessException;
 import com.sinognss.cloud.vantix.common.exception.ErrorCode;
 import com.sinognss.cloud.vantix.common.user.OperatorIdentity;
@@ -121,10 +120,8 @@ public class ServiceDurationConfigService {
     }
 
     private void ensureIdentityUnchanged(ServiceDurationConfig config, ServiceDurationConfigCommand command) {
-        Integer existingDays = config.getDurationDays() != null ? config.getDurationDays()
-                : LegacyDurationCompatibility.toDays(config.getDurationValue(), config.getDurationUnit());
         if (!java.util.Objects.equals(config.getServiceType(), command.serviceType().trim())
-                || !java.util.Objects.equals(existingDays, command.durationDays())) {
+                || !java.util.Objects.equals(config.getDurationDays(), command.durationDays())) {
             throw new BusinessException(ErrorCode.CONFIG_INVALID, IDENTITY_IMMUTABLE_MESSAGE);
         }
     }

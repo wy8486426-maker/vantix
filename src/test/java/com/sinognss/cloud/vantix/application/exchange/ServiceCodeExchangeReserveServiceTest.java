@@ -9,7 +9,6 @@ import com.sinognss.cloud.vantix.common.user.UserHolderBridge;
 import com.sinognss.cloud.vantix.common.user.UserScope;
 import com.sinognss.cloud.vantix.config.GenerationProperties;
 import com.sinognss.cloud.vantix.domain.company.DealerCompany;
-import com.sinognss.cloud.vantix.domain.config.DurationUnit;
 import com.sinognss.cloud.vantix.domain.config.ServiceDurationConfig;
 import com.sinognss.cloud.vantix.domain.cors.CorsOperation;
 import com.sinognss.cloud.vantix.domain.exchange.ExchangeBatch;

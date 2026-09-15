@@ -4,11 +4,9 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.sinognss.cloud.vantix.common.LegacyDurationCompatibility;
-
 import java.time.LocalDateTime;
 
-/** Immutable exchange snapshot. The creator also reads the retired JSON shape. */
+/** Immutable exchange snapshot captured at exchange reservation time. */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public final class ExchangeCodeSnapshot {
@@ -22,22 +20,6 @@ public final class ExchangeCodeSnapshot {
     private final Integer codeSilenceDays;
     private final LocalDateTime expireAt;
 
-    public ExchangeCodeSnapshot(Long serviceCodeId, String code, Long ownerCompanyId,
-                                Long assignedUserId, String specCode, String serviceType,
-                                Integer durationDays, Integer codeSilenceDays,
-                                LocalDateTime expireAt) {
-        this.serviceCodeId = serviceCodeId;
-        this.code = code;
-        this.ownerCompanyId = ownerCompanyId;
-        this.assignedUserId = assignedUserId;
-        this.specCode = specCode;
-        this.serviceType = serviceType;
-        this.durationDays = durationDays;
-        this.codeSilenceDays = codeSilenceDays;
-        this.expireAt = expireAt;
-    }
-
-    /** Reads both the days contract and legacy durationValue/durationUnit JSON. */
     @JsonCreator
     public ExchangeCodeSnapshot(
             @JsonProperty("serviceCodeId") Long serviceCodeId,
@@ -48,26 +30,16 @@ public final class ExchangeCodeSnapshot {
             @JsonProperty("serviceType") String serviceType,
             @JsonProperty("durationDays") Integer durationDays,
             @JsonProperty("codeSilenceDays") Integer codeSilenceDays,
-            @JsonProperty("expireAt") LocalDateTime expireAt,
-            @JsonProperty("durationValue") Integer legacyDurationValue,
-            @JsonProperty("durationUnit") String legacyDurationUnit,
-            @JsonProperty("codeSilenceMonths") Integer legacyCodeSilenceMonths) {
-        this(serviceCodeId, code, ownerCompanyId, assignedUserId, specCode, serviceType,
-                durationDays != null ? durationDays
-                        : LegacyDurationCompatibility.toDays(legacyDurationValue, legacyDurationUnit),
-                codeSilenceDays != null ? codeSilenceDays
-                        : LegacyDurationCompatibility.monthsToDays(legacyCodeSilenceMonths), expireAt);
-    }
-
-    /** Source compatibility for the retired Java snapshot constructor. */
-    @Deprecated
-    public ExchangeCodeSnapshot(Long serviceCodeId, String serviceCode, Long ownerCompanyId,
-                                Long assignedUserId, String serviceType, Integer durationValue,
-                                String durationUnit, Integer codeSilenceMonths,
-                                LocalDateTime expireAt) {
-        this(serviceCodeId, serviceCode, ownerCompanyId, assignedUserId, null, serviceType,
-                LegacyDurationCompatibility.toDays(durationValue, durationUnit),
-                LegacyDurationCompatibility.monthsToDays(codeSilenceMonths), expireAt);
+            @JsonProperty("expireAt") LocalDateTime expireAt) {
+        this.serviceCodeId = serviceCodeId;
+        this.code = code;
+        this.ownerCompanyId = ownerCompanyId;
+        this.assignedUserId = assignedUserId;
+        this.specCode = specCode;
+        this.serviceType = serviceType;
+        this.durationDays = durationDays;
+        this.codeSilenceDays = codeSilenceDays;
+        this.expireAt = expireAt;
     }
 
     public Long serviceCodeId() { return serviceCodeId; }

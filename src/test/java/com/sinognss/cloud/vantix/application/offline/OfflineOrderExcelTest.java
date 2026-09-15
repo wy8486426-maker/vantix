@@ -1,7 +1,6 @@
 package com.sinognss.cloud.vantix.application.offline;
 
 import com.sinognss.cloud.vantix.config.OfflineImportProperties;
-import com.sinognss.cloud.vantix.domain.config.DurationUnit;
 import com.sinognss.cloud.vantix.domain.config.ServiceDurationConfig;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceDurationConfigMapper;
 import org.apache.poi.ss.usermodel.DataValidation;
@@ -23,8 +22,8 @@ class OfflineOrderExcelTest {
 
     @Test
     void templateHasExactHeadersEnabledDropdownAndNoCompanyOrCommercialFields() throws Exception {
-        ServiceDurationConfig month = spec("M1", 1, DurationUnit.MONTH);
-        ServiceDurationConfig year = spec("Y1", 1, DurationUnit.YEAR);
+        ServiceDurationConfig month = spec("M1", 30, "1个月");
+        ServiceDurationConfig year = spec("Y1", 365, "1年");
         ServiceDurationConfigMapper mapper = mock(ServiceDurationConfigMapper.class);
         when(mapper.selectEnabled()).thenReturn(List.of(month, year));
 
@@ -65,7 +64,7 @@ class OfflineOrderExcelTest {
         OfflineParseResult result = parseRows(List.of(
                 List.of("订单号*", "服务时长*", "服务码数量*", "下单时间", "备注"),
                 List.of("DD001", "1个月", "2", "2026-09-12T18:09:22", "note")),
-                List.of(spec("M1", 1, DurationUnit.MONTH)));
+                List.of(spec("M1", 30, "1个月")));
 
         assertTrue(result.errors().isEmpty());
         assertEquals(1, result.rows().size());
@@ -79,13 +78,13 @@ class OfflineOrderExcelTest {
         OfflineParseResult invalid = parseRows(List.of(
                 List.of("订单号*", "服务时长*", "服务码数量*", "下单时间", "备注"),
                 List.of("DD001", "18个月", "1.5", "", "")),
-                List.of(spec("M1", 1, DurationUnit.MONTH)));
+                List.of(spec("M1", 30, "1个月")));
         assertEquals(2, invalid.errors().size());
         assertTrue(invalid.rows().isEmpty());
 
         OfflineParseResult changedHeader = parseRows(List.of(
                 List.of("订单号*", "服务时长*", "服务码数量*", "下单时间", "备注", "公司ID")),
-                List.of(spec("M1", 1, DurationUnit.MONTH)));
+                List.of(spec("M1", 30, "1个月")));
         assertEquals(1, changedHeader.errors().size());
         assertEquals("表头", changedHeader.errors().get(0).field());
     }
@@ -95,7 +94,7 @@ class OfflineOrderExcelTest {
         OfflineParseResult result = parseRows(List.of(
                         List.of("订单号*", "服务时长*", "服务码数量*", "下单时间", "备注"),
                         List.of("DD001", "1个月", "1", "", "")),
-                List.of(spec("M1", 1, DurationUnit.MONTH), spec("M1-CORS2", 1, DurationUnit.MONTH)));
+                List.of(spec("M1", 30, "1个月"), spec("M1-CORS2", 30, "1个月")));
 
         assertTrue(result.rows().isEmpty());
         assertTrue(result.errors().get(0).message().contains("无法唯一匹配"));
@@ -105,13 +104,14 @@ class OfflineOrderExcelTest {
         return parser.parse(new ByteArrayInputStream(workbookBytes(rows)), specs, 500, 100);
     }
 
-    private ServiceDurationConfig spec(String specCode, int value, DurationUnit unit) {
+    private ServiceDurationConfig spec(String specCode, int durationDays, String displayName) {
         ServiceDurationConfig spec = new ServiceDurationConfig();
         spec.setSpecCode(specCode);
+        spec.setDisplayName(displayName);
         spec.setServiceType("CORS");
-        spec.setDurationValue(value);
-        spec.setDurationUnit(unit);
-        spec.setCodeSilenceMonths(12);
+        spec.setDurationDays(durationDays);
+        spec.setCodeSilenceDays(360);
+        spec.setAccountSilenceDays(360);
         spec.setEnabled(true);
         return spec;
     }

@@ -4,11 +4,9 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.sinognss.cloud.vantix.common.LegacyDurationCompatibility;
-
 import java.time.LocalDateTime;
 
-/** Immutable renewal snapshot with backward-compatible reads of legacy JSON. */
+/** Immutable renewal snapshot captured at renewal reservation time. */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public final class AccountRenewalCodeSnapshot {
@@ -21,19 +19,6 @@ public final class AccountRenewalCodeSnapshot {
     private final Integer codeSilenceDays;
     private final LocalDateTime expireAt;
 
-    public AccountRenewalCodeSnapshot(Long serviceCodeId, String code, Long ownerCompanyId,
-                                      String specCode, String serviceType, Integer durationDays,
-                                      Integer codeSilenceDays, LocalDateTime expireAt) {
-        this.serviceCodeId = serviceCodeId;
-        this.code = code;
-        this.ownerCompanyId = ownerCompanyId;
-        this.specCode = specCode;
-        this.serviceType = serviceType;
-        this.durationDays = durationDays;
-        this.codeSilenceDays = codeSilenceDays;
-        this.expireAt = expireAt;
-    }
-
     @JsonCreator
     public AccountRenewalCodeSnapshot(
             @JsonProperty("serviceCodeId") Long serviceCodeId,
@@ -43,25 +28,15 @@ public final class AccountRenewalCodeSnapshot {
             @JsonProperty("serviceType") String serviceType,
             @JsonProperty("durationDays") Integer durationDays,
             @JsonProperty("codeSilenceDays") Integer codeSilenceDays,
-            @JsonProperty("expireAt") LocalDateTime expireAt,
-            @JsonProperty("durationValue") Integer legacyDurationValue,
-            @JsonProperty("durationUnit") String legacyDurationUnit,
-            @JsonProperty("codeSilenceMonths") Integer legacyCodeSilenceMonths) {
-        this(serviceCodeId, code, ownerCompanyId, specCode, serviceType,
-                durationDays != null ? durationDays
-                        : LegacyDurationCompatibility.toDays(legacyDurationValue, legacyDurationUnit),
-                codeSilenceDays != null ? codeSilenceDays
-                        : LegacyDurationCompatibility.monthsToDays(legacyCodeSilenceMonths), expireAt);
-    }
-
-    @Deprecated
-    public AccountRenewalCodeSnapshot(Long serviceCodeId, String code, Long ownerCompanyId,
-                                      String serviceType, Integer durationValue,
-                                      String durationUnit, Integer codeSilenceMonths,
-                                      LocalDateTime expireAt) {
-        this(serviceCodeId, code, ownerCompanyId, null, serviceType,
-                LegacyDurationCompatibility.toDays(durationValue, durationUnit),
-                LegacyDurationCompatibility.monthsToDays(codeSilenceMonths), expireAt);
+            @JsonProperty("expireAt") LocalDateTime expireAt) {
+        this.serviceCodeId = serviceCodeId;
+        this.code = code;
+        this.ownerCompanyId = ownerCompanyId;
+        this.specCode = specCode;
+        this.serviceType = serviceType;
+        this.durationDays = durationDays;
+        this.codeSilenceDays = codeSilenceDays;
+        this.expireAt = expireAt;
     }
 
     public Long serviceCodeId() { return serviceCodeId; }

@@ -1,6 +1,5 @@
 package com.sinognss.cloud.vantix.application.servicecode;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.sinognss.cloud.vantix.domain.servicecode.ServiceCodeGenerateBatch;
 import com.sinognss.cloud.vantix.domain.servicecode.ServiceCode;
 import com.sinognss.cloud.vantix.domain.servicecode.ServiceCodeStatus;
@@ -39,16 +38,4 @@ public record ServiceCodeView(Long id, String code, Long sourceOrderId, String s
         return batch == null ? null : batch.getBatchNo();
     }
 
-    /** Legacy aliases are retained only for source compatibility and not serialized. */
-    @Deprecated
-    @JsonIgnore
-    public Integer durationValue() { return durationDays; }
-
-    @Deprecated
-    @JsonIgnore
-    public String durationUnit() { return durationDays == null ? null : "DAY"; }
-
-    @Deprecated
-    @JsonIgnore
-    public Integer codeSilenceMonths() { return codeSilenceDays == null ? null : codeSilenceDays / 30; }
 }

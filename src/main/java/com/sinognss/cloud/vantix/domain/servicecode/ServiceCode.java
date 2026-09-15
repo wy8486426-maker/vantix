@@ -3,8 +3,6 @@ package com.sinognss.cloud.vantix.domain.servicecode;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.sinognss.cloud.vantix.common.LegacyDurationCompatibility;
-
 import java.time.LocalDateTime;
 
 @TableName("service_code")
@@ -20,10 +18,6 @@ public class ServiceCode {
     private String serviceType;
     private Integer durationDays;
     private Integer codeSilenceDays;
-    /** Legacy columns retained for compatibility reads only. */
-    private Integer durationValue;
-    private String durationUnit;
-    private Integer codeSilenceMonths;
     private LocalDateTime expireAt;
     private ServiceCodeStatus status;
     private ProcessingType processingType;
@@ -50,22 +44,10 @@ public class ServiceCode {
     public void setSpecCode(String specCode) { this.specCode = specCode; }
     public String getServiceType() { return serviceType; }
     public void setServiceType(String serviceType) { this.serviceType = serviceType; }
-    /** New rows always have this value; the fallback only keeps pre-V9 reads usable. */
-    public Integer getDurationDays() {
-        return durationDays != null ? durationDays : LegacyDurationCompatibility.toDays(durationValue, durationUnit);
-    }
+    public Integer getDurationDays() { return durationDays; }
     public void setDurationDays(Integer durationDays) { this.durationDays = durationDays; }
-    /** New rows always have this value; the fallback only keeps pre-V9 reads usable. */
-    public Integer getCodeSilenceDays() {
-        return codeSilenceDays != null ? codeSilenceDays : LegacyDurationCompatibility.monthsToDays(codeSilenceMonths);
-    }
+    public Integer getCodeSilenceDays() { return codeSilenceDays; }
     public void setCodeSilenceDays(Integer codeSilenceDays) { this.codeSilenceDays = codeSilenceDays; }
-    public Integer getDurationValue() { return durationValue; }
-    public void setDurationValue(Integer durationValue) { this.durationValue = durationValue; }
-    public String getDurationUnit() { return durationUnit; }
-    public void setDurationUnit(String durationUnit) { this.durationUnit = durationUnit; }
-    public Integer getCodeSilenceMonths() { return codeSilenceMonths; }
-    public void setCodeSilenceMonths(Integer codeSilenceMonths) { this.codeSilenceMonths = codeSilenceMonths; }
     public LocalDateTime getExpireAt() { return expireAt; }
     public void setExpireAt(LocalDateTime expireAt) { this.expireAt = expireAt; }
     public ServiceCodeStatus getStatus() { return status; }

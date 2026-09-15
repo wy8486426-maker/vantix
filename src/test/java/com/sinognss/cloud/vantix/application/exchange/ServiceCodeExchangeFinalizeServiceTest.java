@@ -55,10 +55,10 @@ class ServiceCodeExchangeFinalizeServiceTest {
         operation = operation();
         batch = batch();
         firstDetail = detail(101L, 1001L, 1,
-                new ExchangeCodeSnapshot(101L, "CODE-101", 7L, 55L, "PRO", 1, "MONTH", 12,
+                new ExchangeCodeSnapshot(101L, "CODE-101", 7L, 55L, "PRO", "STANDARD", 30, 360,
                         LocalDateTime.of(2027, 1, 1, 0, 0)));
         secondDetail = detail(102L, 1002L, 2,
-                new ExchangeCodeSnapshot(102L, "CODE-102", 7L, 55L, "PRO", 1, "MONTH", 12,
+                new ExchangeCodeSnapshot(102L, "CODE-102", 7L, 55L, "PRO", "STANDARD", 30, 360,
                         LocalDateTime.of(2027, 1, 1, 0, 0)));
         when(operationMapper.selectById(41L)).thenReturn(operation);
         when(batchMapper.selectByRequestIdForUpdate("request-1")).thenReturn(batch);

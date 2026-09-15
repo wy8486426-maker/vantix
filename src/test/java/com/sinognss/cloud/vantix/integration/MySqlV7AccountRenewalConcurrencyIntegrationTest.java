@@ -180,8 +180,8 @@ class MySqlV7AccountRenewalConcurrencyIntegrationTest {
         String requestId = "RENEWAL-LOCK-ORDER";
         long serviceCodeId = insertPendingServiceCode(jdbc, "RENEWAL-LOCK-CODE");
         jdbc.update("INSERT INTO service_account (id, owner_company_id, source_service_code_id, service_type, "
-                        + "duration_value, duration_unit, account_silence_months) "
-                        + "VALUES (?, 100, ?, 'CORS', 1, 'MONTH', 6)",
+                        + "spec_code, duration_days, account_silence_days) "
+                        + "VALUES (?, 100, ?, 'CORS', 'RENEWAL', 30, 180)",
                 serviceAccountId, serviceCodeId);
         insertRenewal(jdbc, new RenewalInsert(serviceAccountId, serviceCodeId, requestId, "PROCESSING"));
         SqlSessionFactory sqlSessionFactory = accountRenewalSqlSessionFactory(dataSource);
@@ -275,9 +275,9 @@ class MySqlV7AccountRenewalConcurrencyIntegrationTest {
         String requestId = "RENEWAL-FINALIZE-ROLLBACK";
         String originalExpiry = "2030-01-01 00:00:00.000000";
         jdbc.update("INSERT INTO service_account (id, cors_account_id, account, owner_company_id, "
-                        + "source_service_code_id, service_type, duration_value, duration_unit, "
-                        + "account_silence_months, cors_status, cors_activation_status, activated_at, expire_at, "
-                        + "cors_updated_at) VALUES (?, ?, ?, 100, ?, 'CORS', 1, 'MONTH', 6, 'ACTIVE', 'ACTIVE', "
+                        + "source_service_code_id, spec_code, service_type, duration_days, account_silence_days, "
+                        + "cors_status, cors_activation_status, activated_at, expire_at, cors_updated_at) "
+                        + "VALUES (?, ?, ?, 100, ?, 'RENEWAL', 'CORS', 30, 180, 'ACTIVE', 'ACTIVE', "
                         + "'2029-01-01 00:00:00.000', ?, '2029-01-01 00:00:00.000')",
                 serviceAccountId, "cors-" + serviceAccountId, "account-" + serviceAccountId,
                 serviceAccountId, originalExpiry);
@@ -399,25 +399,25 @@ class MySqlV7AccountRenewalConcurrencyIntegrationTest {
     }
 
     private long insertPendingServiceCode(JdbcTemplate jdbc, String code) {
-        jdbc.update("INSERT INTO service_code (code, owner_company_id, service_type, duration_value, duration_unit, "
-                        + "code_silence_months, expire_at, status, version) "
-                        + "VALUES (?, 100, 'CORS', 1, 'MONTH', 6, CURRENT_TIMESTAMP(3) + INTERVAL 1 DAY, 'PENDING', 0)",
+        jdbc.update("INSERT INTO service_code (code, owner_company_id, spec_code, service_type, duration_days, "
+                        + "code_silence_days, expire_at, status, version) "
+                        + "VALUES (?, 100, 'RENEWAL', 'CORS', 1, 0, CURRENT_TIMESTAMP(3) + INTERVAL 1 DAY, 'PENDING', 0)",
                 code);
         return jdbc.queryForObject("SELECT id FROM service_code WHERE code = ?", Long.class, code);
     }
 
     private void insertRenewal(JdbcTemplate jdbc, RenewalInsert renewal) {
         jdbc.update("INSERT INTO account_renewal (service_account_id, service_code_id, owner_company_id, "
-                        + "service_type, duration_value, duration_unit, service_code_snapshot, request_id, status) "
-                        + "VALUES (?, ?, 100, 'CORS', 1, 'MONTH', CAST('{}' AS JSON), ?, ?)",
+                        + "spec_code, service_type, duration_days, code_silence_days, service_code_snapshot, request_id, status) "
+                        + "VALUES (?, ?, 100, 'RENEWAL', 'CORS', 1, 0, CAST('{}' AS JSON), ?, ?)",
                 renewal.serviceAccountId(), renewal.serviceCodeId(), renewal.requestId(), renewal.status());
     }
 
     private void insertRenewal(Connection connection, RenewalInsert renewal) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(
                 "INSERT INTO account_renewal (service_account_id, service_code_id, owner_company_id, "
-                        + "service_type, duration_value, duration_unit, service_code_snapshot, request_id, status) "
-                        + "VALUES (?, ?, 100, 'CORS', 1, 'MONTH', CAST('{}' AS JSON), ?, ?)")) {
+                        + "spec_code, service_type, duration_days, code_silence_days, service_code_snapshot, request_id, status) "
+                        + "VALUES (?, ?, 100, 'RENEWAL', 'CORS', 1, 0, CAST('{}' AS JSON), ?, ?)")) {
             statement.setLong(1, renewal.serviceAccountId());
             statement.setLong(2, renewal.serviceCodeId());
             statement.setString(3, renewal.requestId());

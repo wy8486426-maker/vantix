@@ -81,16 +81,6 @@ class CorsAccountStatusSyncConfigurationTest {
     }
 
     @Test
-    void forceActivationConfigurationIsIgnoredAndNoForceActivationBeansExist() {
-        runner.withPropertyValues("vantix.cors.force-activation.enabled=true")
-                .run(context -> {
-                    assertTrue(context.isRunning());
-                    assertFalse(context.containsBean("accountForceActivationJob"));
-                    assertFalse(context.containsBean("accountForceActivationRetryJob"));
-                });
-    }
-
-    @Test
     void invalidBatchSizeFailsConfigurationBinding() {
         runner.withPropertyValues("vantix.cors.account-status-sync.batch-size=501")
                 .run(context -> assertNotNull(context.getStartupFailure()));

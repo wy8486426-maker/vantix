@@ -136,12 +136,12 @@ class RedisCorsAccountRealtimeSyncIntegrationTest {
                         + "active_time,expiredate,lastupdatetime) VALUES (?,?,?,?,?,?,NULL,NULL,?)",
                 corsId, "account" + corsId, "NEVER_READ", "NEVER_READ", activeStatus, accountStatus,
                 updatedAt == null ? LocalDateTime.of(2026, 9, 15, 9, 0) : updatedAt);
-        vantixJdbc.update("INSERT INTO service_code (id,code,owner_company_id,service_type,duration_value,"
-                        + "duration_unit,code_silence_months,expire_at,status,version) VALUES (?,?,1,'CORS',1,'MONTH',0,?,'PENDING',0)",
+        vantixJdbc.update("INSERT INTO service_code (id,code,owner_company_id,spec_code,service_type,duration_days,"
+                        + "code_silence_days,expire_at,status,version) VALUES (?,?,1,'REDIS','CORS',1,0,?,'PENDING',0)",
                 id + 10000, "REDIS-CODE-" + id, LocalDateTime.of(2027, 1, 1, 0, 0));
         vantixJdbc.update("INSERT INTO service_account (id,cors_account_id,account,owner_company_id,"
-                        + "source_service_code_id,service_type,duration_value,duration_unit,account_silence_months,"
-                        + "cors_status,cors_activation_status,version) VALUES (?,?,?,1,?,'CORS',1,'MONTH',0,?,?,0)",
+                        + "source_service_code_id,spec_code,service_type,duration_days,account_silence_days,"
+                        + "cors_status,cors_activation_status,version) VALUES (?,?,?,1,?,'REDIS','CORS',1,0,?,?,0)",
                 id, String.valueOf(corsId), "account" + corsId, id + 10000, localStatus, localActivation);
     }
 

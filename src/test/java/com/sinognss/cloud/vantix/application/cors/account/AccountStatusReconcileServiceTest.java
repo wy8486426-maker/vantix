@@ -50,7 +50,7 @@ class AccountStatusReconcileServiceTest {
         local.setLastSyncAt(null);
         OffsetDateTime now = OffsetDateTime.of(2026, 9, 14, 10, 0, 0, 0, ZoneOffset.ofHours(8));
         snapshot = new CorsAccountSnapshot("cors-17", "account-17", "ACTIVE", "ACTIVE",
-                now, now.plusMonths(1), now.minusDays(1), now);
+                now, now.plusDays(30), now.minusDays(1), now);
         successSchedule = new AccountStatusSyncSuccessSchedule(
                 now.toLocalDateTime(), now.toLocalDateTime().plusMinutes(10));
         lenient().when(accountMapper.selectById(17L)).thenReturn(local);

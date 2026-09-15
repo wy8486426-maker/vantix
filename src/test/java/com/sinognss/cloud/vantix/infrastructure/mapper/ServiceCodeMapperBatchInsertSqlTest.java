@@ -50,9 +50,9 @@ class ServiceCodeMapperBatchInsertSqlTest {
         code.setGenerateBatchId(10L);
         code.setOwnerCompanyId(100L);
         code.setServiceType("CORS");
-        code.setDurationValue(1);
-        code.setDurationUnit("MONTH");
-        code.setCodeSilenceMonths(6);
+        code.setSpecCode("M1");
+        code.setDurationDays(30);
+        code.setCodeSilenceDays(180);
         code.setExpireAt(LocalDateTime.parse("2027-03-13T00:00:00"));
         code.setStatus(ServiceCodeStatus.PENDING);
         code.setVersion(0L);

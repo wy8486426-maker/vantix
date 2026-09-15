@@ -11,7 +11,6 @@ import com.sinognss.cloud.vantix.common.user.UserHolderBridge;
 import com.sinognss.cloud.vantix.common.user.UserScope;
 import com.sinognss.cloud.vantix.config.GenerationProperties;
 import com.sinognss.cloud.vantix.config.OfflineImportProperties;
-import com.sinognss.cloud.vantix.domain.config.DurationUnit;
 import com.sinognss.cloud.vantix.domain.config.ServiceDurationConfig;
 import com.sinognss.cloud.vantix.domain.servicecode.GenerationSource;
 import com.sinognss.cloud.vantix.domain.servicecode.ServiceCodeGenerateOrder;
@@ -51,8 +50,8 @@ class OfflineOrderImportServiceTest {
 
     @BeforeEach
     void setUp() {
-        when(durationMapper.selectEnabled()).thenReturn(List.of(spec("M1", 1, DurationUnit.MONTH),
-                spec("Y1", 1, DurationUnit.YEAR)));
+        when(durationMapper.selectEnabled()).thenReturn(List.of(spec("M1", 30, "1个月"),
+                spec("Y1", 365, "1年")));
         when(companyMapper.selectCount(any())).thenReturn(1L);
         when(orderMapper.selectByBusinessKey(anyString(), anyLong(), anyString())).thenReturn(null);
         when(userHolder.getUserScope()).thenReturn(new UserScope(null, null));
@@ -151,13 +150,14 @@ class OfflineOrderImportServiceTest {
                 group.orderNo(), 100L, group.orderTime(), "COMPLETED", items.size(), total, items, false, null);
     }
 
-    private ServiceDurationConfig spec(String specCode, int duration, DurationUnit unit) {
+    private ServiceDurationConfig spec(String specCode, int durationDays, String displayName) {
         ServiceDurationConfig config = new ServiceDurationConfig();
         config.setSpecCode(specCode);
+        config.setDisplayName(displayName);
         config.setServiceType("CORS");
-        config.setDurationValue(duration);
-        config.setDurationUnit(unit);
-        config.setCodeSilenceMonths(6);
+        config.setDurationDays(durationDays);
+        config.setCodeSilenceDays(180);
+        config.setAccountSilenceDays(360);
         config.setEnabled(true);
         return config;
     }

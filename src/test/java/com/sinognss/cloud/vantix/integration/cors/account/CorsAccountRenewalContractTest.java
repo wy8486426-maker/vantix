@@ -1,6 +1,5 @@
 package com.sinognss.cloud.vantix.integration.cors.account;
 
-import com.sinognss.cloud.vantix.domain.config.DurationUnit;
 import com.sinognss.cloud.vantix.integration.cors.CorsOutcome;
 import org.junit.jupiter.api.Test;
 
@@ -21,7 +20,7 @@ class CorsAccountRenewalContractTest {
     @Test
     void requestCarriesStableRequestIdCorsAccountIdentityAndCodeDuration() {
         CorsAccountRenewalRequest request = new CorsAccountRenewalRequest(
-                "RN-20260914-000001", "cors-1", 3, DurationUnit.MONTH);
+                "RN-20260914-000001", "cors-1", 90);
 
         assertEquals("RN-20260914-000001", request.requestId());
         assertEquals("cors-1", request.accountId());
@@ -29,19 +28,17 @@ class CorsAccountRenewalContractTest {
     }
 
     @Test
-    void requestRejectsInvalidIdAccountDurationAndUnit() {
+    void requestRejectsInvalidIdAccountAndDuration() {
         assertThrows(IllegalArgumentException.class,
-                () -> new CorsAccountRenewalRequest(" ", "cors-1", 1, DurationUnit.DAY));
+                () -> new CorsAccountRenewalRequest(" ", "cors-1", 1));
         assertThrows(IllegalArgumentException.class,
-                () -> new CorsAccountRenewalRequest("x".repeat(129), "cors-1", 1, DurationUnit.DAY));
+                () -> new CorsAccountRenewalRequest("x".repeat(129), "cors-1", 1));
         assertThrows(IllegalArgumentException.class,
-                () -> new CorsAccountRenewalRequest("RN\n1", "cors-1", 1, DurationUnit.DAY));
+                () -> new CorsAccountRenewalRequest("RN\n1", "cors-1", 1));
         assertThrows(IllegalArgumentException.class,
-                () -> new CorsAccountRenewalRequest("RN-1", " ", 1, DurationUnit.DAY));
+                () -> new CorsAccountRenewalRequest("RN-1", " ", 1));
         assertThrows(IllegalArgumentException.class,
-                () -> new CorsAccountRenewalRequest("RN-1", "cors-1", 0, DurationUnit.DAY));
-        assertThrows(NullPointerException.class,
-                () -> new CorsAccountRenewalRequest("RN-1", "cors-1", 1, null));
+                () -> new CorsAccountRenewalRequest("RN-1", "cors-1", 0));
     }
 
     @Test
