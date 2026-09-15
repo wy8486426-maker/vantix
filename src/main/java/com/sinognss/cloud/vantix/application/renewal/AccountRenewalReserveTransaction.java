@@ -60,7 +60,8 @@ public class AccountRenewalReserveTransaction {
             throw new BusinessException(ErrorCode.ACCOUNT_RENEWAL_STATE_INCONSISTENT,
                     "服务账号缺少 CORS 账号标识");
         }
-        if (!"ACTIVE".equals(account.getCorsActivationStatus())) {
+        if (!"ACTIVE".equals(account.getCorsActivationStatus())
+                && !"EXPIRED".equals(account.getCorsActivationStatus())) {
             throw new BusinessException(ErrorCode.ACCOUNT_RENEWAL_STATE_INCONSISTENT,
                     "服务账号当前未激活，不能发起续期");
         }

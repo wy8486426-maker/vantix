@@ -46,8 +46,12 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest
+@org.junit.jupiter.api.condition.EnabledIf("com.sinognss.cloud.vantix.integration.LocalMySqlTestDatabase#isAvailable")
 class MySqlGenerationIntegrationTest {
     static final LocalMySqlTestDatabase MYSQL = LocalMySqlTestDatabase.create("vantix_generation");
+
+    @org.junit.jupiter.api.AfterAll
+    static void closeDatabase() { MYSQL.close(); }
 
     @Autowired
     private JdbcTemplate jdbc;

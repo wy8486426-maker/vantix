@@ -15,8 +15,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+@org.junit.jupiter.api.condition.EnabledIf("com.sinognss.cloud.vantix.integration.LocalMySqlTestDatabase#isAvailable")
 class MySqlV3MigrationIntegrationTest {
     static final LocalMySqlTestDatabase MYSQL = LocalMySqlTestDatabase.create("vantix_v3_migration");
+
+    @org.junit.jupiter.api.AfterAll
+    static void closeDatabase() { MYSQL.close(); }
 
     @Test
     void v3BackfillsCanonicalSpecsAddsGlobalDurationUniquenessAndNoForeignKeys() {

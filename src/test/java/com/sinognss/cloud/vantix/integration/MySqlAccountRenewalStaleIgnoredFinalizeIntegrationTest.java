@@ -19,6 +19,7 @@ import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.mybatis.spring.SqlSessionFactoryBean;
 import org.mybatis.spring.SqlSessionTemplate;
 import org.springframework.aop.framework.ProxyFactory;
@@ -29,13 +30,8 @@ import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.AnnotationTransactionAttributeSource;
 import org.springframework.transaction.interceptor.TransactionInterceptor;
-import org.testcontainers.DockerClientFactory;
-import org.testcontainers.containers.MySQLContainer;
 
 import javax.sql.DataSource;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.Statement;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -52,71 +48,24 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  * Runs against MySQL 5.7.44 in Testcontainers, or an isolated temporary schema
  * on a developer-provided local MySQL server when VANTIX_RENEWAL_TEST_MYSQL_* is set.
  */
+@EnabledIf("com.sinognss.cloud.vantix.integration.LocalMySqlTestDatabase#isAvailable")
 class MySqlAccountRenewalStaleIgnoredFinalizeIntegrationTest {
-    private static MySQLContainer<?> mysqlContainer;
     private static String jdbcUrl;
     private static String username;
     private static String password;
-    private static String localHost;
-    private static int localPort;
-    private static String temporarySchema;
+    private static final LocalMySqlTestDatabase MYSQL =
+            LocalMySqlTestDatabase.create("vantix_renewal_stale_it");
 
     @BeforeAll
     static void startDatabase() throws Exception {
-        localHost = System.getenv("VANTIX_RENEWAL_TEST_MYSQL_HOST");
-        String configuredPort = System.getenv("VANTIX_RENEWAL_TEST_MYSQL_PORT");
-        username = System.getenv("VANTIX_RENEWAL_TEST_MYSQL_USER");
-        password = System.getenv("VANTIX_RENEWAL_TEST_MYSQL_PASSWORD");
-        boolean anyLocalSetting = nonblank(localHost) || nonblank(configuredPort)
-                || nonblank(username) || nonblank(password);
-        if (anyLocalSetting) {
-            if (!nonblank(localHost) || !nonblank(configuredPort)
-                    || !nonblank(username) || password == null) {
-                throw new IllegalStateException("All VANTIX_RENEWAL_TEST_MYSQL_* settings are required");
-            }
-            localPort = Integer.parseInt(configuredPort);
-            temporarySchema = "vantix_renewal_stale_it_" + UUID.randomUUID().toString().replace("-", "");
-            String adminUrl = mysqlUrl(localHost, localPort, "mysql");
-            try (Connection connection = DriverManager.getConnection(adminUrl, username, password);
-                 Statement statement = connection.createStatement()) {
-                statement.execute("CREATE DATABASE `" + temporarySchema
-                        + "` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
-            }
-            jdbcUrl = mysqlUrl(localHost, localPort, temporarySchema);
-            return;
-        }
-
-        try {
-            if (!DockerClientFactory.instance().isDockerAvailable()) {
-                throw new org.opentest4j.TestAbortedException(
-                        "Docker unavailable and no local MySQL test settings were provided");
-            }
-        } catch (org.opentest4j.TestAbortedException aborted) {
-            throw aborted;
-        } catch (RuntimeException dockerUnavailable) {
-            throw new org.opentest4j.TestAbortedException(
-                    "Docker unavailable and no local MySQL test settings were provided", dockerUnavailable);
-        }
-        mysqlContainer = new MySQLContainer<>("mysql:5.7.44")
-                .withDatabaseName("vantix_renewal_stale_finalize")
-                .withUsername("test")
-                .withPassword("test");
-        mysqlContainer.start();
-        jdbcUrl = mysqlContainer.getJdbcUrl();
-        username = mysqlContainer.getUsername();
-        password = mysqlContainer.getPassword();
+        jdbcUrl = MYSQL.getJdbcUrl();
+        username = MYSQL.getUsername();
+        password = MYSQL.getPassword();
     }
 
     @AfterAll
-    static void stopDatabase() throws Exception {
-        if (mysqlContainer != null) mysqlContainer.stop();
-        if (temporarySchema != null) {
-            String adminUrl = mysqlUrl(localHost, localPort, "mysql");
-            try (Connection connection = DriverManager.getConnection(adminUrl, username, password);
-                 Statement statement = connection.createStatement()) {
-                statement.execute("DROP DATABASE `" + temporarySchema + "`");
-            }
-        }
+    static void stopDatabase() {
+        MYSQL.close();
     }
 
     @Test
@@ -239,12 +188,4 @@ class MySqlAccountRenewalStaleIgnoredFinalizeIntegrationTest {
         return OffsetDateTime.parse(value);
     }
 
-    private static String mysqlUrl(String host, int port, String schema) {
-        return "jdbc:mysql://" + host + ":" + port + "/" + schema
-                + "?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai";
-    }
-
-    private static boolean nonblank(String value) {
-        return value != null && !value.isBlank();
-    }
 }

@@ -11,7 +11,7 @@ import java.time.ZoneId;
 @EnableConfigurationProperties({VantixProperties.class, OfflineImportProperties.class,
         GenerationProperties.class, CorsProperties.class, CorsOperationProperties.class,
         CorsAccountStatusSyncProperties.class, CorsForceActivationProperties.class,
-        CorsAccountRenewalProperties.class})
+        CorsAccountRenewalProperties.class, CorsDbProperties.class})
 public class ClockConfig {
     @Bean
     public Clock clock() {

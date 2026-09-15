@@ -25,6 +25,19 @@ mybatis-plus:
     map-underscore-to-camel-case: true
 
 vantix:
+  cors-db:
+    enabled: ${VANTIX_CORS_DB_ENABLED:false}
+    jdbc-url: ${VANTIX_CORS_DB_URL:}
+    username: ${VANTIX_CORS_DB_USERNAME:}
+    password: ${VANTIX_CORS_DB_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    maximum-pool-size: 5
+    minimum-idle: 0
+    status-sync:
+      enabled: ${VANTIX_CORS_DB_STATUS_SYNC_ENABLED:false}
+      cron: ${VANTIX_CORS_DB_STATUS_SYNC_CRON:0 0 2 * * ?}
+      zone: ${VANTIX_CORS_DB_STATUS_SYNC_ZONE:Asia/Shanghai}
+      batch-size: ${VANTIX_CORS_DB_STATUS_SYNC_BATCH_SIZE:500}
   service-code-generation:
     max-quantity-per-request: 5000
     max-items-per-order: 50

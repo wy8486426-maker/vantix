@@ -179,9 +179,9 @@ class CorsAccountStateApplyServiceTest {
         assertThrows(IllegalArgumentException.class,
                 () -> new CorsAccountSnapshot(" ", "account", "ACTIVE", "ACTIVE",
                         null, null, CREATED_AT, SECOND_UPDATE));
-        assertThrows(NullPointerException.class,
-                () -> new CorsAccountSnapshot("id", "account", "ACTIVE", "ACTIVE",
-                        null, null, null, SECOND_UPDATE));
+        CorsAccountSnapshot withoutCreatedAt = new CorsAccountSnapshot("id", "account", "ACTIVE", "ACTIVE",
+                null, null, null, SECOND_UPDATE);
+        assertEquals("id", withoutCreatedAt.accountId());
         assertThrows(NullPointerException.class,
                 () -> new CorsAccountSnapshot("id", "account", "ACTIVE", "ACTIVE",
                         null, null, CREATED_AT, null));

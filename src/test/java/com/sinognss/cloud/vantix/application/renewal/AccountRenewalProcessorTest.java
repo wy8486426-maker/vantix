@@ -105,6 +105,19 @@ class AccountRenewalProcessorTest {
     }
 
     @Test
+    void expiredPreflightContinuesToRenewPost() {
+        when(statusGateway.getAccount(CORS_ACCOUNT_ID))
+                .thenReturn(statusSuccess(snapshot("EXPIRED", "ENABLED", time("2026-09-01T00:00:00+08:00"))));
+        when(renewalGateway.renew(request())).thenReturn(result(CorsOutcome.UNKNOWN, "POST_UNKNOWN"));
+
+        processor.process(OPERATION_ID);
+
+        verify(renewalGateway).renew(request());
+        verify(stateService).retryOrMarkManualReview(eq(operation), eq(renewal),
+                eq("POST_UNKNOWN"), anyString());
+    }
+
+    @Test
     void preflightUnknownOrExceptionKeepsCodeReservedAndDoesNotPost() {
         when(statusGateway.getAccount(CORS_ACCOUNT_ID))
                 .thenReturn(CorsAccountStatusResult.unknown("UPSTREAM_TIMEOUT", "unknown"));

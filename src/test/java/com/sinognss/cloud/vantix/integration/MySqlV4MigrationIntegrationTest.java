@@ -14,8 +14,12 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@org.junit.jupiter.api.condition.EnabledIf("com.sinognss.cloud.vantix.integration.LocalMySqlTestDatabase#isAvailable")
 class MySqlV4MigrationIntegrationTest {
     static final LocalMySqlTestDatabase MYSQL = LocalMySqlTestDatabase.create("vantix_v4_migration");
+
+    @org.junit.jupiter.api.AfterAll
+    static void closeDatabase() { MYSQL.close(); }
 
     @Test
     void appliesV4ExchangeSchemaAndIndexesWithoutForeignKeys() {

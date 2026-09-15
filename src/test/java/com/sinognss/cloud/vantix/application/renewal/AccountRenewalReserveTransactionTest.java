@@ -29,6 +29,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -166,6 +168,35 @@ class AccountRenewalReserveTransactionTest {
         assertEquals(ErrorCode.ACCOUNT_RENEWAL_STATE_INCONSISTENT, error.getVantixErrorCode());
         verify(serviceCodeMapper, never()).selectByIdForUpdate(21L);
         verify(renewalMapper, never()).insert(any(AccountRenewal.class));
+    }
+
+    @Test
+    void expiredAccountCanReserveButWaitingActivationCannot() {
+        ServiceAccount expired = account();
+        expired.setCorsActivationStatus("EXPIRED");
+        when(accountMapper.selectByIdForUpdate(11L)).thenReturn(expired);
+        when(renewalMapper.selectByRequestId(anyString())).thenReturn(null);
+        when(renewalMapper.selectByRequestIdForUpdate(anyString())).thenReturn(null);
+        when(renewalMapper.selectActiveByAccount(11L)).thenReturn(null);
+        when(serviceCodeMapper.selectByIdForUpdate(21L)).thenReturn(code());
+        when(renewalMapper.insert(any(AccountRenewal.class))).thenAnswer(invocation -> {
+            AccountRenewal renewal = invocation.getArgument(0);
+            renewal.setId(51L);
+            return 1;
+        });
+        when(serviceCodeMapper.reserveForRenewal(anyLong(), anyLong(), anyString(), anyLong(), any()))
+                .thenReturn(1);
+        when(operationMapper.insert(any(CorsOperation.class))).thenReturn(1);
+
+        service.reserve(command(), new UserScope(23L, 7L), new OperatorIdentity(23L, "operator"));
+        verify(serviceCodeMapper).reserveForRenewal(eq(21L), eq(7L), eq("RN-1"), eq(4L), any());
+
+        ServiceAccount waiting = account();
+        waiting.setCorsActivationStatus("WAITING_ACTIVATION");
+        when(accountMapper.selectByIdForUpdate(11L)).thenReturn(waiting);
+        assertThrows(BusinessException.class,
+                () -> service.reserve(new CreateAccountRenewalCommand("RN-2", 11L, 21L),
+                        new UserScope(23L, 7L), new OperatorIdentity(23L, "operator")));
     }
 
     private static CreateAccountRenewalCommand command() {

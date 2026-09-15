@@ -9,8 +9,12 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+@org.junit.jupiter.api.condition.EnabledIf("com.sinognss.cloud.vantix.integration.LocalMySqlTestDatabase#isAvailable")
 class MySqlV6MigrationIntegrationTest {
     static final LocalMySqlTestDatabase MYSQL = LocalMySqlTestDatabase.create("vantix_v6_migration");
+
+    @org.junit.jupiter.api.AfterAll
+    static void closeDatabase() { MYSQL.close(); }
 
     @Test
     void appliesAllMigrationsThroughV6WithExpectedForceActivationIndex() {

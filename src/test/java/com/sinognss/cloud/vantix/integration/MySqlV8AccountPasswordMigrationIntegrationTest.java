@@ -22,8 +22,12 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@org.junit.jupiter.api.condition.EnabledIf("com.sinognss.cloud.vantix.integration.LocalMySqlTestDatabase#isAvailable")
 class MySqlV8AccountPasswordMigrationIntegrationTest {
     static final LocalMySqlTestDatabase MYSQL = LocalMySqlTestDatabase.create("vantix_v8_account_password");
+
+    @org.junit.jupiter.api.AfterAll
+    static void closeDatabase() { MYSQL.close(); }
 
     @Test
     void appliesV1ThroughV8AndEnforcesPasswordActionStorageRules() throws Exception {

@@ -163,7 +163,8 @@ public class AccountRenewalProcessor {
                     "CORS account preflight identity does not match the local account");
             return false;
         }
-        if (!ACTIVE.equals(snapshot.activationStatus())) {
+        if (!ACTIVE.equals(snapshot.activationStatus())
+                && !"EXPIRED".equals(snapshot.activationStatus())) {
             stateService.definitiveFail(operation, renewal, "ACCOUNT_NOT_ACTIVATED",
                     "CORS account is not active for renewal");
             return false;

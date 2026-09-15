@@ -53,8 +53,12 @@ import static org.mockito.Mockito.when;
         "vantix.cors-operation.enabled=false"
 })
 @Import(MySqlAccountStatusSyncIntegrationTest.ConditionalGatewayDefinition.class)
+@org.junit.jupiter.api.condition.EnabledIf("com.sinognss.cloud.vantix.integration.LocalMySqlTestDatabase#isAvailable")
 class MySqlAccountStatusSyncIntegrationTest {
     static final LocalMySqlTestDatabase MYSQL = LocalMySqlTestDatabase.create("vantix_account_status_sync");
+
+    @org.junit.jupiter.api.AfterAll
+    static void closeDatabase() { MYSQL.close(); }
 
     @Autowired
     private JdbcTemplate jdbc;

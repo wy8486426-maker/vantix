@@ -35,4 +35,7 @@ public interface ServiceAccountMapper extends BaseMapper<ServiceAccount> {
     int updateStatusSyncSuccess(@Param("update") ServiceAccountStatusSyncScheduleUpdate update);
 
     int updateStatusSyncFailure(@Param("update") ServiceAccountStatusSyncScheduleUpdate update);
+
+    List<ServiceAccount> selectCorsStatusSyncCandidatesAfterId(@Param("lastId") Long lastId,
+                                                                @Param("limit") int limit);
 }

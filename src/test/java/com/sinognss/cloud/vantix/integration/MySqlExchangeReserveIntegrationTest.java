@@ -45,11 +45,15 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @SpringBootTest
+@org.junit.jupiter.api.condition.EnabledIf("com.sinognss.cloud.vantix.integration.LocalMySqlTestDatabase#isAvailable")
 class MySqlExchangeReserveIntegrationTest {
     private static final long COMPANY_ID = 100L;
     private static final String SPEC_CODE = "M1";
 
     static final LocalMySqlTestDatabase MYSQL = LocalMySqlTestDatabase.create("vantix_exchange_reserve");
+
+    @org.junit.jupiter.api.AfterAll
+    static void closeDatabase() { MYSQL.close(); }
 
     @Autowired
     private JdbcTemplate jdbc;

@@ -36,10 +36,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@org.junit.jupiter.api.condition.EnabledIf("com.sinognss.cloud.vantix.integration.LocalMySqlTestDatabase#isAvailable")
 class MySqlV8PasswordResetReservationConcurrencyIntegrationTest {
     private static final long SERVICE_ACCOUNT_ID = 81_001L;
 
     static final LocalMySqlTestDatabase MYSQL = LocalMySqlTestDatabase.create("vantix_v8_password_reset_concurrency");
+
+    @org.junit.jupiter.api.AfterAll
+    static void closeDatabase() { MYSQL.close(); }
 
     @Test
     void concurrentDifferentRequestsSerializeAndSameRequestIdReplays() throws Exception {

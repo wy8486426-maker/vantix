@@ -18,7 +18,6 @@ public record CorsAccountSnapshot(
         requireText(account, "account");
         requireText(accountStatus, "accountStatus");
         requireText(activationStatus, "activationStatus");
-        Objects.requireNonNull(createdAt, "createdAt must not be null");
         Objects.requireNonNull(updatedAt, "updatedAt must not be null");
     }
 
