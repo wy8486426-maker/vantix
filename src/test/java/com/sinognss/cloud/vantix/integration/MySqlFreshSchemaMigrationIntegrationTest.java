@@ -40,6 +40,7 @@ class MySqlFreshSchemaMigrationIntegrationTest {
 
         assertTablesExist(jdbc, List.of(
                 "dealer_company", "dealer_relation_log", "system_config", "service_duration_config",
+                "company_exchange_config",
                 "service_code_generate_order", "service_code_generate_batch", "service_code",
                 "service_code_transfer", "exchange_batch", "exchange_detail", "service_account",
                 "account_renewal", "cors_operation", "cors_event_record", "account_password_action"));
@@ -77,6 +78,8 @@ class MySqlFreshSchemaMigrationIntegrationTest {
                 List.of("spec_code"));
         assertIndexColumns(jdbc, "service_duration_config", "uk_service_duration_display_name",
                 List.of("display_name"));
+        assertIndexColumns(jdbc, "company_exchange_config", "uk_company_exchange_config_company",
+                List.of("company_id"));
         insertSpec(jdbc, "SC90A", "90天标准版", 90);
         insertSpec(jdbc, "SC90B", "90天体验版", 90);
         assertThrows(DuplicateKeyException.class,

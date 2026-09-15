@@ -11,6 +11,6 @@ public class SystemCompanyResolver {
     }
 
     public Long requireId() {
-        return systemConfigService.getSystemCompanyId();
+        return systemConfigService.requireConfiguredSystemCompanyId();
     }
 }

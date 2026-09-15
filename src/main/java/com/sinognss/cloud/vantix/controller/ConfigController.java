@@ -1,8 +1,9 @@
 package com.sinognss.cloud.vantix.controller;
 
-import com.sinognss.cloud.vantix.application.config.ServiceDurationConfigCommand;
+import com.sinognss.cloud.vantix.application.config.CreateServiceDurationConfigCommand;
 import com.sinognss.cloud.vantix.application.config.ServiceDurationConfigService;
 import com.sinognss.cloud.vantix.application.config.SystemConfigService;
+import com.sinognss.cloud.vantix.application.config.UpdateServiceDurationConfigCommand;
 import com.sinognss.cloud.vantix.common.api.CommonResultAdapter;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -35,13 +36,18 @@ public class ConfigController {
     }
 
     @PostMapping("/service-durations")
-    public Object durationCreate(@Valid @RequestBody DurationRequest request) {
-        return CommonResultAdapter.success(durationService.create(request.toCommand()));
+    public Object durationCreate(@Valid @RequestBody CreateServiceDurationRequest request) {
+        return CommonResultAdapter.success(durationService.create(request.toCreateCommand()));
     }
 
     @PutMapping("/service-durations/{id}")
-    public Object durationUpdate(@PathVariable Long id, @Valid @RequestBody DurationRequest request) {
+    public Object durationUpdate(@PathVariable Long id, @Valid @RequestBody UpdateServiceDurationRequest request) {
         return CommonResultAdapter.success(durationService.update(id, request.toCommand()));
+    }
+
+    @GetMapping("/service-durations/{id}")
+    public Object durationDetail(@PathVariable Long id) {
+        return CommonResultAdapter.success(durationService.get(id));
     }
 
     @GetMapping("/system-company")
@@ -51,20 +57,30 @@ public class ConfigController {
 
     @PutMapping("/system-company")
     public Object updateSystemCompany(@Valid @RequestBody SystemCompanyRequest request) {
-        return CommonResultAdapter.success(systemConfigService.update(
-                SystemConfigService.SYSTEM_COMPANY_ID_KEY, String.valueOf(request.systemCompanyId())));
+        return CommonResultAdapter.success(systemConfigService.updateSystemCompany(request.systemCompanyId()));
     }
 
-    public record DurationRequest(@NotBlank @Size(max = 128) String displayName,
-                                  @NotBlank @Size(max = 64) String serviceType,
-                                  @NotNull @Positive Integer durationDays,
-                                  @NotNull @jakarta.validation.constraints.Min(0) Integer codeSilenceDays,
-                                  @NotNull @jakarta.validation.constraints.Min(0) Integer accountSilenceDays,
-                                  @NotNull Boolean enabled,
-                                  @Size(max = 512) String remark) {
-        ServiceDurationConfigCommand toCommand() {
-            return new ServiceDurationConfigCommand(displayName, serviceType, durationDays,
+    public record CreateServiceDurationRequest(@NotBlank @Size(max = 128) String displayName,
+                                               @NotBlank @Size(max = 64) String serviceType,
+                                               @NotNull @jakarta.validation.constraints.Positive Integer durationDays,
+                                               @NotNull @jakarta.validation.constraints.Min(0) Integer codeSilenceDays,
+                                               @NotNull @jakarta.validation.constraints.Min(0) Integer accountSilenceDays,
+                                               @NotNull Boolean enabled,
+                                               @Size(max = 512) String remark) {
+        CreateServiceDurationConfigCommand toCreateCommand() {
+            return new CreateServiceDurationConfigCommand(displayName, serviceType, durationDays,
                     codeSilenceDays, accountSilenceDays, enabled, remark);
+        }
+    }
+
+    public record UpdateServiceDurationRequest(@NotBlank @Size(max = 128) String displayName,
+                                               @NotNull @jakarta.validation.constraints.Min(0) Integer codeSilenceDays,
+                                               @NotNull @jakarta.validation.constraints.Min(0) Integer accountSilenceDays,
+                                               @NotNull Boolean enabled,
+                                               @Size(max = 512) String remark) {
+        UpdateServiceDurationConfigCommand toCommand() {
+            return new UpdateServiceDurationConfigCommand(displayName, codeSilenceDays,
+                    accountSilenceDays, enabled, remark);
         }
     }
 

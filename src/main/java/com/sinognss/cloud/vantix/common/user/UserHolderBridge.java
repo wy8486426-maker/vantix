@@ -39,6 +39,11 @@ public class UserHolderBridge {
         return new OperatorIdentity(user.getUserId(), user.getUserNickname());
     }
 
+    public OperatorIdentity getOperatorOrNull() {
+        UserCacheDTO user = requireUser();
+        return new OperatorIdentity(user.getUserId(), user.getUserNickname());
+    }
+
     private UserCacheDTO requireUser() {
         UserCacheDTO user = UserHolder.getUser();
         if (user == null) {

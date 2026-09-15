@@ -91,9 +91,12 @@ class MySqlExchangeReserveIntegrationTest {
         jdbc.update("DELETE FROM service_code_generate_batch");
         jdbc.update("DELETE FROM service_code_generate_order");
         jdbc.update("DELETE FROM service_duration_config");
+        jdbc.update("DELETE FROM company_exchange_config");
         jdbc.update("DELETE FROM dealer_company");
         jdbc.update("INSERT INTO dealer_company (company_id, company_name, company_status) "
                 + "VALUES (?, 'exchange test company', 'ACTIVE')", COMPANY_ID);
+        jdbc.update("INSERT INTO company_exchange_config (company_id, account_prefix) VALUES (?, 'AB12')",
+                COMPANY_ID);
         jdbc.update("INSERT INTO service_duration_config "
                         + "(service_type, display_name, duration_days, code_silence_days, account_silence_days, "
                         + "enabled, spec_code) VALUES ('CORS', '1个月', 30, 180, 360, 0, ?)",
@@ -155,7 +158,7 @@ class MySqlExchangeReserveIntegrationTest {
 
             setGlobalUser();
             ExchangeReservation offline = reserveService.reserve(new ServiceCodeExchangeCommand(
-                    "OFFLINE-RESERVE", COMPANY_ID, SPEC_CODE, GenerationSource.OFFLINE, 5, null));
+                    "OFFLINE-RESERVE", COMPANY_ID, SPEC_CODE, GenerationSource.OFFLINE, 5));
             assertTrue(offline.created());
             assertEquals(5, jdbc.queryForObject(
                     "SELECT COUNT(*) FROM exchange_detail WHERE exchange_batch_id = ?",
@@ -203,7 +206,7 @@ class MySqlExchangeReserveIntegrationTest {
         });
 
         ServiceCodeExchangeView response = exchangeService.exchange(new ServiceCodeExchangeCommand(
-                requestId, COMPANY_ID, SPEC_CODE, GenerationSource.B2B, 1, null));
+                requestId, COMPANY_ID, SPEC_CODE, GenerationSource.B2B, 1));
 
         assertEquals("PROCESSING", response.status());
         assertEquals("PROCESSING", jdbc.queryForObject(
@@ -227,7 +230,7 @@ class MySqlExchangeReserveIntegrationTest {
                 CorsBatchResult.outcome(CorsOutcome.UNKNOWN, "REUSE-REQ-B", "TIMEOUT", "unknown"));
 
         ServiceCodeExchangeView rejected = exchangeService.exchange(new ServiceCodeExchangeCommand(
-                "REUSE-REQ-A", COMPANY_ID, SPEC_CODE, GenerationSource.B2B, 1, null));
+                "REUSE-REQ-A", COMPANY_ID, SPEC_CODE, GenerationSource.B2B, 1));
 
         assertEquals("FAILED", rejected.status());
         assertEquals("FAILED", jdbc.queryForObject(
@@ -240,7 +243,7 @@ class MySqlExchangeReserveIntegrationTest {
                 "SELECT active_service_code_id FROM exchange_detail WHERE request_id = 'REUSE-REQ-A'", Long.class));
 
         ServiceCodeExchangeView retried = exchangeService.exchange(new ServiceCodeExchangeCommand(
-                "REUSE-REQ-B", COMPANY_ID, SPEC_CODE, GenerationSource.B2B, 1, null));
+                "REUSE-REQ-B", COMPANY_ID, SPEC_CODE, GenerationSource.B2B, 1));
 
         assertEquals("PROCESSING", retried.status());
         assertEquals("PROCESSING", jdbc.queryForObject(
@@ -263,7 +266,7 @@ class MySqlExchangeReserveIntegrationTest {
         setPersonalUser(88L);
 
         reserveService.reserve(new ServiceCodeExchangeCommand(
-                "PERSONAL-OWNERSHIP", COMPANY_ID, SPEC_CODE, GenerationSource.B2B, 1, null));
+                "PERSONAL-OWNERSHIP", COMPANY_ID, SPEC_CODE, GenerationSource.B2B, 1));
 
         Long assignedUserId = jdbc.queryForObject(
                 "SELECT assigned_user_id FROM exchange_batch WHERE request_id = ?", Long.class,
@@ -282,7 +285,7 @@ class MySqlExchangeReserveIntegrationTest {
         setGlobalUser();
         try {
             ExchangeReservation reservation = reserveService.reserve(new ServiceCodeExchangeCommand(
-                    requestId, COMPANY_ID, SPEC_CODE, source, quantity, null));
+                    requestId, COMPANY_ID, SPEC_CODE, source, quantity));
             return new ReserveAttempt(true, null, reservation);
         } catch (BusinessException exception) {
             return new ReserveAttempt(false, exception.getVantixErrorCode(), null);

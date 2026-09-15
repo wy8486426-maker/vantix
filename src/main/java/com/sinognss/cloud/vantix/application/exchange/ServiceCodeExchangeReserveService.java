@@ -15,17 +15,18 @@ import com.sinognss.cloud.vantix.domain.cors.CorsOperation;
 import com.sinognss.cloud.vantix.domain.exchange.ExchangeBatch;
 import com.sinognss.cloud.vantix.domain.exchange.ExchangeDetail;
 import com.sinognss.cloud.vantix.domain.exchange.ExchangeStatus;
+import com.sinognss.cloud.vantix.domain.exchange.CompanyExchangeConfig;
 import com.sinognss.cloud.vantix.domain.servicecode.GenerationSource;
 import com.sinognss.cloud.vantix.domain.servicecode.ServiceCode;
 import com.sinognss.cloud.vantix.infrastructure.mapper.CorsOperationMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.DealerCompanyMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ExchangeBatchMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ExchangeDetailMapper;
+import com.sinognss.cloud.vantix.infrastructure.mapper.CompanyExchangeConfigMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceCodeMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceDurationConfigMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
@@ -41,6 +42,7 @@ public class ServiceCodeExchangeReserveService {
 
     private final ExchangeBatchMapper batchMapper;
     private final ExchangeDetailMapper detailMapper;
+    private final CompanyExchangeConfigMapper exchangeConfigMapper;
     private final CorsOperationMapper operationMapper;
     private final ServiceCodeMapper serviceCodeMapper;
     private final ServiceDurationConfigMapper durationMapper;
@@ -52,6 +54,7 @@ public class ServiceCodeExchangeReserveService {
 
     public ServiceCodeExchangeReserveService(ExchangeBatchMapper batchMapper,
                                              ExchangeDetailMapper detailMapper,
+                                             CompanyExchangeConfigMapper exchangeConfigMapper,
                                              CorsOperationMapper operationMapper,
                                              ServiceCodeMapper serviceCodeMapper,
                                              ServiceDurationConfigMapper durationMapper,
@@ -62,6 +65,7 @@ public class ServiceCodeExchangeReserveService {
                                              Clock clock) {
         this.batchMapper = batchMapper;
         this.detailMapper = detailMapper;
+        this.exchangeConfigMapper = exchangeConfigMapper;
         this.operationMapper = operationMapper;
         this.serviceCodeMapper = serviceCodeMapper;
         this.durationMapper = durationMapper;
@@ -92,6 +96,11 @@ public class ServiceCodeExchangeReserveService {
                 .eq(DealerCompany::getCompanyId, command.companyId())) == 0) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "公司不存在: " + command.companyId());
         }
+        CompanyExchangeConfig exchangeConfig = exchangeConfigMapper.selectByCompanyId(command.companyId());
+        if (exchangeConfig == null) {
+            throw new BusinessException(ErrorCode.EXCHANGE_CONFIG_REQUIRED,
+                    "请先配置兑换账号前缀");
+        }
         ServiceDurationConfig spec = durationMapper.selectBySpecCodes(List.of(command.specCode())).stream()
                 .filter(item -> command.specCode().equals(item.getSpecCode()))
                 .findFirst()
@@ -105,7 +114,7 @@ public class ServiceCodeExchangeReserveService {
         LocalDateTime now = LocalDateTime.now(clock);
         OperatorIdentity operator = userHolder.getOperator();
         ExchangeBatch batch = createBatch(command, spec, operator,
-                payloadHash, assignedUserId, now);
+                exchangeConfig.getAccountPrefix(), payloadHash, assignedUserId, now);
         /*
          * Claim the requestId before locking any service codes. A concurrent retry with
          * the same requestId waits on this unique key, then reads the committed batch
@@ -198,20 +207,19 @@ public class ServiceCodeExchangeReserveService {
         }
         String requestId = input.requestId().trim();
         String specCode = input.specCode().trim();
-        String accountPrefix = StringUtils.hasText(input.accountPrefix()) ? input.accountPrefix().trim() : null;
-        if (!StringUtils.hasText(requestId) || requestId.length() > 128 || hasControl(requestId)
-                || !StringUtils.hasText(specCode) || specCode.length() > 32 || hasControl(specCode)
-                || input.quantity() <= 0 || (accountPrefix != null
-                && (accountPrefix.length() > 64 || hasControl(accountPrefix)))) {
+        if (requestId.isBlank() || requestId.length() > 128 || hasControl(requestId)
+                || specCode.isBlank() || specCode.length() > 32 || hasControl(specCode)
+                || input.quantity() <= 0) {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "兑换参数非法");
         }
         return new ServiceCodeExchangeCommand(requestId, input.companyId(), specCode,
-                input.generationSource(), input.quantity(), accountPrefix);
+                input.generationSource(), input.quantity());
     }
 
     private ExchangeBatch createBatch(ServiceCodeExchangeCommand command, ServiceDurationConfig spec,
                                       OperatorIdentity operator,
-                                      String payloadHash, Long assignedUserId, LocalDateTime now) {
+                                      String accountPrefix, String payloadHash,
+                                      Long assignedUserId, LocalDateTime now) {
         ExchangeBatch batch = new ExchangeBatch();
         batch.setExchangeBatchNo("EX-" + UUID.randomUUID().toString().replace("-", "").toUpperCase());
         batch.setRequestId(command.requestId());
@@ -222,7 +230,7 @@ public class ServiceCodeExchangeReserveService {
         batch.setServiceType(spec.getServiceType());
         batch.setDurationDays(spec.getDurationDays());
         batch.setQuantity(command.quantity());
-        batch.setAccountPrefix(command.accountPrefix());
+        batch.setAccountPrefix(accountPrefix);
         batch.setPayloadHash(payloadHash);
         batch.setAccountSilenceDays(spec.getAccountSilenceDays());
         batch.setStatus(ExchangeStatus.PROCESSING);

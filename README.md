@@ -8,9 +8,14 @@
 - `PUT /api/companies/{companyId}/parent`
 - `GET/POST/PUT /api/config/service-durations`
 - `GET/PUT /api/config/system-company`
+- `GET /api/config/service-durations/{id}`（配置中心详情）
+- `GET/POST /api/service-code-exchange-config`（经销商一次性兑换前缀配置）
 - `GET /api/service-codes`、`GET /api/service-codes/{id}`、`GET /api/service-codes/statistics`（列表支持分页、筛选与动态 `displayStatus=WAITING|EXPIRING|EXPIRED|PROCESSING|CONSUMED`）
 - `POST /api/service-codes/transfers`
 - `GET /api/service-codes/{id}/transfers`
+- `GET /api/service-code-generations/orders`、`GET /api/service-code-generations/orders/statistics`
+- `GET /api/companies/page`、`GET /api/companies/partners`
+- `GET /api/service-code-transfers`、`GET /api/service-code-transfers/{transferNo}`
 
 服务码转赠在一个 MySQL 本地事务内按服务码 ID 升序 `SELECT ... FOR UPDATE`，完成全部校验后使用 `version` CAS 更新并记录流水；任意一张失败都会回滚批次。批量转赠要求所有服务码的 `service_type`、`spec_code`、`duration_days` 完全一致。服务码过期和即将到期是 DTO 展示状态，不是数据库状态。
 
@@ -34,7 +39,7 @@
 - 已知部署风险继续保留：sino-cloud-base 的 UserInterceptor 使用 javax.servlet，而 Spring Boot 3 使用 jakarta.servlet；本阶段不调整该风险或认证架构。
 - 线下导入配置项为 vantix.offline-import.max-file-size-bytes、max-rows、max-total-codes 和 max-errors；默认分别为 10 MiB、500 行、5,000 个服务码和 100 条错误。
 - 服务时长规格使用全局唯一的 `spec_code` 和 `display_name`，业务时长统一使用 `duration_days`；创建后不可修改 `spec_code`、`service_type` 和 `duration_days`，只能调整展示名称、沉默天数、启用状态和备注。
-- 当前 CORS 创建账号 wire contract 使用 `requestId`、`durationDays`、`silenceDays`、`quantity`、`accountPrefix`；字段名仍需与 CORS 团队独立联调确认。
+- 当前 CORS 创建账号 wire contract 使用 `requestId`、`durationDays`、`silenceDays`、`quantity`、`accountPrefix`；兑换前缀由 Vantix 的公司级不可变配置冻结到 `exchange_batch` 后传入。
 - Redis 实时状态通知保留即时 authoritative read 和 500ms confirmation；CORS MySQL 状态同步保留 `0 0 2 * * ?`、`Asia/Shanghai` fallback。
 
 ## Pre-release database policy

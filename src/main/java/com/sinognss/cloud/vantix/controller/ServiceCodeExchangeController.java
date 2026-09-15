@@ -33,7 +33,7 @@ public class ServiceCodeExchangeController {
     public Object exchange(@Valid @RequestBody ExchangeRequest request) {
         return CommonResultAdapter.success(exchangeService.exchange(new ServiceCodeExchangeCommand(
                 request.requestId(), request.companyId(), request.specCode(), request.generationSource(),
-                request.quantity(), request.accountPrefix())));
+                request.quantity())));
     }
 
     @GetMapping("/{requestId}")
@@ -45,7 +45,7 @@ public class ServiceCodeExchangeController {
                                  @NotNull @Positive Long companyId,
                                  @NotBlank @Size(max = 32) String specCode,
                                  @NotNull GenerationSource generationSource,
-                                 @NotNull @Positive Integer quantity,
-                                 @Size(max = 64) String accountPrefix) {
+                                 @NotNull @Positive Integer quantity) {
     }
+
 }

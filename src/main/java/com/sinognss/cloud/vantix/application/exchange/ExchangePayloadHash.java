@@ -16,7 +16,6 @@ final class ExchangePayloadHash {
             update(digest, command.specCode());
             update(digest, command.generationSource() == null ? null : command.generationSource().name());
             update(digest, command.quantity() == null ? null : command.quantity().toString());
-            update(digest, command.accountPrefix());
             update(digest, effectiveAssignedUserId == null ? null : effectiveAssignedUserId.toString());
             return HexFormat.of().formatHex(digest.digest());
         } catch (NoSuchAlgorithmException exception) {

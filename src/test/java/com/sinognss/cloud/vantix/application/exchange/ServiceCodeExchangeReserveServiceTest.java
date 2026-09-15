@@ -13,9 +13,11 @@ import com.sinognss.cloud.vantix.domain.config.ServiceDurationConfig;
 import com.sinognss.cloud.vantix.domain.cors.CorsOperation;
 import com.sinognss.cloud.vantix.domain.exchange.ExchangeBatch;
 import com.sinognss.cloud.vantix.domain.exchange.ExchangeDetail;
+import com.sinognss.cloud.vantix.domain.exchange.CompanyExchangeConfig;
 import com.sinognss.cloud.vantix.domain.servicecode.GenerationSource;
 import com.sinognss.cloud.vantix.domain.servicecode.ServiceCode;
 import com.sinognss.cloud.vantix.infrastructure.mapper.CorsOperationMapper;
+import com.sinognss.cloud.vantix.infrastructure.mapper.CompanyExchangeConfigMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.DealerCompanyMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ExchangeBatchMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ExchangeDetailMapper;
@@ -51,6 +53,7 @@ import static org.mockito.Mockito.when;
 class ServiceCodeExchangeReserveServiceTest {
     private final ExchangeBatchMapper batchMapper = mock(ExchangeBatchMapper.class);
     private final ExchangeDetailMapper detailMapper = mock(ExchangeDetailMapper.class);
+    private final CompanyExchangeConfigMapper exchangeConfigMapper = mock(CompanyExchangeConfigMapper.class);
     private final CorsOperationMapper operationMapper = mock(CorsOperationMapper.class);
     private final ServiceCodeMapper serviceCodeMapper = mock(ServiceCodeMapper.class);
     private final ServiceDurationConfigMapper durationMapper = mock(ServiceDurationConfigMapper.class);
@@ -63,12 +66,13 @@ class ServiceCodeExchangeReserveServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new ServiceCodeExchangeReserveService(batchMapper, detailMapper, operationMapper,
+        service = new ServiceCodeExchangeReserveService(batchMapper, detailMapper, exchangeConfigMapper, operationMapper,
                 serviceCodeMapper, durationMapper, companyMapper, userHolder,
                 generationProperties, objectMapper, clock);
         when(userHolder.getUserScope()).thenReturn(new UserScope(null, null));
         when(userHolder.getOperator()).thenReturn(new OperatorIdentity(7L, "tester"));
         when(companyMapper.selectCount(any())).thenReturn(1L);
+        when(exchangeConfigMapper.selectByCompanyId(anyLong())).thenReturn(exchangeConfig());
         when(durationMapper.selectBySpecCodes(anyList())).thenReturn(List.of(spec()));
         when(batchMapper.insert(any(ExchangeBatch.class))).thenAnswer(invocation -> {
             ((ExchangeBatch) invocation.getArgument(0)).setId(400L);
@@ -85,22 +89,21 @@ class ServiceCodeExchangeReserveServiceTest {
     }
 
     @Test
-    void payloadHashIsStableAndIncludesEveryPayloadFieldButNotRequestId() {
+    void payloadHashIsStableAndExcludesTheServerSidePrefix() {
         ServiceCodeExchangeCommand command = command("one", 3, "acct");
         String hash = ExchangePayloadHash.calculate(command, null);
         assertNotEquals(hash, ExchangePayloadHash.calculate(command, 88L));
 
         assertEquals(hash, ExchangePayloadHash.calculate(command("different-request", 3, "acct"), null));
         assertNotEquals(hash, ExchangePayloadHash.calculate(
-                new ServiceCodeExchangeCommand("one", 2L, "SPEC-1", GenerationSource.B2B, 3, "acct"), null));
+                new ServiceCodeExchangeCommand("one", 2L, "SPEC-1", GenerationSource.B2B, 3), null));
         assertNotEquals(hash, ExchangePayloadHash.calculate(
-                new ServiceCodeExchangeCommand("one", 1L, "SPEC-2", GenerationSource.B2B, 3, "acct"), null));
+                new ServiceCodeExchangeCommand("one", 1L, "SPEC-2", GenerationSource.B2B, 3), null));
         assertNotEquals(hash, ExchangePayloadHash.calculate(
-                new ServiceCodeExchangeCommand("one", 1L, "SPEC-1", GenerationSource.OFFLINE, 3, "acct"), null));
+                new ServiceCodeExchangeCommand("one", 1L, "SPEC-1", GenerationSource.OFFLINE, 3), null));
         assertNotEquals(hash, ExchangePayloadHash.calculate(
-                new ServiceCodeExchangeCommand("one", 1L, "SPEC-1", GenerationSource.B2B, 4, "acct"), null));
-        assertNotEquals(hash, ExchangePayloadHash.calculate(
-                new ServiceCodeExchangeCommand("one", 1L, "SPEC-1", GenerationSource.B2B, 3, "other"), null));
+                new ServiceCodeExchangeCommand("one", 1L, "SPEC-1", GenerationSource.B2B, 4), null));
+        assertEquals(hash, ExchangePayloadHash.calculate(command("one", 3, "other"), null));
     }
 
     @Test
@@ -256,7 +259,14 @@ class ServiceCodeExchangeReserveServiceTest {
     }
     private ServiceCodeExchangeCommand command(String requestId, int quantity, String prefix) {
         return new ServiceCodeExchangeCommand(requestId, 1L, "SPEC-1",
-                GenerationSource.B2B, quantity, prefix);
+                GenerationSource.B2B, quantity);
+    }
+
+    private CompanyExchangeConfig exchangeConfig() {
+        CompanyExchangeConfig config = new CompanyExchangeConfig();
+        config.setCompanyId(1L);
+        config.setAccountPrefix("AB12");
+        return config;
     }
 
     private ServiceDurationConfig spec() {

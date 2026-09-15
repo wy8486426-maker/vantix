@@ -19,9 +19,6 @@ import java.util.UUID;
 @Service
 public class ServiceDurationConfigService {
     private static final Logger log = LoggerFactory.getLogger(ServiceDurationConfigService.class);
-    private static final String IDENTITY_IMMUTABLE_MESSAGE =
-            "服务规格创建后不可修改，请停用旧规格并新建规格";
-
     private final ServiceDurationConfigMapper mapper;
     private final UserHolderBridge userHolder;
 
@@ -31,6 +28,7 @@ public class ServiceDurationConfigService {
     }
 
     public List<ServiceDurationConfigView> list() {
+        requireGlobalScope();
         return mapper.selectList(Wrappers.<ServiceDurationConfig>lambdaQuery()
                         .orderByAsc(ServiceDurationConfig::getServiceType)
                         .orderByAsc(ServiceDurationConfig::getDurationDays)
@@ -38,20 +36,33 @@ public class ServiceDurationConfigService {
                 .stream().map(ServiceDurationConfigView::from).toList();
     }
 
+    public ServiceDurationConfigView get(Long id) {
+        requireGlobalScope();
+        ServiceDurationConfig config = id == null ? null : mapper.selectById(id);
+        if (config == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "服务规格不存在: " + id);
+        }
+        return ServiceDurationConfigView.from(config);
+    }
+
     @Transactional
-    public ServiceDurationConfigView create(ServiceDurationConfigCommand command) {
+    public ServiceDurationConfigView create(CreateServiceDurationConfigCommand command) {
+        requireGlobalScope();
         validate(command);
-        ensureUniqueDisplayName(command.displayName().trim());
+        String displayName = normalizeText(command.displayName(), 128, "displayName");
+        String serviceType = normalizeText(command.serviceType(), 64, "serviceType");
+        String remark = normalizeOptionalText(command.remark(), 512, "remark");
+        ensureUniqueDisplayName(displayName);
         OperatorIdentity operator = userHolder.getOperator();
         ServiceDurationConfig config = new ServiceDurationConfig();
         config.setSpecCode(createOpaqueSpecCode());
-        config.setDisplayName(command.displayName().trim());
-        config.setServiceType(command.serviceType().trim());
+        config.setDisplayName(displayName);
+        config.setServiceType(serviceType);
         config.setDurationDays(command.durationDays());
         config.setCodeSilenceDays(command.codeSilenceDays());
         config.setAccountSilenceDays(command.accountSilenceDays());
         config.setEnabled(command.enabled());
-        config.setRemark(command.remark());
+        config.setRemark(remark);
         config.setCreatedBy(operator.userId());
         config.setUpdatedBy(operator.userId());
         try {
@@ -65,20 +76,22 @@ public class ServiceDurationConfigService {
     }
 
     @Transactional
-    public ServiceDurationConfigView update(Long id, ServiceDurationConfigCommand command) {
+    public ServiceDurationConfigView update(Long id, UpdateServiceDurationConfigCommand command) {
+        requireGlobalScope();
         validate(command);
         ServiceDurationConfig config = mapper.selectById(id);
         if (config == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "服务规格不存在: " + id);
         }
-        ensureIdentityUnchanged(config, command);
-        ensureUniqueDisplayNameForUpdate(id, command.displayName().trim());
+        String displayName = normalizeText(command.displayName(), 128, "displayName");
+        String remark = normalizeOptionalText(command.remark(), 512, "remark");
+        ensureUniqueDisplayNameForUpdate(id, displayName);
         OperatorIdentity operator = userHolder.getOperator();
-        config.setDisplayName(command.displayName().trim());
+        config.setDisplayName(displayName);
         config.setCodeSilenceDays(command.codeSilenceDays());
         config.setAccountSilenceDays(command.accountSilenceDays());
         config.setEnabled(command.enabled());
-        config.setRemark(command.remark());
+        config.setRemark(remark);
         config.setUpdatedBy(operator.userId());
         mapper.updateById(config);
         log.info("Service duration config updated, configId={}, specCode={}, operatorUserId={}",
@@ -91,15 +104,25 @@ public class ServiceDurationConfigService {
                 .substring(0, 12).toUpperCase(java.util.Locale.ROOT);
     }
 
-    private void validate(ServiceDurationConfigCommand command) {
+    private void validate(CreateServiceDurationConfigCommand command) {
         if (command == null || command.displayName() == null || command.displayName().isBlank()
-                || command.displayName().trim().length() > 128
+                || command.displayName().trim().length() > 128 || hasControl(command.displayName())
                 || command.serviceType() == null || command.serviceType().isBlank()
-                || command.serviceType().trim().length() > 64
+                || command.serviceType().trim().length() > 64 || hasControl(command.serviceType())
                 || command.durationDays() == null || command.durationDays() <= 0
                 || command.codeSilenceDays() == null || command.codeSilenceDays() < 0
                 || command.accountSilenceDays() == null || command.accountSilenceDays() < 0
-                || command.enabled() == null) {
+                || command.enabled() == null || invalidOptionalText(command.remark(), 512)) {
+            throw new BusinessException(ErrorCode.CONFIG_INVALID, "服务规格配置参数非法");
+        }
+    }
+
+    private void validate(UpdateServiceDurationConfigCommand command) {
+        if (command == null || command.displayName() == null || command.displayName().isBlank()
+                || command.displayName().trim().length() > 128 || hasControl(command.displayName())
+                || command.codeSilenceDays() == null || command.codeSilenceDays() < 0
+                || command.accountSilenceDays() == null || command.accountSilenceDays() < 0
+                || command.enabled() == null || invalidOptionalText(command.remark(), 512)) {
             throw new BusinessException(ErrorCode.CONFIG_INVALID, "服务规格配置参数非法");
         }
     }
@@ -119,10 +142,35 @@ public class ServiceDurationConfigService {
         }
     }
 
-    private void ensureIdentityUnchanged(ServiceDurationConfig config, ServiceDurationConfigCommand command) {
-        if (!java.util.Objects.equals(config.getServiceType(), command.serviceType().trim())
-                || !java.util.Objects.equals(config.getDurationDays(), command.durationDays())) {
-            throw new BusinessException(ErrorCode.CONFIG_INVALID, IDENTITY_IMMUTABLE_MESSAGE);
+    private void requireGlobalScope() {
+        if (!userHolder.getUserScope().isGlobal()) {
+            throw new BusinessException(ErrorCode.GLOBAL_SCOPE_REQUIRED, "配置中心仅允许 GLOBAL 数据范围访问");
         }
+    }
+
+    private String normalizeText(String value, int maxLength, String field) {
+        String result = value == null ? null : value.trim();
+        if (result == null || result.isEmpty() || result.length() > maxLength || hasControl(result)) {
+            throw new BusinessException(ErrorCode.CONFIG_INVALID, field + " 参数非法");
+        }
+        return result;
+    }
+
+    private String normalizeOptionalText(String value, int maxLength, String field) {
+        if (value == null) return null;
+        String result = value.trim();
+        if (result.isEmpty()) return null;
+        if (result.length() > maxLength || hasControl(result)) {
+            throw new BusinessException(ErrorCode.CONFIG_INVALID, field + " 参数非法");
+        }
+        return result;
+    }
+
+    private boolean invalidOptionalText(String value, int maxLength) {
+        return value != null && (value.trim().length() > maxLength || hasControl(value));
+    }
+
+    private boolean hasControl(String value) {
+        return value != null && value.codePoints().anyMatch(Character::isISOControl);
     }
 }

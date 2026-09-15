@@ -21,6 +21,17 @@ CREATE TABLE dealer_company (
     KEY idx_dealer_company_name (company_name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE company_exchange_config (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    company_id BIGINT NOT NULL,
+    account_prefix VARCHAR(4) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    operator_user_id BIGINT NULL,
+    operator_user_name VARCHAR(128) NULL,
+    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_company_exchange_config_company (company_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE dealer_relation_log (
     id BIGINT NOT NULL AUTO_INCREMENT,
     company_id BIGINT NOT NULL,

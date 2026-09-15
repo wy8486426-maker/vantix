@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sinognss.cloud.vantix.infrastructure.mapper.CompanyFrontendQueryMapper">
+    <select id="pageForFrontend"
+            resultType="com.sinognss.cloud.vantix.application.company.CompanyPageRow">
+        SELECT dc.company_id,
+               dc.company_name,
+               dc.parent_company_id,
+               parent.company_name AS parent_company_name,
+               CASE WHEN dc.parent_company_id IS NULL THEN 'FIRST_LEVEL' ELSE 'SECOND_LEVEL' END AS level,
+               dc.company_status,
+               dc.company_synced_at,
+               dc.created_at,
+               dc.updated_at
+        FROM dealer_company dc
+        LEFT JOIN dealer_company parent ON parent.company_id = dc.parent_company_id
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND dc.company_name LIKE CONCAT('%', #{keyword}, '%')
+            </if>
+            <if test="status != null and status != ''">
+                AND dc.company_status = #{status}
+            </if>
+            <if test="parentCompanyId != null">
+                AND dc.parent_company_id = #{parentCompanyId}
+            </if>
+            <if test="level == 'FIRST_LEVEL'">
+                AND dc.parent_company_id IS NULL
+            </if>
+            <if test="level == 'SECOND_LEVEL'">
+                AND dc.parent_company_id IS NOT NULL
+            </if>
+        </where>
+        ORDER BY dc.created_at DESC, dc.company_id DESC
+    </select>
+
+    <select id="partners" resultType="com.sinognss.cloud.vantix.application.company.CompanyPartnerRow">
+        SELECT partner.company_id,
+               partner.company_name,
+               partner.company_status,
+               CASE WHEN current_company.parent_company_id IS NULL THEN 'CHILD' ELSE 'PARENT' END
+                   AS relationship_type
+        FROM dealer_company current_company
+        JOIN dealer_company partner
+          ON (current_company.parent_company_id IS NULL
+              AND partner.parent_company_id = current_company.company_id)
+          OR (current_company.parent_company_id IS NOT NULL
+              AND partner.company_id = current_company.parent_company_id)
+        WHERE current_company.company_id = #{companyId}
+        ORDER BY partner.company_id
+    </select>
+</mapper>

@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sinognss.cloud.vantix.infrastructure.mapper.GenerationOrderQueryMapper">
+    <sql id="filters">
+        <if test="scopeCompanyId != null">
+            AND o.owner_company_id = #{scopeCompanyId}
+        </if>
+        <if test="ownerCompanyId != null">
+            AND o.owner_company_id = #{ownerCompanyId}
+        </if>
+        <if test="generationSource != null and generationSource != ''">
+            AND o.generation_source = #{generationSource}
+        </if>
+        <if test="status != null and status != ''">
+            AND o.status = #{status}
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND (
+                o.request_id LIKE CONCAT('%', #{keyword}, '%')
+                OR o.source_order_no LIKE CONCAT('%', #{keyword}, '%')
+                OR dc.company_name LIKE CONCAT('%', #{keyword}, '%')
+            )
+        </if>
+        <if test="createdFrom != null">
+            AND o.created_at &gt;= #{createdFrom}
+        </if>
+        <if test="createdTo != null">
+            AND o.created_at &lt;= #{createdTo}
+        </if>
+    </sql>
+
+    <select id="pageForFrontend"
+            resultType="com.sinognss.cloud.vantix.application.servicecode.generation.GenerationOrderQueryRow">
+        SELECT o.id,
+               o.request_id,
+               o.generation_source,
+               o.source_order_no,
+               o.source_order_time,
+               o.owner_company_id,
+               dc.company_name AS owner_company_name,
+               o.item_count,
+               o.total_quantity,
+               o.status,
+               o.operator_user_id,
+               o.operator_user_name,
+               o.created_at,
+               o.updated_at
+        FROM service_code_generate_order o
+        LEFT JOIN dealer_company dc ON dc.company_id = o.owner_company_id
+        <where>
+            <include refid="filters"/>
+        </where>
+        ORDER BY o.created_at DESC, o.id DESC
+    </select>
+
+    <select id="statistics"
+            resultType="com.sinognss.cloud.vantix.application.servicecode.generation.GenerationOrderStatisticsRow">
+        SELECT COUNT(*) AS total,
+               COALESCE(SUM(CASE WHEN o.generation_source = 'B2B' THEN 1 ELSE 0 END), 0) AS b2b,
+               COALESCE(SUM(CASE WHEN o.generation_source = 'OFFLINE' THEN 1 ELSE 0 END), 0) AS offline
+        FROM service_code_generate_order o
+        LEFT JOIN dealer_company dc ON dc.company_id = o.owner_company_id
+        <where>
+            <include refid="filters"/>
+        </where>
+    </select>
+</mapper>

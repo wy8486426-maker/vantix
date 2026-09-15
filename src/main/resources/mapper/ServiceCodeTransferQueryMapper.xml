@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sinognss.cloud.vantix.infrastructure.mapper.ServiceCodeTransferQueryMapper">
+    <sql id="candidateFilters">
+        <if test="transferType != null and transferType != ''">
+            AND ft.transfer_type = #{transferType}
+        </if>
+        <if test="fromCompanyId != null">
+            AND ft.from_company_id = #{fromCompanyId}
+        </if>
+        <if test="toCompanyId != null">
+            AND ft.to_company_id = #{toCompanyId}
+        </if>
+        <if test="createdFrom != null">
+            AND ft.created_at &gt;= #{createdFrom}
+        </if>
+        <if test="createdTo != null">
+            AND ft.created_at &lt;= #{createdTo}
+        </if>
+        <if test="specCode != null and specCode != ''">
+            AND fsc.spec_code = #{specCode}
+        </if>
+        <if test="durationDays != null">
+            AND fsc.duration_days = #{durationDays}
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND (
+                ft.transfer_no LIKE CONCAT('%', #{keyword}, '%')
+                OR ft.service_code LIKE CONCAT('%', #{keyword}, '%')
+                OR ffrom.company_name LIKE CONCAT('%', #{keyword}, '%')
+                OR fto.company_name LIKE CONCAT('%', #{keyword}, '%')
+                OR ft.operator_user_name LIKE CONCAT('%', #{keyword}, '%')
+            )
+        </if>
+        <if test="scopeCompanyId != null">
+            AND (ft.from_company_id = #{scopeCompanyId} OR ft.to_company_id = #{scopeCompanyId})
+        </if>
+    </sql>
+
+    <select id="pageForFrontend"
+            resultType="com.sinognss.cloud.vantix.application.servicecode.TransferBatchQueryRow">
+        SELECT t.transfer_no,
+               MIN(t.from_company_id) AS from_company_id,
+               MIN(ffrom.company_name) AS from_company_name,
+               MIN(t.to_company_id) AS to_company_id,
+               MIN(fto.company_name) AS to_company_name,
+               MIN(t.transfer_type) AS transfer_type,
+               COUNT(*) AS quantity,
+               MIN(sc.spec_code) AS spec_code,
+               MIN(sc.service_type) AS service_type,
+               MIN(sc.duration_days) AS duration_days,
+               MIN(t.reason) AS reason,
+               MIN(t.operator_user_id) AS operator_user_id,
+               MIN(t.operator_user_name) AS operator_user_name,
+               MAX(t.created_at) AS created_at
+        FROM service_code_transfer t
+        LEFT JOIN service_code sc ON sc.id = t.service_code_id
+        LEFT JOIN dealer_company ffrom ON ffrom.company_id = t.from_company_id
+        LEFT JOIN dealer_company fto ON fto.company_id = t.to_company_id
+        <where>
+            EXISTS (
+                SELECT 1
+                FROM service_code_transfer ft
+                LEFT JOIN service_code fsc ON fsc.id = ft.service_code_id
+                LEFT JOIN dealer_company ffrom ON ffrom.company_id = ft.from_company_id
+                LEFT JOIN dealer_company fto ON fto.company_id = ft.to_company_id
+                WHERE ft.transfer_no = t.transfer_no
+                <include refid="candidateFilters"/>
+            )
+        </where>
+        GROUP BY t.transfer_no
+        ORDER BY MAX(t.created_at) DESC, t.transfer_no DESC
+    </select>
+
+    <select id="detailBatch"
+            resultType="com.sinognss.cloud.vantix.application.servicecode.TransferBatchQueryRow">
+        SELECT t.transfer_no,
+               MIN(t.from_company_id) AS from_company_id,
+               MIN(ffrom.company_name) AS from_company_name,
+               MIN(t.to_company_id) AS to_company_id,
+               MIN(fto.company_name) AS to_company_name,
+               MIN(t.transfer_type) AS transfer_type,
+               COUNT(*) AS quantity,
+               MIN(sc.spec_code) AS spec_code,
+               MIN(sc.service_type) AS service_type,
+               MIN(sc.duration_days) AS duration_days,
+               MIN(t.reason) AS reason,
+               MIN(t.operator_user_id) AS operator_user_id,
+               MIN(t.operator_user_name) AS operator_user_name,
+               MAX(t.created_at) AS created_at
+        FROM service_code_transfer t
+        LEFT JOIN service_code sc ON sc.id = t.service_code_id
+        LEFT JOIN dealer_company ffrom ON ffrom.company_id = t.from_company_id
+        LEFT JOIN dealer_company fto ON fto.company_id = t.to_company_id
+        WHERE t.transfer_no = #{transferNo}
+        <if test="scopeCompanyId != null">
+            AND (t.from_company_id = #{scopeCompanyId} OR t.to_company_id = #{scopeCompanyId})
+        </if>
+        GROUP BY t.transfer_no
+    </select>
+
+    <select id="detailItems"
+            resultType="com.sinognss.cloud.vantix.application.servicecode.TransferItemQueryRow">
+        SELECT t.service_code_id,
+               t.service_code,
+               sc.spec_code,
+               batch.display_name,
+               sc.service_type,
+               sc.duration_days,
+               sc.expire_at
+        FROM service_code_transfer t
+        LEFT JOIN service_code sc ON sc.id = t.service_code_id
+        LEFT JOIN service_code_generate_batch batch ON batch.id = sc.generate_batch_id
+        WHERE t.transfer_no = #{transferNo}
+        ORDER BY t.id
+    </select>
+</mapper>

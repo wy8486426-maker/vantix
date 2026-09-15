@@ -4,6 +4,7 @@ import com.sinognss.cloud.vantix.common.exception.BusinessException;
 import com.sinognss.cloud.vantix.common.exception.ErrorCode;
 import com.sinognss.cloud.vantix.common.user.OperatorIdentity;
 import com.sinognss.cloud.vantix.common.user.UserHolderBridge;
+import com.sinognss.cloud.vantix.common.user.UserScope;
 import com.sinognss.cloud.vantix.domain.config.ServiceDurationConfig;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceDurationConfigMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,6 +32,7 @@ class ServiceDurationConfigServiceTest {
     @BeforeEach
     void setUp() {
         when(userHolder.getOperator()).thenReturn(new OperatorIdentity(7L, "operator"));
+        when(userHolder.getUserScope()).thenReturn(new UserScope(null, null));
         when(mapper.selectCount(any())).thenReturn(0L);
         service = new ServiceDurationConfigService(mapper, userHolder);
     }
@@ -47,7 +49,7 @@ class ServiceDurationConfigServiceTest {
                 new SpecCase("按日规格", "CORS", 1));
 
         for (SpecCase specCase : cases) {
-            ServiceDurationConfigView created = service.create(new ServiceDurationConfigCommand(
+            ServiceDurationConfigView created = service.create(new CreateServiceDurationConfigCommand(
                     specCase.displayName(), specCase.serviceType(), specCase.durationDays(), 12, 30, true, null));
             assertEquals(specCase.displayName(), created.displayName());
             assertTrue(created.specCode().matches("SC[A-Z0-9]{12}"));
@@ -65,7 +67,7 @@ class ServiceDurationConfigServiceTest {
         when(mapper.selectCount(any())).thenReturn(1L);
 
         BusinessException exception = assertThrows(BusinessException.class,
-                () -> service.create(new ServiceDurationConfigCommand(
+                () -> service.create(new CreateServiceDurationConfigCommand(
                         "45天", "SDK", 45, 12, 30, true, null)));
 
         assertEquals(ErrorCode.CONFIG_INVALID, exception.getVantixErrorCode());
@@ -77,28 +79,10 @@ class ServiceDurationConfigServiceTest {
         when(mapper.insert(any(ServiceDurationConfig.class))).thenThrow(new DuplicateKeyException("duplicate"));
 
         BusinessException exception = assertThrows(BusinessException.class,
-                () -> service.create(new ServiceDurationConfigCommand(
+                () -> service.create(new CreateServiceDurationConfigCommand(
                         "月度规格", "CORS", 30, 12, 30, true, null)));
 
         assertEquals(ErrorCode.CONFIG_INVALID, exception.getVantixErrorCode());
-    }
-
-    @Test
-    void rejectsChangingDurationDaysAfterCreation() {
-        assertImmutableUpdateRejected(new ServiceDurationConfigCommand(
-                "月度规格", "CORS", 90, 6, 30, false, "changed"));
-    }
-
-    @Test
-    void rejectsChangingDurationDaysToAnotherValueAfterCreation() {
-        assertImmutableUpdateRejected(new ServiceDurationConfigCommand(
-                "月度规格", "CORS", 365, 6, 30, false, "changed"));
-    }
-
-    @Test
-    void rejectsChangingServiceTypeAfterCreation() {
-        assertImmutableUpdateRejected(new ServiceDurationConfigCommand(
-                "月度规格", "SDK", 30, 6, 30, false, "changed"));
     }
 
     @Test
@@ -107,7 +91,7 @@ class ServiceDurationConfigServiceTest {
         when(mapper.selectById(1L)).thenReturn(config);
 
         ServiceDurationConfigView updated = service.update(1L,
-                new ServiceDurationConfigCommand("新月度规格", "CORS", 30, 6, 7, false, "changed"));
+                new UpdateServiceDurationConfigCommand("新月度规格", 6, 7, false, "changed"));
 
         assertEquals("M1", updated.specCode());
         assertEquals("新月度规格", updated.displayName());
@@ -119,18 +103,6 @@ class ServiceDurationConfigServiceTest {
         assertEquals("changed", updated.remark());
         assertEquals(7L, config.getUpdatedBy());
         verify(mapper).updateById(config);
-    }
-
-    private void assertImmutableUpdateRejected(ServiceDurationConfigCommand command) {
-        ServiceDurationConfig config = existingMonth();
-        when(mapper.selectById(1L)).thenReturn(config);
-
-        BusinessException exception = assertThrows(BusinessException.class,
-                () -> service.update(1L, command));
-
-        assertEquals(ErrorCode.CONFIG_INVALID, exception.getVantixErrorCode());
-        assertEquals("服务规格创建后不可修改，请停用旧规格并新建规格", exception.getMessage());
-        verify(mapper, never()).updateById(any(ServiceDurationConfig.class));
     }
 
     private ServiceDurationConfig existingMonth() {
