@@ -40,8 +40,8 @@ class RestCorsAccountGatewayTest {
                 .andExpect(content().json("""
                         {
                           "requestId":"EX-20260913-000001",
-                          "durationValue":1,
-                          "durationUnit":"DAY",
+                          "durationDays":1,
+                          "silenceDays":0,
                           "quantity":2,
                           "accountPrefix":"sino"
                         }
@@ -50,7 +50,7 @@ class RestCorsAccountGatewayTest {
                         MediaType.APPLICATION_JSON));
 
         CorsBatchResult result = fixture.gateway.createBatch(
-                new CorsBatchCreateRequest(REQUEST_ID, 1, DurationUnit.DAY, 2, "sino"));
+                new CorsBatchCreateRequest(REQUEST_ID, 1, 0, 2, "sino"));
 
         assertEquals(CorsOutcome.SUCCESS, result.outcome());
         assertEquals(2, result.accounts().size());

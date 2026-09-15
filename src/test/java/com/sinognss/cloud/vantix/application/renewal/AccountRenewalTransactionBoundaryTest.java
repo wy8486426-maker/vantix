@@ -113,8 +113,9 @@ class AccountRenewalTransactionBoundaryTest {
         renewal.setServiceCodeId(71L);
         renewal.setRequestId("RN-41");
         renewal.setServiceType("CORS");
-        renewal.setDurationValue(3);
-        renewal.setDurationUnit("MONTH");
+        renewal.setSpecCode("SPEC-1");
+        renewal.setDurationDays(90);
+        renewal.setCodeSilenceDays(180);
         renewal.setStatus(AccountRenewalConstants.PROCESSING);
         renewal.setVersion(0L);
         return renewal;

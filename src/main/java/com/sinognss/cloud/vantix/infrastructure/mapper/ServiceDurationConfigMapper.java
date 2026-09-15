@@ -11,7 +11,7 @@ import java.util.List;
 @Mapper
 public interface ServiceDurationConfigMapper extends BaseMapper<ServiceDurationConfig> {
     @Select("SELECT * FROM service_duration_config WHERE enabled = 1 "
-            + "ORDER BY duration_value, duration_unit, service_type")
+            + "ORDER BY duration_days, display_name, service_type")
     List<ServiceDurationConfig> selectEnabled();
 
     @Select("SELECT * FROM service_duration_config WHERE spec_code = #{specCode} "

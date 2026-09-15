@@ -56,8 +56,7 @@ public class OfflineOrderTemplateService {
             durations.getRow(0).createCell(1).setCellValue("specCode（系统辅助）");
             for (int index = 0; index < enabled.size(); index++) {
                 Row row = durations.createRow(index + 1);
-                row.createCell(0).setCellValue(com.sinognss.cloud.vantix.common.DurationDisplayFormatter
-                        .format(enabled.get(index).getDurationValue(), enabled.get(index).getDurationUnit()));
+                row.createCell(0).setCellValue(enabled.get(index).getDisplayName());
                 row.createCell(1).setCellValue(enabled.get(index).getSpecCode());
             }
             durations.setColumnHidden(1, true);

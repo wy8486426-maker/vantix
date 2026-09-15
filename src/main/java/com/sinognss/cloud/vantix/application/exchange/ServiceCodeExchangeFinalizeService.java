@@ -89,6 +89,8 @@ public class ServiceCodeExchangeFinalizeService {
             ExchangeCodeSnapshot snapshot = deserialize(detail.getServiceCodeSnapshot());
             if (!detail.getServiceCodeId().equals(snapshot.serviceCodeId())
                     || !batch.getOwnerCompanyId().equals(snapshot.ownerCompanyId())
+                    || (snapshot.specCode() != null && !batch.getSpecCode().equals(snapshot.specCode()))
+                    || !batch.getDurationDays().equals(snapshot.durationDays())
                     || !java.util.Objects.equals(batch.getAssignedUserId(), snapshot.assignedUserId())) {
                 throw new BusinessException(ErrorCode.EXCHANGE_STATE_INCONSISTENT,
                         "兑换明细快照与批次不匹配");
@@ -189,16 +191,15 @@ public class ServiceCodeExchangeFinalizeService {
     private ServiceAccount toServiceAccount(ExchangeBatch batch, ExchangeDetail detail,
                                             ExchangeCodeSnapshot snapshot, CorsCreatedAccount cors,
                                             LocalDateTime now) {
-        if (snapshot.serviceType() == null || snapshot.durationValue() == null
-                || snapshot.durationUnit() == null || snapshot.assignedUserId() != null
+        if (snapshot.serviceType() == null || snapshot.durationDays() == null
+                || snapshot.durationDays() <= 0 || snapshot.codeSilenceDays() == null
+                || snapshot.codeSilenceDays() < 0 || snapshot.assignedUserId() != null
                 && snapshot.assignedUserId() <= 0) {
             throw new BusinessException(ErrorCode.EXCHANGE_STATE_INCONSISTENT,
                     "兑换服务码快照内容无效");
         }
         LocalDateTime activatedAt = local(cors.activatedAt());
         String activationStatus = cors.activationStatus();
-        LocalDateTime forceActivateAt = "WAITING_ACTIVATION".equals(activationStatus) && activatedAt == null
-                ? now.plusMonths(batch.getAccountSilenceMonths()) : null;
         ServiceAccount account = new ServiceAccount();
         account.setCorsAccountId(cors.accountId());
         account.setAccount(cors.account());
@@ -207,12 +208,11 @@ public class ServiceCodeExchangeFinalizeService {
         account.setSourceServiceCodeId(detail.getServiceCodeId());
         account.setExchangeBatchId(batch.getId());
         account.setExchangeDetailId(detail.getId());
+        account.setSpecCode(snapshot.specCode() == null ? batch.getSpecCode() : snapshot.specCode());
         account.setServiceType(snapshot.serviceType());
-        account.setDurationValue(snapshot.durationValue());
-        account.setDurationUnit(snapshot.durationUnit());
-        account.setAccountSilenceMonths(batch.getAccountSilenceMonths());
+        account.setDurationDays(snapshot.durationDays());
+        account.setAccountSilenceDays(batch.getAccountSilenceDays());
         account.setExchangeAt(now);
-        account.setForceActivateAt(forceActivateAt);
         account.setCorsStatus(cors.accountStatus());
         account.setCorsActivationStatus(activationStatus);
         account.setActivatedAt(activatedAt);

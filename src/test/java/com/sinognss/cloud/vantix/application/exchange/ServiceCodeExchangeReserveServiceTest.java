@@ -9,7 +9,6 @@ import com.sinognss.cloud.vantix.common.user.UserHolderBridge;
 import com.sinognss.cloud.vantix.common.user.UserScope;
 import com.sinognss.cloud.vantix.config.GenerationProperties;
 import com.sinognss.cloud.vantix.domain.company.DealerCompany;
-import com.sinognss.cloud.vantix.domain.config.AccountConfig;
 import com.sinognss.cloud.vantix.domain.config.DurationUnit;
 import com.sinognss.cloud.vantix.domain.config.ServiceDurationConfig;
 import com.sinognss.cloud.vantix.domain.cors.CorsOperation;
@@ -17,7 +16,6 @@ import com.sinognss.cloud.vantix.domain.exchange.ExchangeBatch;
 import com.sinognss.cloud.vantix.domain.exchange.ExchangeDetail;
 import com.sinognss.cloud.vantix.domain.servicecode.GenerationSource;
 import com.sinognss.cloud.vantix.domain.servicecode.ServiceCode;
-import com.sinognss.cloud.vantix.infrastructure.mapper.AccountConfigMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.CorsOperationMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.DealerCompanyMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ExchangeBatchMapper;
@@ -57,7 +55,6 @@ class ServiceCodeExchangeReserveServiceTest {
     private final CorsOperationMapper operationMapper = mock(CorsOperationMapper.class);
     private final ServiceCodeMapper serviceCodeMapper = mock(ServiceCodeMapper.class);
     private final ServiceDurationConfigMapper durationMapper = mock(ServiceDurationConfigMapper.class);
-    private final AccountConfigMapper accountConfigMapper = mock(AccountConfigMapper.class);
     private final DealerCompanyMapper companyMapper = mock(DealerCompanyMapper.class);
     private final UserHolderBridge userHolder = mock(UserHolderBridge.class);
     private final GenerationProperties generationProperties = new GenerationProperties();
@@ -68,15 +65,12 @@ class ServiceCodeExchangeReserveServiceTest {
     @BeforeEach
     void setUp() {
         service = new ServiceCodeExchangeReserveService(batchMapper, detailMapper, operationMapper,
-                serviceCodeMapper, durationMapper, accountConfigMapper, companyMapper, userHolder,
+                serviceCodeMapper, durationMapper, companyMapper, userHolder,
                 generationProperties, objectMapper, clock);
         when(userHolder.getUserScope()).thenReturn(new UserScope(null, null));
         when(userHolder.getOperator()).thenReturn(new OperatorIdentity(7L, "tester"));
         when(companyMapper.selectCount(any())).thenReturn(1L);
         when(durationMapper.selectBySpecCodes(anyList())).thenReturn(List.of(spec()));
-        AccountConfig accountConfig = new AccountConfig();
-        accountConfig.setAccountSilenceMonths(12);
-        when(accountConfigMapper.selectById(1L)).thenReturn(accountConfig);
         when(batchMapper.insert(any(ExchangeBatch.class))).thenAnswer(invocation -> {
             ((ExchangeBatch) invocation.getArgument(0)).setId(400L);
             return 1;
@@ -269,9 +263,11 @@ class ServiceCodeExchangeReserveServiceTest {
     private ServiceDurationConfig spec() {
         ServiceDurationConfig config = new ServiceDurationConfig();
         config.setSpecCode("SPEC-1");
+        config.setDisplayName("标准规格");
         config.setServiceType("STANDARD");
-        config.setDurationValue(1);
-        config.setDurationUnit(DurationUnit.MONTH);
+        config.setDurationDays(30);
+        config.setCodeSilenceDays(0);
+        config.setAccountSilenceDays(30);
         config.setEnabled(false);
         return config;
     }
@@ -282,10 +278,10 @@ class ServiceCodeExchangeReserveServiceTest {
         code.setCode("CODE-" + id);
         code.setGenerateBatchId(25L);
         code.setOwnerCompanyId(1L);
+        code.setSpecCode("SPEC-1");
         code.setServiceType("STANDARD");
-        code.setDurationValue(1);
-        code.setDurationUnit("MONTH");
-        code.setCodeSilenceMonths(0);
+        code.setDurationDays(30);
+        code.setCodeSilenceDays(0);
         code.setExpireAt(expireAt);
         return code;
     }

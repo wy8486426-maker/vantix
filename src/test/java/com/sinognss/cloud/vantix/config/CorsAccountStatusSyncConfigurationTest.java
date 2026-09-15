@@ -1,7 +1,5 @@
 package com.sinognss.cloud.vantix.config;
 
-import com.sinognss.cloud.vantix.application.cors.account.AccountForceActivationJob;
-import com.sinognss.cloud.vantix.application.cors.account.AccountForceActivationRetryJob;
 import com.sinognss.cloud.vantix.application.cors.account.AccountStatusReconcileJob;
 import com.sinognss.cloud.vantix.application.cors.account.AccountStatusReconcileService;
 import com.sinognss.cloud.vantix.application.cors.account.AccountStatusSyncScheduleService;
@@ -13,7 +11,6 @@ import com.sinognss.cloud.vantix.integration.cors.account.CorsAccountStatusResul
 import com.sinognss.cloud.vantix.integration.cors.account.CorsMySqlAccountStatusGateway;
 import com.sinognss.cloud.vantix.integration.cors.account.CorsReadOnlyDatabaseClient;
 import com.sinognss.cloud.vantix.integration.cors.account.CorsUserInfoRepository;
-import com.sinognss.cloud.vantix.integration.cors.account.CorsForceActivationGateway;
 import com.sinognss.cloud.vantix.infrastructure.mapper.CorsOperationMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceAccountMapper;
 import com.sinognss.cloud.vantix.domain.account.ServiceAccount;
@@ -37,7 +34,7 @@ class CorsAccountStatusSyncConfigurationTest {
     private final ServiceAccountMapper accountMapper = mock(ServiceAccountMapper.class);
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withUserConfiguration(ClockConfig.class, CorsAccountStatusSyncConfiguration.class,
-                    CorsAccountStatusReconcileConfiguration.class, CorsForceActivationConfiguration.class)
+                    CorsAccountStatusReconcileConfiguration.class)
             .withBean(DataSource.class, () -> new DriverManagerDataSource(
                     "jdbc:h2:mem:primary-context;DB_CLOSE_DELAY=-1", "sa", ""))
             .withBean(ServiceAccountMapper.class, () -> accountMapper);
@@ -46,7 +43,6 @@ class CorsAccountStatusSyncConfigurationTest {
     void disabledByDefaultDoesNotRequireGatewayOrCreateReconcileBeans() {
         runner.run(context -> {
         assertTrue(context.isRunning());
-        assertFalse(context.getBean(CorsForceActivationProperties.class).isEnabled());
         assertTrue(context.containsBean("corsAccountStateApplyService"));
         assertEquals(1, context.getBeansOfType(DataSource.class).size());
         assertEquals(1, context.getBeansOfType(CorsAccountStateApplyService.class).size());
@@ -85,16 +81,12 @@ class CorsAccountStatusSyncConfigurationTest {
     }
 
     @Test
-    void enabledForceActivationRequiresAndUsesBothCapabilityPorts() {
+    void forceActivationConfigurationIsIgnoredAndNoForceActivationBeansExist() {
         runner.withPropertyValues("vantix.cors.force-activation.enabled=true")
-                .withBean(CorsAccountStatusGateway.class, () -> mock(CorsAccountStatusGateway.class))
-                .withBean(CorsForceActivationGateway.class, () -> mock(CorsForceActivationGateway.class))
-                .withBean(CorsOperationMapper.class, () -> mock(CorsOperationMapper.class))
                 .run(context -> {
                     assertTrue(context.isRunning());
-                    assertTrue(context.getBean(AccountForceActivationJob.class) != null);
-                    assertTrue(context.getBean(AccountForceActivationRetryJob.class) != null);
-                    assertFalse(context.containsBean("accountStatusReconcileJob"));
+                    assertFalse(context.containsBean("accountForceActivationJob"));
+                    assertFalse(context.containsBean("accountForceActivationRetryJob"));
                 });
     }
 

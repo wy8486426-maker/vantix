@@ -33,8 +33,8 @@ public class AccountRenewalQueryService {
                 renewal.getAssignedUserId());
         ServiceAccount account = accountMapper.selectById(renewal.getServiceAccountId());
         return new AccountRenewalView(renewal.getId(), renewal.getRequestId(), renewal.getServiceAccountId(),
-                renewal.getServiceCodeId(), renewal.getServiceType(), renewal.getDurationValue(),
-                renewal.getDurationUnit(), renewal.getStatus(), renewal.getLastErrorCode(),
+                renewal.getServiceCodeId(), renewal.getSpecCode(), renewal.getServiceType(),
+                renewal.getDurationDays(), renewal.getCodeSilenceDays(), renewal.getStatus(), renewal.getLastErrorCode(),
                 renewal.getLastErrorMessage(), account == null ? null : account.getExpireAt(),
                 renewal.getCreatedAt(), renewal.getUpdatedAt(), renewal.getCompletedAt());
     }

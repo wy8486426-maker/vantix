@@ -1,16 +1,11 @@
 package com.sinognss.cloud.vantix.integration.cors.account;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.sinognss.cloud.vantix.common.LegacyDurationCompatibility;
 import com.sinognss.cloud.vantix.domain.config.DurationUnit;
 
-import java.util.Objects;
-
-/** The renewal input sent to CORS; duration is taken from Vantix's immutable code snapshot. */
-public record CorsAccountRenewalRequest(
-        String requestId,
-        String accountId,
-        int durationValue,
-        DurationUnit durationUnit) {
-
+/** The renewal input sent to CORS; duration is taken from the immutable code snapshot. */
+public record CorsAccountRenewalRequest(String requestId, String accountId, int durationDays) {
     public CorsAccountRenewalRequest {
         requireText(requestId, "requestId");
         requireText(accountId, "accountId");
@@ -20,10 +15,24 @@ public record CorsAccountRenewalRequest(
         if (hasControl(requestId) || hasControl(accountId)) {
             throw new IllegalArgumentException("requestId and accountId must not contain control characters");
         }
-        if (durationValue <= 0) {
-            throw new IllegalArgumentException("durationValue must be positive");
+        if (durationDays <= 0) {
+            throw new IllegalArgumentException("durationDays must be positive");
         }
-        Objects.requireNonNull(durationUnit, "durationUnit must not be null");
+    }
+
+    @Deprecated
+    @JsonIgnore
+    public int durationValue() { return durationDays; }
+
+    @Deprecated
+    @JsonIgnore
+    public DurationUnit durationUnit() { return DurationUnit.DAY; }
+
+    /** Compatibility constructor for source callers using the retired unit contract. */
+    @Deprecated
+    public CorsAccountRenewalRequest(String requestId, String accountId, int durationValue,
+                                     DurationUnit durationUnit) {
+        this(requestId, accountId, LegacyDurationCompatibility.toDays(durationValue, durationUnit));
     }
 
     private static void requireText(String value, String name) {

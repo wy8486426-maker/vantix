@@ -2,7 +2,6 @@ package com.sinognss.cloud.vantix.application.cors;
 
 import com.sinognss.cloud.vantix.application.exchange.ServiceCodeExchangeFinalizeService;
 import com.sinognss.cloud.vantix.config.CorsOperationProperties;
-import com.sinognss.cloud.vantix.domain.config.DurationUnit;
 import com.sinognss.cloud.vantix.domain.cors.CorsOperation;
 import com.sinognss.cloud.vantix.domain.exchange.ExchangeBatch;
 import com.sinognss.cloud.vantix.domain.exchange.ExchangeStatus;
@@ -75,7 +74,8 @@ class CorsOperationProcessorTest {
         order.verify(gateway).createBatch(request.capture());
         assertEquals("request-1", request.getValue().requestId());
         assertEquals(2, request.getValue().quantity());
-        assertEquals(DurationUnit.MONTH, request.getValue().durationUnit());
+        assertEquals(30, request.getValue().durationDays());
+        assertEquals(0, request.getValue().silenceDays());
         verify(finalizeService).finalizeSuccess(41L, operation.getVersion(), success);
         verify(stateService, never()).failDefinitively(any(), any(), any());
     }
@@ -124,8 +124,10 @@ class CorsOperationProcessorTest {
         batch.setId(9L);
         batch.setRequestId("request-1");
         batch.setStatus(ExchangeStatus.PROCESSING);
-        batch.setDurationValue(1);
-        batch.setDurationUnit("MONTH");
+        batch.setSpecCode("SPEC-1");
+        batch.setServiceType("STANDARD");
+        batch.setDurationDays(30);
+        batch.setAccountSilenceDays(0);
         batch.setQuantity(2);
         batch.setAccountPrefix("demo");
         return batch;

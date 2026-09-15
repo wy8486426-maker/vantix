@@ -240,8 +240,9 @@ class AccountRenewalFinalizeServiceTest {
         renewal.setRequestId(REQUEST_ID);
         renewal.setStatus("PROCESSING");
         renewal.setServiceType("STANDARD");
-        renewal.setDurationValue(3);
-        renewal.setDurationUnit("MONTH");
+        renewal.setSpecCode("SPEC-1");
+        renewal.setDurationDays(90);
+        renewal.setCodeSilenceDays(180);
         renewal.setVersion(RENEWAL_VERSION);
         return renewal;
     }
@@ -262,6 +263,10 @@ class AccountRenewalFinalizeServiceTest {
         code.setStatus(ServiceCodeStatus.PROCESSING);
         code.setProcessingType(ProcessingType.RENEWAL);
         code.setProcessingRequestId(REQUEST_ID);
+        code.setSpecCode("SPEC-1");
+        code.setServiceType("STANDARD");
+        code.setDurationDays(90);
+        code.setCodeSilenceDays(180);
         code.setVersion(CODE_VERSION);
         return code;
     }

@@ -121,8 +121,8 @@ public class AccountRenewalFinalizeService {
             throw new IllegalStateException("CORS renewal success snapshot is invalid");
         }
         if (renewal.getServiceAccountId() == null || renewal.getServiceCodeId() == null
-                || renewal.getDurationValue() == null || renewal.getDurationValue() <= 0
-                || renewal.getDurationUnit() == null || renewal.getDurationUnit().isBlank()
+                || renewal.getDurationDays() == null || renewal.getDurationDays() <= 0
+                || renewal.getCodeSilenceDays() == null || renewal.getCodeSilenceDays() < 0
                 || !same(renewal.getServiceType(), account.getServiceType())) {
             throw new IllegalStateException("Account renewal snapshot is invalid");
         }

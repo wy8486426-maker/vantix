@@ -1,13 +1,10 @@
 package com.sinognss.cloud.vantix.controller;
 
-import com.sinognss.cloud.vantix.application.config.AccountConfigService;
 import com.sinognss.cloud.vantix.application.config.ServiceDurationConfigCommand;
 import com.sinognss.cloud.vantix.application.config.ServiceDurationConfigService;
 import com.sinognss.cloud.vantix.application.config.SystemConfigService;
 import com.sinognss.cloud.vantix.common.api.CommonResultAdapter;
-import com.sinognss.cloud.vantix.domain.config.DurationUnit;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -24,14 +21,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/config")
 public class ConfigController {
     private final ServiceDurationConfigService durationService;
-    private final AccountConfigService accountConfigService;
     private final SystemConfigService systemConfigService;
 
     public ConfigController(ServiceDurationConfigService durationService,
-                             AccountConfigService accountConfigService,
                              SystemConfigService systemConfigService) {
         this.durationService = durationService;
-        this.accountConfigService = accountConfigService;
         this.systemConfigService = systemConfigService;
     }
 
@@ -50,16 +44,6 @@ public class ConfigController {
         return CommonResultAdapter.success(durationService.update(id, request.toCommand()));
     }
 
-    @GetMapping("/account")
-    public Object accountConfig() {
-        return CommonResultAdapter.success(accountConfigService.get());
-    }
-
-    @PutMapping("/account")
-    public Object accountConfigUpdate(@Valid @RequestBody AccountConfigRequest request) {
-        return CommonResultAdapter.success(accountConfigService.update(request.accountSilenceMonths()));
-    }
-
     @GetMapping("/system-company")
     public Object systemCompany() {
         return CommonResultAdapter.success(systemConfigService.getSystemCompanyId());
@@ -71,19 +55,17 @@ public class ConfigController {
                 SystemConfigService.SYSTEM_COMPANY_ID_KEY, String.valueOf(request.systemCompanyId())));
     }
 
-    public record DurationRequest(@NotBlank @Size(max = 64) String serviceType,
-                                  @NotNull @Positive Integer durationValue,
-                                  @NotNull DurationUnit durationUnit,
-                                  @NotNull @Min(0) Integer codeSilenceMonths,
+    public record DurationRequest(@NotBlank @Size(max = 128) String displayName,
+                                  @NotBlank @Size(max = 64) String serviceType,
+                                  @NotNull @Positive Integer durationDays,
+                                  @NotNull @jakarta.validation.constraints.Min(0) Integer codeSilenceDays,
+                                  @NotNull @jakarta.validation.constraints.Min(0) Integer accountSilenceDays,
                                   @NotNull Boolean enabled,
                                   @Size(max = 512) String remark) {
         ServiceDurationConfigCommand toCommand() {
-            return new ServiceDurationConfigCommand(serviceType, durationValue, durationUnit,
-                    codeSilenceMonths, enabled, remark);
+            return new ServiceDurationConfigCommand(displayName, serviceType, durationDays,
+                    codeSilenceDays, accountSilenceDays, enabled, remark);
         }
-    }
-
-    public record AccountConfigRequest(@NotNull @Min(0) Integer accountSilenceMonths) {
     }
 
     public record SystemCompanyRequest(@NotNull @Positive Long systemCompanyId) {

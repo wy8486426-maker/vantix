@@ -1,11 +1,11 @@
 package com.sinognss.cloud.vantix.application.config;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.sinognss.cloud.vantix.common.LegacyDurationCompatibility;
 import com.sinognss.cloud.vantix.common.exception.BusinessException;
 import com.sinognss.cloud.vantix.common.exception.ErrorCode;
 import com.sinognss.cloud.vantix.common.user.OperatorIdentity;
 import com.sinognss.cloud.vantix.common.user.UserHolderBridge;
-import com.sinognss.cloud.vantix.domain.config.DurationUnit;
 import com.sinognss.cloud.vantix.domain.config.ServiceDurationConfig;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceDurationConfigMapper;
 import org.slf4j.Logger;
@@ -15,12 +15,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class ServiceDurationConfigService {
     private static final Logger log = LoggerFactory.getLogger(ServiceDurationConfigService.class);
     private static final String IDENTITY_IMMUTABLE_MESSAGE =
-            "服务时长创建后不可修改，请停用旧规格并新建规格";
+            "服务规格创建后不可修改，请停用旧规格并新建规格";
 
     private final ServiceDurationConfigMapper mapper;
     private final UserHolderBridge userHolder;
@@ -33,21 +34,31 @@ public class ServiceDurationConfigService {
     public List<ServiceDurationConfigView> list() {
         return mapper.selectList(Wrappers.<ServiceDurationConfig>lambdaQuery()
                         .orderByAsc(ServiceDurationConfig::getServiceType)
-                        .orderByAsc(ServiceDurationConfig::getDurationValue))
+                        .orderByAsc(ServiceDurationConfig::getDurationDays)
+                        .orderByAsc(ServiceDurationConfig::getDisplayName))
                 .stream().map(ServiceDurationConfigView::from).toList();
     }
 
     @Transactional
     public ServiceDurationConfigView create(ServiceDurationConfigCommand command) {
         validate(command);
-        ensureUnique(command);
+        ensureUniqueDisplayName(command.displayName().trim());
         OperatorIdentity operator = userHolder.getOperator();
-        ServiceDurationConfig config = toEntity(command, operator);
-        config.setSpecCode(createSpecCode(command));
+        ServiceDurationConfig config = new ServiceDurationConfig();
+        config.setSpecCode(createOpaqueSpecCode());
+        config.setDisplayName(command.displayName().trim());
+        config.setServiceType(command.serviceType().trim());
+        config.setDurationDays(command.durationDays());
+        config.setCodeSilenceDays(command.codeSilenceDays());
+        config.setAccountSilenceDays(command.accountSilenceDays());
+        config.setEnabled(command.enabled());
+        config.setRemark(command.remark());
+        config.setCreatedBy(operator.userId());
+        config.setUpdatedBy(operator.userId());
         try {
             mapper.insert(config);
         } catch (DuplicateKeyException exception) {
-            throw new BusinessException(ErrorCode.CONFIG_INVALID, "相同服务时长规格已存在");
+            throw new BusinessException(ErrorCode.CONFIG_INVALID, "服务规格编码或展示名称已存在");
         }
         log.info("Service duration config created, configId={}, specCode={}, operatorUserId={}",
                 config.getId(), config.getSpecCode(), operator.userId());
@@ -59,11 +70,14 @@ public class ServiceDurationConfigService {
         validate(command);
         ServiceDurationConfig config = mapper.selectById(id);
         if (config == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "服务时长配置不存在: " + id);
+            throw new BusinessException(ErrorCode.NOT_FOUND, "服务规格不存在: " + id);
         }
         ensureIdentityUnchanged(config, command);
+        ensureUniqueDisplayNameForUpdate(id, command.displayName().trim());
         OperatorIdentity operator = userHolder.getOperator();
-        config.setCodeSilenceMonths(command.codeSilenceMonths());
+        config.setDisplayName(command.displayName().trim());
+        config.setCodeSilenceDays(command.codeSilenceDays());
+        config.setAccountSilenceDays(command.accountSilenceDays());
         config.setEnabled(command.enabled());
         config.setRemark(command.remark());
         config.setUpdatedBy(operator.userId());
@@ -73,51 +87,44 @@ public class ServiceDurationConfigService {
         return ServiceDurationConfigView.from(config);
     }
 
-    private String createSpecCode(ServiceDurationConfigCommand command) {
-        String prefix = switch (command.durationUnit()) {
-            case DAY -> "D";
-            case WEEK -> "W";
-            case MONTH -> "M";
-            case YEAR -> "Y";
-        };
-        return prefix + command.durationValue();
-    }
-
-    private ServiceDurationConfig toEntity(ServiceDurationConfigCommand command, OperatorIdentity operator) {
-        ServiceDurationConfig config = new ServiceDurationConfig();
-        config.setServiceType(command.serviceType().trim());
-        config.setDurationValue(command.durationValue());
-        config.setDurationUnit(command.durationUnit());
-        config.setCodeSilenceMonths(command.codeSilenceMonths());
-        config.setEnabled(command.enabled());
-        config.setRemark(command.remark());
-        config.setCreatedBy(operator.userId());
-        config.setUpdatedBy(operator.userId());
-        return config;
+    private String createOpaqueSpecCode() {
+        return "SC" + UUID.randomUUID().toString().replace("-", "")
+                .substring(0, 12).toUpperCase(java.util.Locale.ROOT);
     }
 
     private void validate(ServiceDurationConfigCommand command) {
-        if (command == null || command.serviceType() == null || command.serviceType().isBlank()
-                || command.durationValue() == null || command.durationValue() <= 0
-                || command.durationUnit() == null || command.codeSilenceMonths() == null
-                || command.codeSilenceMonths() < 0 || command.enabled() == null) {
-            throw new BusinessException(ErrorCode.CONFIG_INVALID, "服务时长配置参数非法");
+        if (command == null || command.displayName() == null || command.displayName().isBlank()
+                || command.displayName().trim().length() > 128
+                || command.serviceType() == null || command.serviceType().isBlank()
+                || command.serviceType().trim().length() > 64
+                || command.durationDays() == null || command.durationDays() <= 0
+                || command.codeSilenceDays() == null || command.codeSilenceDays() < 0
+                || command.accountSilenceDays() == null || command.accountSilenceDays() < 0
+                || command.enabled() == null) {
+            throw new BusinessException(ErrorCode.CONFIG_INVALID, "服务规格配置参数非法");
         }
     }
 
-    private void ensureUnique(ServiceDurationConfigCommand command) {
-        long count = mapper.selectCount(Wrappers.<ServiceDurationConfig>lambdaQuery()
-                .eq(ServiceDurationConfig::getDurationValue, command.durationValue())
-                .eq(ServiceDurationConfig::getDurationUnit, command.durationUnit()));
-        if (count > 0) {
-            throw new BusinessException(ErrorCode.CONFIG_INVALID, "相同服务时长规格已存在");
+    private void ensureUniqueDisplayName(String displayName) {
+        if (mapper.selectCount(Wrappers.<ServiceDurationConfig>lambdaQuery()
+                .eq(ServiceDurationConfig::getDisplayName, displayName)) > 0) {
+            throw new BusinessException(ErrorCode.CONFIG_INVALID, "展示名称已存在");
+        }
+    }
+
+    private void ensureUniqueDisplayNameForUpdate(Long id, String displayName) {
+        if (mapper.selectCount(Wrappers.<ServiceDurationConfig>lambdaQuery()
+                .eq(ServiceDurationConfig::getDisplayName, displayName)
+                .ne(ServiceDurationConfig::getId, id)) > 0) {
+            throw new BusinessException(ErrorCode.CONFIG_INVALID, "展示名称已存在");
         }
     }
 
     private void ensureIdentityUnchanged(ServiceDurationConfig config, ServiceDurationConfigCommand command) {
-        if (!config.getServiceType().equals(command.serviceType().trim())
-                || !config.getDurationValue().equals(command.durationValue())
-                || !config.getDurationUnit().equals(command.durationUnit())) {
+        Integer existingDays = config.getDurationDays() != null ? config.getDurationDays()
+                : LegacyDurationCompatibility.toDays(config.getDurationValue(), config.getDurationUnit());
+        if (!java.util.Objects.equals(config.getServiceType(), command.serviceType().trim())
+                || !java.util.Objects.equals(existingDays, command.durationDays())) {
             throw new BusinessException(ErrorCode.CONFIG_INVALID, IDENTITY_IMMUTABLE_MESSAGE);
         }
     }

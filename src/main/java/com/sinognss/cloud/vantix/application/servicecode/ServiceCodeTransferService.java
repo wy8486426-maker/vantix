@@ -184,9 +184,9 @@ public class ServiceCodeTransferService {
     private void validateBatchDuration(List<ServiceCode> codes) {
         ServiceCode first = codes.get(0);
         boolean sameDuration = codes.stream().allMatch(code ->
-                Objects.equals(first.getServiceType(), code.getServiceType())
-                        && Objects.equals(first.getDurationValue(), code.getDurationValue())
-                        && Objects.equals(first.getDurationUnit(), code.getDurationUnit()));
+                Objects.equals(first.getSpecCode(), code.getSpecCode())
+                        && Objects.equals(first.getServiceType(), code.getServiceType())
+                        && Objects.equals(first.getDurationDays(), code.getDurationDays()));
         if (!sameDuration) {
             throw new BusinessException(ErrorCode.BATCH_STATUS_INCONSISTENT,
                     "同一批次服务码必须具有相同的服务时长");

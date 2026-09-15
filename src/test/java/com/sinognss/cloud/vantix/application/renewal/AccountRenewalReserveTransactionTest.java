@@ -222,9 +222,9 @@ class AccountRenewalReserveTransactionTest {
         code.setCode("CODE-21");
         code.setOwnerCompanyId(7L);
         code.setServiceType("CORS");
-        code.setDurationValue(3);
-        code.setDurationUnit("MONTH");
-        code.setCodeSilenceMonths(12);
+        code.setSpecCode("SPEC-1");
+        code.setDurationDays(90);
+        code.setCodeSilenceDays(360);
         code.setExpireAt(NOW.plusDays(1));
         code.setStatus(ServiceCodeStatus.PENDING);
         code.setVersion(4L);

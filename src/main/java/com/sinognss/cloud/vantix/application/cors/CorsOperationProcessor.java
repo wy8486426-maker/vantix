@@ -1,7 +1,6 @@
 package com.sinognss.cloud.vantix.application.cors;
 
 import com.sinognss.cloud.vantix.config.CorsOperationProperties;
-import com.sinognss.cloud.vantix.domain.config.DurationUnit;
 import com.sinognss.cloud.vantix.domain.cors.CorsOperation;
 import com.sinognss.cloud.vantix.application.exchange.ServiceCodeExchangeFinalizeService;
 import com.sinognss.cloud.vantix.domain.exchange.ExchangeBatch;
@@ -99,16 +98,15 @@ public class CorsOperationProcessor {
     }
 
     private void sendCreate(CorsOperation operation, ExchangeBatch batch) {
-        DurationUnit durationUnit;
-        try {
-            durationUnit = DurationUnit.valueOf(batch.getDurationUnit());
-        } catch (Exception exception) {
+        if (batch.getDurationDays() == null || batch.getDurationDays() <= 0
+                || batch.getAccountSilenceDays() == null || batch.getAccountSilenceDays() < 0) {
             stateService.markManualReview(operation, "EXCHANGE_DURATION_INVALID",
-                    "兑换批次时长单位无效");
+                    "兑换批次的 days 快照无效");
             return;
         }
         CorsBatchCreateRequest request = new CorsBatchCreateRequest(batch.getRequestId(),
-                batch.getDurationValue(), durationUnit, batch.getQuantity(), batch.getAccountPrefix());
+                batch.getDurationDays(), batch.getAccountSilenceDays(), batch.getQuantity(),
+                batch.getAccountPrefix());
         CorsBatchResult result = corsGateway.createBatch(request);
         if (result == null || result.outcome() == null) {
             stateService.retryOrMarkManualReview(operation, "CORS_CREATE_UNKNOWN",

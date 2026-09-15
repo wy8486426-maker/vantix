@@ -1,6 +1,5 @@
 package com.sinognss.cloud.vantix.application.offline;
 
-import com.sinognss.cloud.vantix.common.DurationDisplayFormatter;
 import com.sinognss.cloud.vantix.domain.config.ServiceDurationConfig;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellType;
@@ -37,8 +36,7 @@ public class OfflineOrderExcelParser {
         List<ParsedOfflineOrder> rows = new ArrayList<>();
         List<OfflineImportError> errors = new ArrayList<>();
         Map<String, List<ServiceDurationConfig>> specsByDisplayName = enabledSpecs.stream()
-                .collect(Collectors.groupingBy(config -> DurationDisplayFormatter.format(
-                        config.getDurationValue(), config.getDurationUnit())));
+                .collect(Collectors.groupingBy(ServiceDurationConfig::getDisplayName));
         try (XSSFWorkbook workbook = new XSSFWorkbook(input)) {
             if (workbook.getNumberOfSheets() == 0 || !MAIN_SHEET.equals(workbook.getSheetAt(0).getSheetName())) {
                 addError(errors, maxErrors, 0, "文件", "缺少“" + MAIN_SHEET + "”工作表");

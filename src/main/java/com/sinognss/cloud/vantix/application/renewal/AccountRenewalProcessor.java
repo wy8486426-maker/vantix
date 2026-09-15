@@ -4,7 +4,6 @@ import com.sinognss.cloud.vantix.domain.account.ServiceAccount;
 import com.sinognss.cloud.vantix.domain.cors.CorsOperation;
 import com.sinognss.cloud.vantix.domain.renewal.AccountRenewal;
 import com.sinognss.cloud.vantix.domain.renewal.AccountRenewalStatus;
-import com.sinognss.cloud.vantix.domain.config.DurationUnit;
 import com.sinognss.cloud.vantix.integration.cors.CorsOutcome;
 import com.sinognss.cloud.vantix.integration.cors.account.CorsAccountQueryOutcome;
 import com.sinognss.cloud.vantix.integration.cors.account.CorsAccountRenewalGateway;
@@ -184,7 +183,7 @@ public class AccountRenewalProcessor {
         CorsAccountRenewalRequest request;
         try {
             request = new CorsAccountRenewalRequest(operation.getRequestId(), account.getCorsAccountId(),
-                    renewal.getDurationValue(), DurationUnit.valueOf(renewal.getDurationUnit()));
+                    renewal.getDurationDays());
         } catch (RuntimeException exception) {
             stateService.markManualReview(operation, renewal, "RENEWAL_SNAPSHOT_INVALID",
                     "Stored renewal request snapshot is invalid");

@@ -1,13 +1,11 @@
 package com.sinognss.cloud.vantix.application.exchange;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import com.sinognss.cloud.vantix.common.DurationDisplayFormatter;
 import com.sinognss.cloud.vantix.common.exception.BusinessException;
 import com.sinognss.cloud.vantix.common.exception.ErrorCode;
 import com.sinognss.cloud.vantix.common.user.UserHolderBridge;
 import com.sinognss.cloud.vantix.common.user.UserScope;
 import com.sinognss.cloud.vantix.domain.company.DealerCompany;
-import com.sinognss.cloud.vantix.domain.config.DurationUnit;
 import com.sinognss.cloud.vantix.infrastructure.mapper.DealerCompanyMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceCodeExchangeGroupMapper;
 import org.springframework.stereotype.Service;
@@ -44,8 +42,7 @@ public class ExchangeGroupQueryService {
         return groupMapper.selectAvailableGroups(companyId, now).stream()
                 .map(row -> new ServiceCodeExchangeGroupView(
                         row.getSpecCode(),
-                        DurationDisplayFormatter.format(row.getDurationValue(),
-                                DurationDisplayFormatter.parseUnit(row.getDurationUnit())),
+                        row.getDisplayName(),
                         row.getServiceType(),
                         row.getGenerationSource(),
                         row.getAvailableCount(),

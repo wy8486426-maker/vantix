@@ -25,8 +25,7 @@ class CorsAccountRenewalContractTest {
 
         assertEquals("RN-20260914-000001", request.requestId());
         assertEquals("cors-1", request.accountId());
-        assertEquals(3, request.durationValue());
-        assertEquals(DurationUnit.MONTH, request.durationUnit());
+        assertEquals(90, request.durationDays());
     }
 
     @Test

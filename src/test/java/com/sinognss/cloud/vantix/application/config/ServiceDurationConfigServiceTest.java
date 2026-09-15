@@ -4,7 +4,6 @@ import com.sinognss.cloud.vantix.common.exception.BusinessException;
 import com.sinognss.cloud.vantix.common.exception.ErrorCode;
 import com.sinognss.cloud.vantix.common.user.OperatorIdentity;
 import com.sinognss.cloud.vantix.common.user.UserHolderBridge;
-import com.sinognss.cloud.vantix.domain.config.DurationUnit;
 import com.sinognss.cloud.vantix.domain.config.ServiceDurationConfig;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceDurationConfigMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,6 +15,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -36,35 +36,37 @@ class ServiceDurationConfigServiceTest {
     }
 
     @Test
-    void createsCanonicalSpecCodesFromDurationAndUnitWithoutServiceTypeSuffix() {
+    void createsOpaqueSpecCodesAndAllowsSameDurationForDistinctDisplayNames() {
         List<SpecCase> cases = List.of(
-                new SpecCase(1, DurationUnit.DAY, "D1"),
-                new SpecCase(7, DurationUnit.DAY, "D7"),
-                new SpecCase(1, DurationUnit.WEEK, "W1"),
-                new SpecCase(1, DurationUnit.MONTH, "M1"),
-                new SpecCase(3, DurationUnit.MONTH, "M3"),
-                new SpecCase(1, DurationUnit.YEAR, "Y1"),
-                new SpecCase(12, DurationUnit.MONTH, "M12"));
+                new SpecCase("1天", "CORS", 1),
+                new SpecCase("1周", "CORS", 7),
+                new SpecCase("45天", "SDK", 45),
+                new SpecCase("45天-另一规格", "SDK", 45),
+                new SpecCase("730天", "STANDARD", 730),
+                new SpecCase("自定义周期", "STANDARD", 17),
+                new SpecCase("按日规格", "CORS", 1));
 
         for (SpecCase specCase : cases) {
             ServiceDurationConfigView created = service.create(new ServiceDurationConfigCommand(
-                    "CORS", specCase.value(), specCase.unit(), 12, true, null));
-            assertEquals(specCase.code(), created.specCode());
+                    specCase.displayName(), specCase.serviceType(), specCase.durationDays(), 12, 30, true, null));
+            assertEquals(specCase.displayName(), created.displayName());
+            assertTrue(created.specCode().matches("SC[A-Z0-9]{12}"));
         }
 
         ArgumentCaptor<ServiceDurationConfig> config = ArgumentCaptor.forClass(ServiceDurationConfig.class);
         verify(mapper, times(7)).insert(config.capture());
-        assertEquals(List.of("D1", "D7", "W1", "M1", "M3", "Y1", "M12"),
-                config.getAllValues().stream().map(ServiceDurationConfig::getSpecCode).toList());
+        assertEquals(7, config.getAllValues().stream().map(ServiceDurationConfig::getSpecCode).distinct().count());
+        assertEquals(List.of(1, 7, 45, 45, 730, 17, 1),
+                config.getAllValues().stream().map(ServiceDurationConfig::getDurationDays).toList());
     }
 
     @Test
-    void rejectsSameDurationForAnotherServiceType() {
+    void rejectsDuplicateDisplayName() {
         when(mapper.selectCount(any())).thenReturn(1L);
 
         BusinessException exception = assertThrows(BusinessException.class,
                 () -> service.create(new ServiceDurationConfigCommand(
-                        "SDK", 1, DurationUnit.MONTH, 12, true, null)));
+                        "45天", "SDK", 45, 12, 30, true, null)));
 
         assertEquals(ErrorCode.CONFIG_INVALID, exception.getVantixErrorCode());
         verify(mapper, never()).insert(any(ServiceDurationConfig.class));
@@ -76,7 +78,7 @@ class ServiceDurationConfigServiceTest {
 
         BusinessException exception = assertThrows(BusinessException.class,
                 () -> service.create(new ServiceDurationConfigCommand(
-                        "CORS", 1, DurationUnit.MONTH, 12, true, null)));
+                        "月度规格", "CORS", 30, 12, 30, true, null)));
 
         assertEquals(ErrorCode.CONFIG_INVALID, exception.getVantixErrorCode());
     }
@@ -84,19 +86,19 @@ class ServiceDurationConfigServiceTest {
     @Test
     void rejectsChangingDurationValueAfterCreation() {
         assertImmutableUpdateRejected(new ServiceDurationConfigCommand(
-                "CORS", 3, DurationUnit.MONTH, 6, false, "changed"));
+                "月度规格", "CORS", 90, 6, 30, false, "changed"));
     }
 
     @Test
     void rejectsChangingDurationUnitAfterCreation() {
         assertImmutableUpdateRejected(new ServiceDurationConfigCommand(
-                "CORS", 1, DurationUnit.YEAR, 6, false, "changed"));
+                "月度规格", "CORS", 365, 6, 30, false, "changed"));
     }
 
     @Test
     void rejectsChangingLegacyServiceTypeAfterCreation() {
         assertImmutableUpdateRejected(new ServiceDurationConfigCommand(
-                "SDK", 1, DurationUnit.MONTH, 6, false, "changed"));
+                "月度规格", "SDK", 30, 6, 30, false, "changed"));
     }
 
     @Test
@@ -105,13 +107,14 @@ class ServiceDurationConfigServiceTest {
         when(mapper.selectById(1L)).thenReturn(config);
 
         ServiceDurationConfigView updated = service.update(1L,
-                new ServiceDurationConfigCommand("CORS", 1, DurationUnit.MONTH, 6, false, "changed"));
+                new ServiceDurationConfigCommand("新月度规格", "CORS", 30, 6, 7, false, "changed"));
 
         assertEquals("M1", updated.specCode());
+        assertEquals("新月度规格", updated.displayName());
         assertEquals("CORS", updated.serviceType());
-        assertEquals(1, updated.durationValue());
-        assertEquals(DurationUnit.MONTH, updated.durationUnit());
-        assertEquals(6, updated.codeSilenceMonths());
+        assertEquals(30, updated.durationDays());
+        assertEquals(6, updated.codeSilenceDays());
+        assertEquals(7, updated.accountSilenceDays());
         assertEquals(false, updated.enabled());
         assertEquals("changed", updated.remark());
         assertEquals(7L, config.getUpdatedBy());
@@ -126,7 +129,7 @@ class ServiceDurationConfigServiceTest {
                 () -> service.update(1L, command));
 
         assertEquals(ErrorCode.CONFIG_INVALID, exception.getVantixErrorCode());
-        assertEquals("服务时长创建后不可修改，请停用旧规格并新建规格", exception.getMessage());
+        assertEquals("服务规格创建后不可修改，请停用旧规格并新建规格", exception.getMessage());
         verify(mapper, never()).updateById(any(ServiceDurationConfig.class));
     }
 
@@ -134,15 +137,16 @@ class ServiceDurationConfigServiceTest {
         ServiceDurationConfig config = new ServiceDurationConfig();
         config.setId(1L);
         config.setSpecCode("M1");
+        config.setDisplayName("月度规格");
         config.setServiceType("CORS");
-        config.setDurationValue(1);
-        config.setDurationUnit(DurationUnit.MONTH);
-        config.setCodeSilenceMonths(12);
+        config.setDurationDays(30);
+        config.setCodeSilenceDays(12);
+        config.setAccountSilenceDays(30);
         config.setEnabled(true);
         config.setRemark("old");
         return config;
     }
 
-    private record SpecCase(int value, DurationUnit unit, String code) {
+    private record SpecCase(String displayName, String serviceType, int durationDays) {
     }
 }

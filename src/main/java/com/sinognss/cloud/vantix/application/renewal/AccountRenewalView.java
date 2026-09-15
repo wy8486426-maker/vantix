@@ -1,5 +1,7 @@
 package com.sinognss.cloud.vantix.application.renewal;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import java.time.LocalDateTime;
 
 public record AccountRenewalView(
@@ -7,9 +9,10 @@ public record AccountRenewalView(
         String requestId,
         Long serviceAccountId,
         Long serviceCodeId,
+        String specCode,
         String serviceType,
-        Integer durationValue,
-        String durationUnit,
+        Integer durationDays,
+        Integer codeSilenceDays,
         String status,
         String lastErrorCode,
         String lastErrorMessage,
@@ -17,4 +20,11 @@ public record AccountRenewalView(
         LocalDateTime createdAt,
         LocalDateTime updatedAt,
         LocalDateTime completedAt) {
+    @Deprecated
+    @JsonIgnore
+    public Integer durationValue() { return durationDays; }
+
+    @Deprecated
+    @JsonIgnore
+    public String durationUnit() { return durationDays == null ? null : "DAY"; }
 }

@@ -66,9 +66,9 @@ class ExchangeGroupQueryServiceTest {
                 new ServiceCodeExchangeGroupMapper.ExchangeGroupRow();
         row.setSpecCode("SPEC-1");
         row.setGenerationSource("B2B");
+        row.setDisplayName("1个月");
         row.setServiceType("STANDARD");
-        row.setDurationValue(1);
-        row.setDurationUnit("MONTH");
+        row.setDurationDays(30);
         row.setAvailableCount(4L);
         row.setEarliestExpireAt(LocalDateTime.of(2026, 3, 1, 12, 30));
         when(groupMapper.selectAvailableGroups(7L, LocalDateTime.of(2026, 1, 1, 0, 0)))

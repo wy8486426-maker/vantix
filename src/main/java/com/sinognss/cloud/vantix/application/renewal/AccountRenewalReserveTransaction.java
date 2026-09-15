@@ -21,7 +21,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
-import java.util.Locale;
 import java.util.UUID;
 
 public class AccountRenewalReserveTransaction {
@@ -86,13 +85,13 @@ public class AccountRenewalReserveTransaction {
         renewal.setServiceCodeId(code.getId());
         renewal.setOwnerCompanyId(account.getOwnerCompanyId());
         renewal.setAssignedUserId(account.getAssignedUserId());
+        renewal.setSpecCode(code.getSpecCode());
         renewal.setServiceType(code.getServiceType());
-        renewal.setDurationValue(code.getDurationValue());
-        renewal.setDurationUnit(com.sinognss.cloud.vantix.domain.config.DurationUnit
-                .valueOf(code.getDurationUnit().toUpperCase(Locale.ROOT)).name());
+        renewal.setDurationDays(code.getDurationDays());
+        renewal.setCodeSilenceDays(code.getCodeSilenceDays());
         renewal.setServiceCodeSnapshot(serialize(new AccountRenewalCodeSnapshot(code.getId(), code.getCode(),
-                code.getOwnerCompanyId(), code.getServiceType(), code.getDurationValue(), code.getDurationUnit(),
-                code.getCodeSilenceMonths(), code.getExpireAt())));
+                code.getOwnerCompanyId(), code.getSpecCode(), code.getServiceType(), code.getDurationDays(),
+                code.getCodeSilenceDays(), code.getExpireAt())));
         renewal.setRequestId(command.requestId());
         renewal.setStatus(AccountRenewalConstants.PROCESSING);
         renewal.setOperatorUserId(operator == null ? null : operator.userId());
@@ -166,18 +165,12 @@ public class AccountRenewalReserveTransaction {
         if (code.getExpireAt() == null || !code.getExpireAt().isAfter(now)) {
             throw new BusinessException(ErrorCode.SERVICE_CODE_EXPIRED, "服务码已过期");
         }
-        if (code.getVersion() == null || code.getDurationValue() == null || code.getDurationValue() <= 0
+        if (code.getVersion() == null || code.getDurationDays() == null || code.getDurationDays() <= 0
+                || code.getCodeSilenceDays() == null || code.getCodeSilenceDays() < 0
                 || !nonblank(code.getServiceType()) || !nonblank(code.getCode())
-                || code.getDurationUnit() == null) {
+                || !nonblank(code.getSpecCode())) {
             throw new BusinessException(ErrorCode.ACCOUNT_RENEWAL_STATE_INCONSISTENT,
                     "服务码规格快照不完整");
-        }
-        try {
-            com.sinognss.cloud.vantix.domain.config.DurationUnit.valueOf(
-                    code.getDurationUnit().toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException exception) {
-            throw new BusinessException(ErrorCode.ACCOUNT_RENEWAL_STATE_INCONSISTENT,
-                    "服务码时长单位无效");
         }
     }
 

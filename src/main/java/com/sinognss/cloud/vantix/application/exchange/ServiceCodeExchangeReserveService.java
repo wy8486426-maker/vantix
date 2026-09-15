@@ -9,7 +9,6 @@ import com.sinognss.cloud.vantix.common.user.OperatorIdentity;
 import com.sinognss.cloud.vantix.common.user.UserHolderBridge;
 import com.sinognss.cloud.vantix.common.user.UserScope;
 import com.sinognss.cloud.vantix.config.GenerationProperties;
-import com.sinognss.cloud.vantix.domain.config.AccountConfig;
 import com.sinognss.cloud.vantix.domain.config.ServiceDurationConfig;
 import com.sinognss.cloud.vantix.domain.company.DealerCompany;
 import com.sinognss.cloud.vantix.domain.cors.CorsOperation;
@@ -18,7 +17,6 @@ import com.sinognss.cloud.vantix.domain.exchange.ExchangeDetail;
 import com.sinognss.cloud.vantix.domain.exchange.ExchangeStatus;
 import com.sinognss.cloud.vantix.domain.servicecode.GenerationSource;
 import com.sinognss.cloud.vantix.domain.servicecode.ServiceCode;
-import com.sinognss.cloud.vantix.infrastructure.mapper.AccountConfigMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.CorsOperationMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.DealerCompanyMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ExchangeBatchMapper;
@@ -46,7 +44,6 @@ public class ServiceCodeExchangeReserveService {
     private final CorsOperationMapper operationMapper;
     private final ServiceCodeMapper serviceCodeMapper;
     private final ServiceDurationConfigMapper durationMapper;
-    private final AccountConfigMapper accountConfigMapper;
     private final DealerCompanyMapper companyMapper;
     private final UserHolderBridge userHolder;
     private final GenerationProperties generationProperties;
@@ -58,7 +55,6 @@ public class ServiceCodeExchangeReserveService {
                                              CorsOperationMapper operationMapper,
                                              ServiceCodeMapper serviceCodeMapper,
                                              ServiceDurationConfigMapper durationMapper,
-                                             AccountConfigMapper accountConfigMapper,
                                              DealerCompanyMapper companyMapper,
                                              UserHolderBridge userHolder,
                                              GenerationProperties generationProperties,
@@ -69,7 +65,6 @@ public class ServiceCodeExchangeReserveService {
         this.operationMapper = operationMapper;
         this.serviceCodeMapper = serviceCodeMapper;
         this.durationMapper = durationMapper;
-        this.accountConfigMapper = accountConfigMapper;
         this.companyMapper = companyMapper;
         this.userHolder = userHolder;
         this.generationProperties = generationProperties;
@@ -102,15 +97,14 @@ public class ServiceCodeExchangeReserveService {
                 .findFirst()
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONFIG_INVALID,
                         "服务码规格不存在: " + command.specCode()));
-        AccountConfig accountConfig = accountConfigMapper.selectById(1L);
-        if (accountConfig == null || accountConfig.getAccountSilenceMonths() == null
-                || accountConfig.getAccountSilenceMonths() < 0) {
+        if (spec.getDurationDays() == null || spec.getDurationDays() <= 0
+                || spec.getAccountSilenceDays() == null || spec.getAccountSilenceDays() < 0) {
             throw new BusinessException(ErrorCode.CONFIG_INVALID, "账号沉默配置无效");
         }
 
         LocalDateTime now = LocalDateTime.now(clock);
         OperatorIdentity operator = userHolder.getOperator();
-        ExchangeBatch batch = createBatch(command, spec, accountConfig, operator,
+        ExchangeBatch batch = createBatch(command, spec, operator,
                 payloadHash, assignedUserId, now);
         /*
          * Claim the requestId before locking any service codes. A concurrent retry with
@@ -137,8 +131,8 @@ public class ServiceCodeExchangeReserveService {
             detail.setRequestId(command.requestId());
             detail.setServiceCodeSnapshot(serialize(new ExchangeCodeSnapshot(
                     code.getId(), code.getCode(), code.getOwnerCompanyId(), assignedUserId,
-                    code.getServiceType(), code.getDurationValue(), code.getDurationUnit(),
-                    code.getCodeSilenceMonths(), code.getExpireAt())));
+                    code.getSpecCode(), code.getServiceType(), code.getDurationDays(),
+                    code.getCodeSilenceDays(), code.getExpireAt())));
             detail.setStatus(ExchangeStatus.PROCESSING);
             detail.setCreatedAt(now);
             detail.setUpdatedAt(now);
@@ -216,7 +210,7 @@ public class ServiceCodeExchangeReserveService {
     }
 
     private ExchangeBatch createBatch(ServiceCodeExchangeCommand command, ServiceDurationConfig spec,
-                                      AccountConfig accountConfig, OperatorIdentity operator,
+                                      OperatorIdentity operator,
                                       String payloadHash, Long assignedUserId, LocalDateTime now) {
         ExchangeBatch batch = new ExchangeBatch();
         batch.setExchangeBatchNo("EX-" + UUID.randomUUID().toString().replace("-", "").toUpperCase());
@@ -226,12 +220,11 @@ public class ServiceCodeExchangeReserveService {
         batch.setGenerationSource(command.generationSource().name());
         batch.setSpecCode(command.specCode());
         batch.setServiceType(spec.getServiceType());
-        batch.setDurationValue(spec.getDurationValue());
-        batch.setDurationUnit(spec.getDurationUnit().name());
+        batch.setDurationDays(spec.getDurationDays());
         batch.setQuantity(command.quantity());
         batch.setAccountPrefix(command.accountPrefix());
         batch.setPayloadHash(payloadHash);
-        batch.setAccountSilenceMonths(accountConfig.getAccountSilenceMonths());
+        batch.setAccountSilenceDays(spec.getAccountSilenceDays());
         batch.setStatus(ExchangeStatus.PROCESSING);
         batch.setOperatorUserId(operator.userId());
         batch.setOperatorUserName(operator.userName());
@@ -243,10 +236,11 @@ public class ServiceCodeExchangeReserveService {
     private void validateSnapshots(List<ServiceCode> codes, ServiceDurationConfig spec) {
         for (ServiceCode code : codes) {
             if (code.getOwnerCompanyId() == null || code.getGenerateBatchId() == null
+                    || !spec.getSpecCode().equals(code.getSpecCode())
                     || !spec.getServiceType().equals(code.getServiceType())
-                    || !spec.getDurationValue().equals(code.getDurationValue())
-                    || !spec.getDurationUnit().name().equalsIgnoreCase(code.getDurationUnit())
-                    || code.getCodeSilenceMonths() == null || code.getExpireAt() == null) {
+                    || !spec.getDurationDays().equals(code.getDurationDays())
+                    || code.getCodeSilenceDays() == null || code.getCodeSilenceDays() < 0
+                    || code.getExpireAt() == null) {
                 throw new BusinessException(ErrorCode.EXCHANGE_STATE_INCONSISTENT,
                         "待兑换服务码的规格快照与生成批次不一致");
             }

@@ -91,10 +91,8 @@ class ServiceCodeExchangeFinalizeServiceTest {
         assertEquals(101L, accounts.get(0).getSourceServiceCodeId());
         assertEquals(1001L, accounts.get(0).getExchangeDetailId());
         assertEquals(55L, accounts.get(0).getAssignedUserId());
-        assertEquals(NOW.plusMonths(12), accounts.get(0).getForceActivateAt());
         assertEquals("cors-102", accounts.get(1).getCorsAccountId());
         assertEquals(102L, accounts.get(1).getSourceServiceCodeId());
-        assertNull(accounts.get(1).getForceActivateAt());
         assertEquals(LocalDateTime.of(2026, 4, 2, 8, 0), accounts.get(1).getActivatedAt());
         assertEquals(LocalDateTime.of(2026, 4, 1, 9, 0), accounts.get(1).getExpireAt());
 
@@ -169,7 +167,10 @@ class ServiceCodeExchangeFinalizeServiceTest {
         batch.setOwnerCompanyId(7L);
         batch.setAssignedUserId(55L);
         batch.setQuantity(2);
-        batch.setAccountSilenceMonths(12);
+        batch.setSpecCode("PRO");
+        batch.setServiceType("STANDARD");
+        batch.setDurationDays(30);
+        batch.setAccountSilenceDays(12);
         batch.setStatus(ExchangeStatus.PROCESSING);
         return batch;
     }

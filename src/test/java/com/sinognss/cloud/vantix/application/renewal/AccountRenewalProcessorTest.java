@@ -348,8 +348,9 @@ class AccountRenewalProcessorTest {
         renewal.setRequestId(REQUEST_ID);
         renewal.setStatus("PROCESSING");
         renewal.setServiceType("STANDARD");
-        renewal.setDurationValue(3);
-        renewal.setDurationUnit("MONTH");
+        renewal.setSpecCode("SPEC-1");
+        renewal.setDurationDays(90);
+        renewal.setCodeSilenceDays(180);
         renewal.setVersion(8L);
         return renewal;
     }
@@ -366,8 +367,7 @@ class AccountRenewalProcessorTest {
     }
 
     private static CorsAccountRenewalRequest request() {
-        return new CorsAccountRenewalRequest(REQUEST_ID, CORS_ACCOUNT_ID, 3,
-                com.sinognss.cloud.vantix.domain.config.DurationUnit.MONTH);
+        return new CorsAccountRenewalRequest(REQUEST_ID, CORS_ACCOUNT_ID, 90);
     }
 
     private static CorsAccountStatusResult statusSuccess(CorsAccountSnapshot snapshot) {
