@@ -6,9 +6,12 @@ import org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoCo
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.cloud.openfeign.EnableFeignClients;
+import com.sinognss.cloud.vantix.integration.usercenter.UserCenterFeignService;
 
 @SpringBootApplication(exclude = {RedisAutoConfiguration.class, RedisRepositoriesAutoConfiguration.class})
 @MapperScan("com.sinognss.cloud.vantix.infrastructure.mapper")
+@EnableFeignClients(basePackageClasses = UserCenterFeignService.class)
 @EnableScheduling
 public class VantixApplication {
 

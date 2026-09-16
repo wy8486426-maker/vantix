@@ -1,5 +1,6 @@
 package com.sinognss.cloud.vantix.application.exchange;
 
+import com.sinognss.cloud.vantix.application.company.DealerCompanySyncService;
 import com.sinognss.cloud.vantix.common.exception.BusinessException;
 import com.sinognss.cloud.vantix.common.exception.ErrorCode;
 import com.sinognss.cloud.vantix.common.user.OperatorIdentity;
@@ -21,20 +22,21 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class ServiceCodeExchangeConfigServiceTest {
     private final CompanyExchangeConfigMapper mapper = mock(CompanyExchangeConfigMapper.class);
+    private final DealerCompanySyncService dealerCompanySyncService = mock(DealerCompanySyncService.class);
     private final UserHolderBridge userHolder = mock(UserHolderBridge.class);
     private final Clock clock = Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC);
     private ServiceCodeExchangeConfigService service;
 
     @BeforeEach
     void setUp() {
-        service = new ServiceCodeExchangeConfigService(mapper, userHolder, clock);
+        service = new ServiceCodeExchangeConfigService(mapper, dealerCompanySyncService, userHolder, clock);
         when(userHolder.getUserScope()).thenReturn(new UserScope(7L, 100L));
         when(userHolder.getOperatorOrNull()).thenReturn(new OperatorIdentity(7L, "operator"));
     }
@@ -51,21 +53,32 @@ class ServiceCodeExchangeConfigServiceTest {
     }
 
     @Test
-    void configIsImmutableAndSamePrefixRetryIsIdempotent() {
+    void existingSamePrefixIsIdempotentWithoutCompanySync() {
         CompanyExchangeConfig existing = config("AB12");
-        when(mapper.insert(any(CompanyExchangeConfig.class))).thenThrow(new DuplicateKeyException("duplicate"));
-        when(mapper.selectByCompanyIdForUpdate(100L)).thenReturn(existing, existing);
+        when(mapper.selectByCompanyId(100L)).thenReturn(existing);
 
-        ServiceCodeExchangeConfigView created = service.configure(" AB12 ");
-        ServiceCodeExchangeConfigView retried = service.configure("AB12");
+        ServiceCodeExchangeConfigView result = service.configure(" AB12 ");
 
-        assertEquals("AB12", created.accountPrefix());
-        assertEquals(created, retried);
-        assertThrows(BusinessException.class, () -> service.configure("CD34"));
+        assertEquals("AB12", result.accountPrefix());
+        verify(dealerCompanySyncService, never()).ensurePresent(100L);
+        verify(mapper, never()).insert(any(CompanyExchangeConfig.class));
     }
 
     @Test
-    void firstConfigurationIsInsertedWithTrimmedPrefixAndOperatorSnapshot() {
+    void existingDifferentPrefixIsLockedWithoutCompanySync() {
+        when(mapper.selectByCompanyId(100L)).thenReturn(config("AB12"));
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> service.configure("CD34"));
+
+        assertEquals(ErrorCode.EXCHANGE_CONFIG_LOCKED, exception.getVantixErrorCode());
+        verify(dealerCompanySyncService, never()).ensurePresent(100L);
+        verify(mapper, never()).insert(any(CompanyExchangeConfig.class));
+    }
+
+    @Test
+    void firstConfigurationEnsuresCompanyBeforeInsert() {
+        when(mapper.selectByCompanyId(100L)).thenReturn(null);
         when(mapper.insert(any(CompanyExchangeConfig.class))).thenAnswer(invocation -> {
             CompanyExchangeConfig config = invocation.getArgument(0);
             config.setId(11L);
@@ -78,19 +91,32 @@ class ServiceCodeExchangeConfigServiceTest {
         assertEquals(100L, result.companyId());
         assertEquals("AB12", result.accountPrefix());
         assertEquals(7L, result.configuredByUserId());
-        verify(mapper, org.mockito.Mockito.never()).selectByCompanyId(100L);
-        verify(mapper, org.mockito.Mockito.never()).selectByCompanyIdForUpdate(100L);
+        verify(dealerCompanySyncService).ensurePresent(100L);
+        verify(mapper).insert(any(CompanyExchangeConfig.class));
     }
 
     @Test
-    void concurrentDifferentPrefixIsLockedAfterDuplicateInsert() {
+    void concurrentSamePrefixRaceRereadsWithoutForUpdateAndIsIdempotent() {
         CompanyExchangeConfig existing = config("AB12");
-        when(mapper.selectByCompanyIdForUpdate(100L)).thenReturn(existing);
+        when(mapper.selectByCompanyId(100L)).thenReturn(null, existing);
         when(mapper.insert(any(CompanyExchangeConfig.class))).thenThrow(new DuplicateKeyException("duplicate"));
 
-        BusinessException exception = assertThrows(BusinessException.class, () -> service.configure("CD34"));
+        ServiceCodeExchangeConfigView result = service.configure("AB12");
+
+        assertEquals("AB12", result.accountPrefix());
+        verify(dealerCompanySyncService).ensurePresent(100L);
+    }
+
+    @Test
+    void concurrentDifferentPrefixRaceRereadsAndLocks() {
+        when(mapper.selectByCompanyId(100L)).thenReturn(null, config("AB12"));
+        when(mapper.insert(any(CompanyExchangeConfig.class))).thenThrow(new DuplicateKeyException("duplicate"));
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> service.configure("CD34"));
 
         assertEquals(ErrorCode.EXCHANGE_CONFIG_LOCKED, exception.getVantixErrorCode());
+        verify(dealerCompanySyncService).ensurePresent(100L);
     }
 
     @Test

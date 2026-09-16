@@ -25,6 +25,11 @@ mybatis-plus:
     map-underscore-to-camel-case: true
 
 vantix:
+  company-sync:
+    enabled: ${VANTIX_COMPANY_SYNC_ENABLED:true}
+    cron: ${VANTIX_COMPANY_SYNC_CRON:0 0 */6 * * ?}
+    zone: ${VANTIX_COMPANY_SYNC_ZONE:Asia/Shanghai}
+    page-size: ${VANTIX_COMPANY_SYNC_PAGE_SIZE:200}
   cors-db:
     enabled: ${VANTIX_CORS_DB_ENABLED:false}
     jdbc-url: ${VANTIX_CORS_DB_URL:}

@@ -10,7 +10,4 @@ import org.apache.ibatis.annotations.Select;
 public interface CompanyExchangeConfigMapper extends BaseMapper<CompanyExchangeConfig> {
     @Select("SELECT * FROM company_exchange_config WHERE company_id = #{companyId} LIMIT 1")
     CompanyExchangeConfig selectByCompanyId(@Param("companyId") Long companyId);
-
-    @Select("SELECT * FROM company_exchange_config WHERE company_id = #{companyId} LIMIT 1 FOR UPDATE")
-    CompanyExchangeConfig selectByCompanyIdForUpdate(@Param("companyId") Long companyId);
 }

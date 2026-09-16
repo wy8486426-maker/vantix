@@ -6,10 +6,10 @@ import com.sinognss.cloud.vantix.common.user.OperatorIdentity;
 import com.sinognss.cloud.vantix.common.user.UserHolderBridge;
 import com.sinognss.cloud.vantix.common.user.UserScope;
 import com.sinognss.cloud.vantix.domain.exchange.CompanyExchangeConfig;
+import com.sinognss.cloud.vantix.application.company.DealerCompanySyncService;
 import com.sinognss.cloud.vantix.infrastructure.mapper.CompanyExchangeConfigMapper;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
@@ -20,12 +20,15 @@ public class ServiceCodeExchangeConfigService {
     private static final Pattern PREFIX_PATTERN = Pattern.compile("^[A-Za-z0-9]{4}$");
 
     private final CompanyExchangeConfigMapper mapper;
+    private final DealerCompanySyncService dealerCompanySyncService;
     private final UserHolderBridge userHolder;
     private final Clock clock;
 
     public ServiceCodeExchangeConfigService(CompanyExchangeConfigMapper mapper,
+                                            DealerCompanySyncService dealerCompanySyncService,
                                             UserHolderBridge userHolder, Clock clock) {
         this.mapper = mapper;
+        this.dealerCompanySyncService = dealerCompanySyncService;
         this.userHolder = userHolder;
         this.clock = clock;
     }
@@ -37,10 +40,16 @@ public class ServiceCodeExchangeConfigService {
                 : ServiceCodeExchangeConfigView.from(config);
     }
 
-    @Transactional
     public ServiceCodeExchangeConfigView configure(String inputPrefix) {
         Long companyId = currentCompanyId();
         String accountPrefix = normalizePrefix(inputPrefix);
+
+        CompanyExchangeConfig existing = mapper.selectByCompanyId(companyId);
+        if (existing != null) {
+            return resolveExisting(existing, accountPrefix);
+        }
+
+        dealerCompanySyncService.ensurePresent(companyId);
 
         OperatorIdentity operator = userHolder.getOperatorOrNull();
         CompanyExchangeConfig config = new CompanyExchangeConfig();
@@ -55,7 +64,7 @@ public class ServiceCodeExchangeConfigService {
             }
             return ServiceCodeExchangeConfigView.from(config);
         } catch (DuplicateKeyException duplicate) {
-            CompanyExchangeConfig concurrent = mapper.selectByCompanyIdForUpdate(companyId);
+            CompanyExchangeConfig concurrent = mapper.selectByCompanyId(companyId);
             if (concurrent == null) {
                 throw duplicate;
             }

@@ -47,7 +47,9 @@
 
 前缀必须匹配 `^[A-Za-z0-9]{4}$`，即恰好 4 位数字或英文字母；系统会 trim 首尾空白，保存时保留大小写且大小写敏感，不会补零、截断、随机生成或强制转大写。
 
-同一前缀的重复提交返回已存在配置，适合网络重试；不同前缀的再次提交返回 `EXCHANGE_CONFIG_LOCKED`。数据库通过 `UNIQUE(company_id)` 处理并发首次提交：竞争插入后重新读取，前缀相同按幂等成功处理，不同则锁定冲突。
+首次配置时，Vantix 从当前 `UserScope.companyId` 读取公司范围。如果本地 `dealer_company` 尚不存在，会调用 user-center 的精确公司查询接口确认公司存在，并补齐公司 ID/名称目录数据；新公司默认是 `FIRST_LEVEL`（`parent_company_id IS NULL`），然后才创建 `company_exchange_config`。user-center 不负责公司上下级关系或公司状态。
+
+同一前缀的重复提交返回已存在配置，适合网络重试；如果本地已有配置，重试不会调用 user-center；不同前缀的再次提交返回 `EXCHANGE_CONFIG_LOCKED`。数据库通过 `UNIQUE(company_id)` 处理并发首次提交：竞争插入后重新读取，前缀相同按幂等成功处理，不同则锁定冲突。
 
 ## 兑换接口变化
 

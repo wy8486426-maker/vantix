@@ -19,7 +19,7 @@
 
 服务码转赠在一个 MySQL 本地事务内按服务码 ID 升序 `SELECT ... FOR UPDATE`，完成全部校验后使用 `version` CAS 更新并记录流水；任意一张失败都会回滚批次。批量转赠要求所有服务码的 `service_type`、`spec_code`、`duration_days` 完全一致。服务码过期和即将到期是 DTO 展示状态，不是数据库状态。
 
-公司基础资料的 `CompanyClient` 和 CORS 的 `CorsAccountClient` 未猜测远程 URL。密码查看与重置流程已实现本地审计、权限和补偿边界，并通过 `CorsAccountPasswordGateway` 留待 CORS 接口契约确认后接入真实适配器；默认 `vantix.cors.password.enabled=false`，缺少 Gateway 时密码路由不会注册。
+公司真实性由 user-center 提供，Vantix 通过 `UserCenterFeignService` 同步公司 ID/名称到本地 `dealer_company`；公司上下级关系和状态仍由 Vantix 维护。CORS 的 `CorsAccountClient` 未猜测远程 URL。密码查看与重置流程已实现本地审计、权限和补偿边界，并通过 `CorsAccountPasswordGateway` 留待 CORS 接口契约确认后接入真实适配器；默认 `vantix.cors.password.enabled=false`，缺少 Gateway 时密码路由不会注册。
 
 密码路由为 `POST /api/service-accounts/{serviceAccountId}/password/reveal`、`POST /api/service-accounts/{serviceAccountId}/password/reset` 和本地状态查询 `GET /api/account-password-resets/{requestId}`。查看密码先写审计、成功后仅放入当前 HTTP 响应，并设置 `no-store`；重置使用原 requestId 持久化跟踪，超时恢复先查 CORS 状态，只有确认请求不存在后才会再次 POST。
 
@@ -39,7 +39,7 @@
 - 已知部署风险继续保留：sino-cloud-base 的 UserInterceptor 使用 javax.servlet，而 Spring Boot 3 使用 jakarta.servlet；本阶段不调整该风险或认证架构。
 - 线下导入配置项为 vantix.offline-import.max-file-size-bytes、max-rows、max-total-codes 和 max-errors；默认分别为 10 MiB、500 行、5,000 个服务码和 100 条错误。
 - 服务时长规格使用全局唯一的 `spec_code` 和 `display_name`，业务时长统一使用 `duration_days`；创建后不可修改 `spec_code`、`service_type` 和 `duration_days`，只能调整展示名称、沉默天数、启用状态和备注。
-- 当前 CORS 创建账号 wire contract 使用 `requestId`、`durationDays`、`silenceDays`、`quantity`、`accountPrefix`；兑换前缀由 Vantix 的公司级不可变配置冻结到 `exchange_batch` 后传入。
+- 当前 Vantix CORS adapter 使用 `requestId`、`durationDays`、`silenceDays`、`quantity`、`accountPrefix`；兑换前缀由 Vantix 的公司级不可变配置冻结到 `exchange_batch` 后传入。最终真实 CORS HTTP wire contract 的字段名仍需与 CORS 团队独立联调确认。
 - Redis 实时状态通知保留即时 authoritative read 和 500ms confirmation；CORS MySQL 状态同步保留 `0 0 2 * * ?`、`Asia/Shanghai` fallback。
 
 ## Pre-release database policy
@@ -65,4 +65,4 @@ $env:Path="$env:JAVA_HOME\bin;$env:MAVEN_HOME\bin;$env:Path"
 mvn clean test
 ```
 
-后续阶段 TODO：完善公司服务实际同步适配器；密码 Gateway 的真实适配器需等 CORS 确认接口契约后实现。
+后续阶段 TODO：密码 Gateway 的真实适配器需等 CORS 确认接口契约后实现。
