@@ -33,7 +33,8 @@ public class DealerCompanySyncScheduler {
             log.info("Dealer company sync completed; pages={} companies={}",
                     summary.pageCount(), summary.companyCount());
         } catch (RuntimeException exception) {
-            log.error("Dealer company sync failed; errorCode={}", exception.getClass().getSimpleName());
+            log.error("Dealer company sync failed; errorType={}",
+                    exception.getClass().getSimpleName(), exception);
         } finally {
             running.set(false);
         }

@@ -62,6 +62,7 @@ public class UserCenterCompanyFeignAdapter implements UserCenterCompanyGateway {
                     || (page.totalPage() == 0 && !page.list().isEmpty())) {
                 throw syncFailure("用户中心公司分页返回无效");
             }
+            int sourceItemCount = page.list().size();
             List<UserCenterCompany> companies = new ArrayList<>();
             for (int index = 0; index < page.list().size(); index++) {
                 CompanySelectVO item = page.list().get(index);
@@ -76,7 +77,7 @@ public class UserCenterCompanyFeignAdapter implements UserCenterCompanyGateway {
                     log.warn("User-center company page item skipped; page={} itemIndex={}", currPage, index);
                 }
             }
-            return new UserCenterCompanyPage(page.currPage(), page.totalPage(), companies);
+            return new UserCenterCompanyPage(page.currPage(), page.totalPage(), sourceItemCount, companies);
         } catch (BusinessException exception) {
             throw exception;
         } catch (RuntimeException exception) {

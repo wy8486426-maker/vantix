@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -42,7 +43,7 @@ class DealerCompanySyncServiceTest {
         DealerCompany existing = company(100L, "local");
         when(companyMapper.selectByCompanyId(100L)).thenReturn(existing);
 
-        assertEquals(existing, service.ensurePresent(100L));
+        assertDoesNotThrow(() -> service.ensurePresent(100L));
 
         verify(gateway, never()).findByCompanyId(100L);
         verify(companyMapper, never()).upsertSyncedCompanies(any());
@@ -109,9 +110,9 @@ class DealerCompanySyncServiceTest {
     @Test
     void fullSyncProcessesTwoPagesAsSeparateBatches() {
         when(gateway.page(1, 200)).thenReturn(new UserCenterCompanyPage(1, 2,
-                List.of(new UserCenterCompany(100L, "one"))));
+                1, List.of(new UserCenterCompany(100L, "one"))));
         when(gateway.page(2, 200)).thenReturn(new UserCenterCompanyPage(2, 2,
-                List.of(new UserCenterCompany(200L, "two"))));
+                1, List.of(new UserCenterCompany(200L, "two"))));
 
         DealerCompanySyncService.SyncSummary summary = service.syncAllCompanies();
 
@@ -123,7 +124,7 @@ class DealerCompanySyncServiceTest {
 
     @Test
     void emptyPageStopsWithoutLoopingOrWriting() {
-        when(gateway.page(1, 200)).thenReturn(new UserCenterCompanyPage(1, 3, List.of()));
+        when(gateway.page(1, 200)).thenReturn(new UserCenterCompanyPage(1, 3, 0, List.of()));
 
         DealerCompanySyncService.SyncSummary summary = service.syncAllCompanies();
 
@@ -145,12 +146,29 @@ class DealerCompanySyncServiceTest {
     @Test
     void invalidFullSyncItemIsSkippedButValidItemIsWritten() {
         when(gateway.page(1, 200)).thenReturn(new UserCenterCompanyPage(1, 1,
-                List.of(new UserCenterCompany(100L, "valid"), new UserCenterCompany(null, "invalid"))));
+                2, List.of(new UserCenterCompany(100L, "valid"), new UserCenterCompany(null, "invalid"))));
 
         DealerCompanySyncService.SyncSummary summary = service.syncAllCompanies();
 
         assertEquals(new DealerCompanySyncService.SyncSummary(1, 1), summary);
         verify(companyMapper).upsertSyncedCompanies(any());
+    }
+
+    @Test
+    void allInvalidSourcePageDoesNotStopFollowingPages() {
+        when(gateway.page(1, 200)).thenReturn(new UserCenterCompanyPage(1, 2, 2, List.of()));
+        when(gateway.page(2, 200)).thenReturn(new UserCenterCompanyPage(2, 2, 1,
+                List.of(new UserCenterCompany(200L, "two"))));
+
+        DealerCompanySyncService.SyncSummary summary = service.syncAllCompanies();
+
+        assertEquals(new DealerCompanySyncService.SyncSummary(2, 1), summary);
+        verify(gateway).page(2, 200);
+        @SuppressWarnings("unchecked")
+        org.mockito.ArgumentCaptor<Collection<DealerCompany>> captor =
+                org.mockito.ArgumentCaptor.forClass(Collection.class);
+        verify(companyMapper).upsertSyncedCompanies(captor.capture());
+        assertEquals(200L, captor.getValue().iterator().next().getCompanyId());
     }
 
     private DealerCompany company(Long companyId, String name) {

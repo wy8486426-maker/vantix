@@ -33,11 +33,11 @@ public class DealerCompanySyncService {
         this.clock = clock;
     }
 
-    public DealerCompany ensurePresent(Long companyId) {
+    public void ensurePresent(Long companyId) {
         validateCompanyId(companyId);
         DealerCompany existing = companyMapper.selectByCompanyId(companyId);
         if (existing != null) {
-            return existing;
+            return;
         }
 
         UserCenterCompany remote = userCenterCompanyGateway.findByCompanyId(companyId)
@@ -48,7 +48,6 @@ public class DealerCompanySyncService {
 
         DealerCompany company = toDealerCompany(remote, LocalDateTime.now(clock));
         companyMapper.upsertSyncedCompanies(List.of(company));
-        return company;
     }
 
     public SyncSummary syncAllCompanies() {
@@ -58,9 +57,14 @@ public class DealerCompanySyncService {
         while (true) {
             UserCenterCompanyPage page = userCenterCompanyGateway.page(currentPage, properties.getPageSize());
             validatePage(page, currentPage);
-            if (page.companies().isEmpty()) {
+            if (page.sourceItemCount() == 0) {
                 log.warn("Dealer company sync stopped on empty page; page={}", currentPage);
                 break;
+            }
+
+            if (page.companies().isEmpty()) {
+                log.warn("Dealer company sync page contained no valid companies; page={} sourceItemCount={}",
+                        currentPage, page.sourceItemCount());
             }
 
             List<DealerCompany> validCompanies = new ArrayList<>();
@@ -100,7 +104,9 @@ public class DealerCompanySyncService {
     private void validatePage(UserCenterCompanyPage page, long requestedPage) {
         if (page == null || page.companies() == null || page.currentPage() != requestedPage
                 || page.currentPage() < 1 || page.totalPage() < 0
-                || (page.totalPage() == 0 && !page.companies().isEmpty())
+                || page.sourceItemCount() < 0
+                || (page.totalPage() == 0 && page.sourceItemCount() > 0)
+                || page.sourceItemCount() < page.companies().size()
                 || (page.totalPage() > 0 && page.currentPage() > page.totalPage())) {
             throw syncFailure("用户中心公司分页返回无效");
         }
