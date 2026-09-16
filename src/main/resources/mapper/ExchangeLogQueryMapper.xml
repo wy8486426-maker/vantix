@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sinognss.cloud.vantix.infrastructure.mapper.ExchangeLogQueryMapper">
+    <sql id="detailSummaryJoin">
+        LEFT JOIN (
+            SELECT ed.exchange_batch_id,
+                   SUM(CASE WHEN ed.status = 'COMPLETED' THEN 1 ELSE 0 END) AS success_quantity,
+                   MIN(gb.display_name) AS display_name
+            FROM exchange_detail ed
+            LEFT JOIN service_code sc ON sc.id = ed.service_code_id
+            LEFT JOIN service_code_generate_batch gb ON gb.id = sc.generate_batch_id
+            GROUP BY ed.exchange_batch_id
+        ) detail_summary ON detail_summary.exchange_batch_id = b.id
+    </sql>
+
+    <sql id="columns">
+        b.id AS batch_id,
+        b.exchange_batch_no AS batch_no,
+        b.request_id,
+        b.owner_company_id,
+        dc.company_name AS owner_company_name,
+        b.spec_code,
+        detail_summary.display_name,
+        b.service_type,
+        b.duration_days,
+        b.quantity,
+        COALESCE(detail_summary.success_quantity, 0) AS success_quantity,
+        b.status,
+        b.account_prefix,
+        b.generation_source,
+        b.created_at,
+        b.completed_at,
+        b.last_error_code,
+        b.last_error_message
+    </sql>
+
+    <sql id="filters">
+        <if test="scopeCompanyId != null">
+            AND b.owner_company_id = #{scopeCompanyId}
+        </if>
+        <if test="ownerCompanyId != null">
+            AND b.owner_company_id = #{ownerCompanyId}
+        </if>
+        <if test="status != null and status != ''">
+            AND b.status = #{status}
+        </if>
+        <if test="specCode != null and specCode != ''">
+            AND b.spec_code = #{specCode}
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND (
+                b.request_id LIKE CONCAT('%', #{keyword}, '%')
+                OR b.exchange_batch_no LIKE CONCAT('%', #{keyword}, '%')
+                OR b.spec_code LIKE CONCAT('%', #{keyword}, '%')
+                OR b.generation_source LIKE CONCAT('%', #{keyword}, '%')
+                OR detail_summary.display_name LIKE CONCAT('%', #{keyword}, '%')
+                OR dc.company_name LIKE CONCAT('%', #{keyword}, '%')
+                OR b.operator_user_name LIKE CONCAT('%', #{keyword}, '%')
+            )
+        </if>
+        <if test="createdFrom != null">
+            AND b.created_at &gt;= #{createdFrom}
+        </if>
+        <if test="createdTo != null">
+            AND b.created_at &lt;= #{createdTo}
+        </if>
+    </sql>
+
+    <select id="pageForFrontend" resultType="com.sinognss.cloud.vantix.application.exchange.ExchangeLogQueryRow">
+        SELECT <include refid="columns"/>
+        FROM exchange_batch b
+        LEFT JOIN dealer_company dc ON dc.company_id = b.owner_company_id
+        <include refid="detailSummaryJoin"/>
+        <where>
+            <include refid="filters"/>
+        </where>
+        ORDER BY b.created_at DESC, b.id DESC
+    </select>
+
+    <select id="detail" resultType="com.sinognss.cloud.vantix.application.exchange.ExchangeLogQueryRow">
+        SELECT <include refid="columns"/>
+        FROM exchange_batch b
+        LEFT JOIN dealer_company dc ON dc.company_id = b.owner_company_id
+        <include refid="detailSummaryJoin"/>
+        <where>
+            b.request_id = #{requestId}
+            <if test="scopeCompanyId != null">
+                AND b.owner_company_id = #{scopeCompanyId}
+            </if>
+        </where>
+    </select>
+
+    <select id="detailItems" resultType="com.sinognss.cloud.vantix.application.exchange.ExchangeLogItemQueryRow">
+        SELECT d.service_code_id,
+               COALESCE(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(d.service_code_snapshot, '$.code')), ''), sc.code)
+                   AS service_code,
+               a.id AS service_account_id,
+               COALESCE(a.cors_account_id, d.cors_account_id) AS cors_account_id,
+               COALESCE(a.account, d.account) AS account_name,
+               d.status
+        FROM exchange_detail d
+        JOIN exchange_batch b ON b.id = d.exchange_batch_id
+        LEFT JOIN service_code sc ON sc.id = d.service_code_id
+        LEFT JOIN service_account a ON a.exchange_detail_id = d.id
+        WHERE b.request_id = #{requestId}
+        <if test="scopeCompanyId != null">
+            AND b.owner_company_id = #{scopeCompanyId}
+        </if>
+        ORDER BY d.detail_index ASC, d.id ASC
+    </select>
+</mapper>

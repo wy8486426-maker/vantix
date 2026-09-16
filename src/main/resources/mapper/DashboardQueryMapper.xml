@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sinognss.cloud.vantix.infrastructure.mapper.DashboardQueryMapper">
+    <select id="statistics" resultType="com.sinognss.cloud.vantix.application.dashboard.DashboardQueryRow">
+        SELECT
+            code_stats.service_code_total,
+            code_stats.service_code_waiting,
+            code_stats.service_code_expiring,
+            code_stats.service_code_expired,
+            code_stats.service_code_processing,
+            code_stats.service_code_consumed,
+            account_stats.account_total,
+            account_stats.account_waiting,
+            account_stats.account_active,
+            account_stats.account_expired,
+            account_stats.account_disabled,
+            generation_stats.generation_order_total,
+            exchange_stats.exchange_total,
+            renewal_stats.renewal_total,
+            transfer_stats.transfer_total
+        FROM (
+            SELECT COUNT(*) AS service_code_total,
+                   COALESCE(SUM(CASE WHEN sc.status = 'PENDING'
+                                      AND sc.expire_at &gt; #{upcomingAt} THEN 1 ELSE 0 END), 0)
+                       AS service_code_waiting,
+                   COALESCE(SUM(CASE WHEN sc.status = 'PENDING'
+                                      AND sc.expire_at &gt; #{now}
+                                      AND sc.expire_at &lt;= #{upcomingAt} THEN 1 ELSE 0 END), 0)
+                       AS service_code_expiring,
+                   COALESCE(SUM(CASE WHEN sc.status = 'PENDING'
+                                      AND sc.expire_at &lt;= #{now} THEN 1 ELSE 0 END), 0)
+                       AS service_code_expired,
+                   COALESCE(SUM(CASE WHEN sc.status = 'PROCESSING' THEN 1 ELSE 0 END), 0)
+                       AS service_code_processing,
+                   COALESCE(SUM(CASE WHEN sc.status = 'CONSUMED' THEN 1 ELSE 0 END), 0)
+                       AS service_code_consumed
+            FROM service_code sc
+            <where>
+                <if test="scopeCompanyId != null">
+                    sc.owner_company_id = #{scopeCompanyId}
+                </if>
+            </where>
+        ) code_stats
+        CROSS JOIN (
+            SELECT COUNT(*) AS account_total,
+                   COALESCE(SUM(CASE WHEN a.cors_status = 'ENABLED'
+                                      AND a.cors_activation_status = 'WAITING_ACTIVATION'
+                                     THEN 1 ELSE 0 END), 0) AS account_waiting,
+                   COALESCE(SUM(CASE WHEN a.cors_status = 'ENABLED'
+                                      AND a.cors_activation_status = 'ACTIVE'
+                                     THEN 1 ELSE 0 END), 0) AS account_active,
+                   COALESCE(SUM(CASE WHEN a.cors_status = 'ENABLED'
+                                      AND a.cors_activation_status = 'EXPIRED'
+                                     THEN 1 ELSE 0 END), 0) AS account_expired,
+                   COALESCE(SUM(CASE WHEN a.cors_status = 'DISABLED' THEN 1 ELSE 0 END), 0)
+                       AS account_disabled
+            FROM service_account a
+            <where>
+                <if test="scopeCompanyId != null">
+                    a.owner_company_id = #{scopeCompanyId}
+                </if>
+                <if test="scopeAssignedUserId != null">
+                    AND a.assigned_user_id = #{scopeAssignedUserId}
+                </if>
+            </where>
+        ) account_stats
+        CROSS JOIN (
+            SELECT COUNT(*) AS generation_order_total
+            FROM service_code_generate_order o
+            <where>
+                <if test="scopeCompanyId != null">
+                    o.owner_company_id = #{scopeCompanyId}
+                </if>
+            </where>
+        ) generation_stats
+        CROSS JOIN (
+            SELECT COUNT(*) AS exchange_total
+            FROM exchange_batch b
+            <where>
+                <if test="scopeCompanyId != null">
+                    b.owner_company_id = #{scopeCompanyId}
+                </if>
+            </where>
+        ) exchange_stats
+        CROSS JOIN (
+            SELECT COUNT(*) AS renewal_total
+            FROM account_renewal r
+            <where>
+                <if test="scopeCompanyId != null">
+                    r.owner_company_id = #{scopeCompanyId}
+                </if>
+                <if test="scopeAssignedUserId != null">
+                    AND r.assigned_user_id = #{scopeAssignedUserId}
+                </if>
+            </where>
+        ) renewal_stats
+        CROSS JOIN (
+            SELECT COUNT(DISTINCT t.transfer_no) AS transfer_total
+            FROM service_code_transfer t
+            <where>
+                <if test="scopeCompanyId != null">
+                    (t.from_company_id = #{scopeCompanyId} OR t.to_company_id = #{scopeCompanyId})
+                </if>
+            </where>
+        ) transfer_stats
+    </select>
+</mapper>

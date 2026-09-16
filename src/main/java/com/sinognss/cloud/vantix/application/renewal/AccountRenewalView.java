@@ -17,5 +17,12 @@ public record AccountRenewalView(
         LocalDateTime accountExpireAt,
         LocalDateTime createdAt,
         LocalDateTime updatedAt,
-        LocalDateTime completedAt) {
+        LocalDateTime completedAt,
+        String accountName,
+        String corsAccountId,
+        Long ownerCompanyId,
+        String ownerCompanyName,
+        Long assignedUserId,
+        String serviceCode,
+        String displayName) {
 }

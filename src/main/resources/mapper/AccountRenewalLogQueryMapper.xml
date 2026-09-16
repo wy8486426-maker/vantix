@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sinognss.cloud.vantix.infrastructure.mapper.AccountRenewalLogQueryMapper">
+    <sql id="columns">
+        r.id AS renewal_id,
+        r.request_id,
+        r.service_account_id,
+        a.account AS account_name,
+        a.cors_account_id,
+        r.owner_company_id,
+        dc.company_name AS owner_company_name,
+        r.assigned_user_id,
+        r.service_code_id,
+        COALESCE(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(r.service_code_snapshot, '$.code')), ''), sc.code)
+            AS service_code,
+        r.spec_code,
+        gb.display_name,
+        r.service_type,
+        r.duration_days,
+        r.status,
+        a.expire_at AS current_account_expire_at,
+        r.last_error_code,
+        r.last_error_message,
+        r.created_at,
+        r.updated_at,
+        r.completed_at
+    </sql>
+
+    <sql id="joins">
+        FROM account_renewal r
+        LEFT JOIN service_account a ON a.id = r.service_account_id
+        LEFT JOIN service_code sc ON sc.id = r.service_code_id
+        LEFT JOIN service_code_generate_batch gb ON gb.id = sc.generate_batch_id
+        LEFT JOIN dealer_company dc ON dc.company_id = r.owner_company_id
+    </sql>
+
+    <sql id="filters">
+        <if test="scopeCompanyId != null">
+            AND r.owner_company_id = #{scopeCompanyId}
+        </if>
+        <if test="scopeAssignedUserId != null">
+            AND r.assigned_user_id = #{scopeAssignedUserId}
+        </if>
+        <if test="ownerCompanyId != null">
+            AND r.owner_company_id = #{ownerCompanyId}
+        </if>
+        <if test="status != null and status != ''">
+            AND r.status = #{status}
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND (
+                r.request_id LIKE CONCAT('%', #{keyword}, '%')
+                OR a.account LIKE CONCAT('%', #{keyword}, '%')
+                OR a.cors_account_id LIKE CONCAT('%', #{keyword}, '%')
+                OR JSON_UNQUOTE(JSON_EXTRACT(r.service_code_snapshot, '$.code'))
+                    LIKE CONCAT('%', #{keyword}, '%')
+                OR gb.display_name LIKE CONCAT('%', #{keyword}, '%')
+                OR dc.company_name LIKE CONCAT('%', #{keyword}, '%')
+                OR r.operator_user_name LIKE CONCAT('%', #{keyword}, '%')
+            )
+        </if>
+        <if test="createdFrom != null">
+            AND r.created_at &gt;= #{createdFrom}
+        </if>
+        <if test="createdTo != null">
+            AND r.created_at &lt;= #{createdTo}
+        </if>
+    </sql>
+
+    <select id="pageForFrontend" resultType="com.sinognss.cloud.vantix.application.renewal.AccountRenewalLogQueryRow">
+        SELECT <include refid="columns"/>
+        <include refid="joins"/>
+        <where>
+            <include refid="filters"/>
+        </where>
+        ORDER BY r.created_at DESC, r.id DESC
+    </select>
+
+    <select id="detailForFrontend" resultType="com.sinognss.cloud.vantix.application.renewal.AccountRenewalLogQueryRow">
+        SELECT <include refid="columns"/>
+        <include refid="joins"/>
+        <where>
+            r.request_id = #{requestId}
+            <if test="scopeCompanyId != null">
+                AND r.owner_company_id = #{scopeCompanyId}
+            </if>
+            <if test="scopeAssignedUserId != null">
+                AND r.assigned_user_id = #{scopeAssignedUserId}
+            </if>
+        </where>
+    </select>
+</mapper>
