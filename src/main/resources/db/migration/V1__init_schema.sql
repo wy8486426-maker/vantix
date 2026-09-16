@@ -204,6 +204,7 @@ CREATE TABLE exchange_batch (
     assigned_user_id BIGINT NULL,
     generation_source VARCHAR(16) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
     spec_code VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    display_name VARCHAR(128) NOT NULL,
     service_type VARCHAR(64) NOT NULL,
     duration_days INT NOT NULL,
     account_silence_days INT NOT NULL,
@@ -220,7 +221,9 @@ CREATE TABLE exchange_batch (
     updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
     PRIMARY KEY (id),
     UNIQUE KEY uk_exchange_batch_no (exchange_batch_no),
-    UNIQUE KEY uk_exchange_batch_request (request_id)
+    UNIQUE KEY uk_exchange_batch_request (request_id),
+    KEY idx_exchange_batch_owner_created (owner_company_id, created_at, id),
+    KEY idx_exchange_batch_created (created_at, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE exchange_detail (
@@ -326,7 +329,10 @@ CREATE TABLE account_renewal (
     UNIQUE KEY uk_account_renewal_request (request_id),
     UNIQUE KEY uk_account_renewal_active_code (active_service_code_id),
     UNIQUE KEY uk_account_renewal_active_account (active_service_account_id),
-    KEY idx_account_renewal_account_created (service_account_id, created_at, id)
+    KEY idx_account_renewal_account_created (service_account_id, created_at, id),
+    KEY idx_account_renewal_owner_created (owner_company_id, created_at, id),
+    KEY idx_account_renewal_owner_assigned_created (owner_company_id, assigned_user_id, created_at, id),
+    KEY idx_account_renewal_created (created_at, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE cors_operation (

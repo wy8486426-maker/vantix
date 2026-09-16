@@ -227,6 +227,7 @@ public class ServiceCodeExchangeReserveService {
         batch.setAssignedUserId(assignedUserId);
         batch.setGenerationSource(command.generationSource().name());
         batch.setSpecCode(command.specCode());
+        batch.setDisplayName(spec.getDisplayName());
         batch.setServiceType(spec.getServiceType());
         batch.setDurationDays(spec.getDurationDays());
         batch.setQuantity(command.quantity());

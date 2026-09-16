@@ -15,6 +15,7 @@ public class ExchangeBatch {
     private Long assignedUserId;
     private String generationSource;
     private String specCode;
+    private String displayName;
     private String serviceType;
     private Integer durationDays;
     private Integer accountSilenceDays;
@@ -44,6 +45,8 @@ public class ExchangeBatch {
     public void setGenerationSource(String generationSource) { this.generationSource = generationSource; }
     public String getSpecCode() { return specCode; }
     public void setSpecCode(String specCode) { this.specCode = specCode; }
+    public String getDisplayName() { return displayName; }
+    public void setDisplayName(String displayName) { this.displayName = displayName; }
     public String getServiceType() { return serviceType; }
     public void setServiceType(String serviceType) { this.serviceType = serviceType; }
     public Integer getDurationDays() { return durationDays; }

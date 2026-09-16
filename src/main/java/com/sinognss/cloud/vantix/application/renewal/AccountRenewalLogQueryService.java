@@ -34,15 +34,6 @@ public class AccountRenewalLogQueryService {
                 page.getCurrent(), page.getSize(), page.getTotal(), page.getPages());
     }
 
-    /** Used by the existing requestId detail endpoint when a local-only detail is needed. */
-    public AccountRenewalLogView detail(String inputRequestId) {
-        String requestId = normalize(inputRequestId, 128, "requestId");
-        Scope scope = resolveScope(null);
-        AccountRenewalLogQueryRow row = mapper.detailForFrontend(requestId, scope.companyId(), scope.assignedUserId());
-        if (row == null) throw new BusinessException(ErrorCode.NOT_FOUND, "续期请求不存在: " + requestId);
-        return AccountRenewalLogView.from(row);
-    }
-
     private Scope resolveScope(Long requestedCompanyId) {
         UserScope scope = userHolder.getUserScope();
         if (scope == null || !scope.isSupported()) {

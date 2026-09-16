@@ -148,6 +148,8 @@ class MySqlExchangeReserveIntegrationTest {
                     Integer.class, b2bBatchId));
             assertEquals("B2B", jdbc.queryForObject(
                     "SELECT generation_source FROM exchange_batch WHERE id = ?", String.class, b2bBatchId));
+            assertEquals("1个月", jdbc.queryForObject(
+                    "SELECT display_name FROM exchange_batch WHERE id = ?", String.class, b2bBatchId));
             assertEquals(4, countAvailable("B2B", now));
             assertEquals(2, jdbc.queryForObject(
                     "SELECT COUNT(*) FROM service_code WHERE code LIKE 'B2B-EXP-%' AND status = 'PENDING'",
@@ -172,6 +174,8 @@ class MySqlExchangeReserveIntegrationTest {
             assertEquals("OFFLINE", jdbc.queryForObject(
                     "SELECT generation_source FROM exchange_batch WHERE id = ?",
                     String.class, offline.batchId()));
+            assertEquals("1个月", jdbc.queryForObject(
+                    "SELECT display_name FROM exchange_batch WHERE id = ?", String.class, offline.batchId()));
             assertEquals(0, countAvailable("OFFLINE", now));
             assertEquals(4, countAvailable("B2B", now));
             assertEquals(2, jdbc.queryForObject(
@@ -279,6 +283,29 @@ class MySqlExchangeReserveIntegrationTest {
                 () -> queryService.get("PERSONAL-OWNERSHIP"));
         assertEquals(ErrorCode.SERVICE_CODE_NOT_OWNED, exception.getVantixErrorCode());
     }
+
+    @Test
+    void sameRequestReplayKeepsOriginalExchangeDisplayNameAfterConfigChange() {
+        LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Shanghai"));
+        insertGeneration("B2B", 1006L, "B2B-SNAPSHOT-ORDER", "B2B-SNAPSHOT-BATCH", 1);
+        insertCodes("SNAPSHOT-CODE-", 1006L, 1, now.plusDays(180));
+        setGlobalUser();
+
+        String requestId = "EXCHANGE-DISPLAY-SNAPSHOT";
+        ExchangeReservation first = reserveService.reserve(new ServiceCodeExchangeCommand(
+                requestId, COMPANY_ID, SPEC_CODE, GenerationSource.B2B, 1));
+        jdbc.update("UPDATE service_duration_config SET display_name = '更新后规格' WHERE spec_code = ?", SPEC_CODE);
+
+        ExchangeReservation retry = reserveService.reserve(new ServiceCodeExchangeCommand(
+                requestId, COMPANY_ID, SPEC_CODE, GenerationSource.B2B, 1));
+
+        assertTrue(first.created());
+        assertFalse(retry.created());
+        assertEquals(first.batchId(), retry.batchId());
+        assertEquals("1个月", jdbc.queryForObject(
+                "SELECT display_name FROM exchange_batch WHERE request_id = ?", String.class, requestId));
+    }
+
     private ReserveAttempt reserveInWorker(CountDownLatch start, String requestId,
                                            GenerationSource source, int quantity) throws InterruptedException {
         start.await();

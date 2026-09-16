@@ -57,9 +57,10 @@ class MySqlFreshSchemaMigrationIntegrationTest {
                 "status_sync_last_attempt_at", "status_sync_failure_count"));
         assertColumns(jdbc, "exchange_batch", List.of(
                 "exchange_batch_no", "request_id", "owner_company_id", "assigned_user_id",
-                "generation_source", "spec_code", "service_type", "duration_days",
+                "generation_source", "spec_code", "display_name", "service_type", "duration_days",
                 "account_silence_days", "quantity", "account_prefix", "payload_hash", "status",
                 "operator_user_id", "operator_user_name", "completed_at"));
+        assertColumnNotNull(jdbc, "exchange_batch", "display_name");
         assertColumns(jdbc, "account_renewal", List.of(
                 "service_account_id", "service_code_id", "owner_company_id", "assigned_user_id",
                 "spec_code", "service_type", "duration_days", "code_silence_days",
@@ -80,6 +81,16 @@ class MySqlFreshSchemaMigrationIntegrationTest {
                 List.of("display_name"));
         assertIndexColumns(jdbc, "company_exchange_config", "uk_company_exchange_config_company",
                 List.of("company_id"));
+        assertIndexColumns(jdbc, "exchange_batch", "idx_exchange_batch_owner_created",
+                List.of("owner_company_id", "created_at", "id"));
+        assertIndexColumns(jdbc, "exchange_batch", "idx_exchange_batch_created",
+                List.of("created_at", "id"));
+        assertIndexColumns(jdbc, "account_renewal", "idx_account_renewal_owner_created",
+                List.of("owner_company_id", "created_at", "id"));
+        assertIndexColumns(jdbc, "account_renewal", "idx_account_renewal_owner_assigned_created",
+                List.of("owner_company_id", "assigned_user_id", "created_at", "id"));
+        assertIndexColumns(jdbc, "account_renewal", "idx_account_renewal_created",
+                List.of("created_at", "id"));
         insertSpec(jdbc, "SC90A", "90天标准版", 90);
         insertSpec(jdbc, "SC90B", "90天体验版", 90);
         assertThrows(DuplicateKeyException.class,
@@ -125,6 +136,13 @@ class MySqlFreshSchemaMigrationIntegrationTest {
                             + "AND table_name = ? AND column_name = ?", Integer.class, table, column),
                     table + "." + column);
         }
+    }
+
+    private void assertColumnNotNull(JdbcTemplate jdbc, String table, String column) {
+        assertEquals(1, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() "
+                        + "AND table_name = ? AND column_name = ? AND is_nullable = 'NO'",
+                Integer.class, table, column), table + "." + column + " must be NOT NULL");
     }
 
     private void assertNoLegacyColumns(JdbcTemplate jdbc) {

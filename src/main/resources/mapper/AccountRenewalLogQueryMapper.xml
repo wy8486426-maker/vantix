@@ -18,6 +18,7 @@
         gb.display_name,
         r.service_type,
         r.duration_days,
+        r.code_silence_days,
         r.status,
         a.expire_at AS current_account_expire_at,
         r.last_error_code,

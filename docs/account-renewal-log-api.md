@@ -12,6 +12,6 @@ GLOBAL 查询全局；COMPANY 强制当前公司；PERSONAL 强制当前公司�
 
 当前 `account_renewal` schema 没有保存续期前后账号到期时间，也没有把这两个值写入续期 snapshot。因此本接口不虚构 `oldExpireAt` 或 `newExpireAt`；`currentAccountExpireAt` 明确表示查询时 `service_account.expire_at` 的当前快照，不是历史续期前后值。
 
-## 既有详情
+## 详情
 
-`GET /api/account-renewals/{requestId}` 保留。除原有字段外，在启用现有续期流程时扩展返回账号、公司、来源服务码和生成批次 displayName 等可可靠关联字段。查询权限仍遵守既有续期账号权限，响应不包含 password，也不改变 reserve/process/finalize 状态机。
+`GET /api/account-renewals/{requestId}` 保留，并与列表一样始终可用，不依赖 `vantix.cors.renewal.enabled`。它继续返回原有 `AccountRenewalView` 契约，并扩展返回账号、公司、来源服务码和生成批次 displayName 等可可靠关联字段。查询权限仍遵守既有续期账号权限，响应不包含 password，也不改变 reserve/process/finalize 状态机；只有 POST 创建续期仍受续期开关和 CORS 能力条件控制。

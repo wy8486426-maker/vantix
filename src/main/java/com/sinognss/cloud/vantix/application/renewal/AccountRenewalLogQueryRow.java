@@ -17,6 +17,7 @@ public class AccountRenewalLogQueryRow {
     private String displayName;
     private String serviceType;
     private Integer durationDays;
+    private Integer codeSilenceDays;
     private String status;
     private LocalDateTime currentAccountExpireAt;
     private String lastErrorCode;
@@ -53,6 +54,8 @@ public class AccountRenewalLogQueryRow {
     public void setServiceType(String serviceType) { this.serviceType = serviceType; }
     public Integer getDurationDays() { return durationDays; }
     public void setDurationDays(Integer durationDays) { this.durationDays = durationDays; }
+    public Integer getCodeSilenceDays() { return codeSilenceDays; }
+    public void setCodeSilenceDays(Integer codeSilenceDays) { this.codeSilenceDays = codeSilenceDays; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
     public LocalDateTime getCurrentAccountExpireAt() { return currentAccountExpireAt; }

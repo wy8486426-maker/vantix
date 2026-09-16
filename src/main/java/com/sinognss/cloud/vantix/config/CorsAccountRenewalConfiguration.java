@@ -5,13 +5,11 @@ import com.sinognss.cloud.vantix.application.cors.account.CorsAccountStateApplyS
 import com.sinognss.cloud.vantix.application.renewal.AccountRenewalClaimService;
 import com.sinognss.cloud.vantix.application.renewal.AccountRenewalFinalizeService;
 import com.sinognss.cloud.vantix.application.renewal.AccountRenewalProcessor;
-import com.sinognss.cloud.vantix.application.renewal.AccountRenewalQueryService;
 import com.sinognss.cloud.vantix.application.renewal.AccountRenewalReserveService;
 import com.sinognss.cloud.vantix.application.renewal.AccountRenewalReserveTransaction;
 import com.sinognss.cloud.vantix.application.renewal.AccountRenewalRetryJob;
 import com.sinognss.cloud.vantix.application.renewal.AccountRenewalStateService;
 import com.sinognss.cloud.vantix.infrastructure.mapper.AccountRenewalMapper;
-import com.sinognss.cloud.vantix.infrastructure.mapper.AccountRenewalLogQueryMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.CorsOperationMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceAccountMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceCodeMapper;
@@ -44,13 +42,6 @@ public class CorsAccountRenewalConfiguration {
             AccountRenewalReserveTransaction transaction, AccountRenewalMapper renewalMapper,
             CorsOperationMapper operationMapper, UserHolderBridge userHolder) {
         return new AccountRenewalReserveService(transaction, renewalMapper, operationMapper, userHolder);
-    }
-
-    @Bean
-    AccountRenewalQueryService accountRenewalQueryService(
-            AccountRenewalMapper renewalMapper, AccountRenewalLogQueryMapper logQueryMapper,
-            UserHolderBridge userHolder) {
-        return new AccountRenewalQueryService(renewalMapper, logQueryMapper, userHolder);
     }
 
     @Bean

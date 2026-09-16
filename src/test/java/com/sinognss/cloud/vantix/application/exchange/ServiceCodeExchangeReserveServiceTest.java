@@ -111,6 +111,7 @@ class ServiceCodeExchangeReserveServiceTest {
         ServiceCodeExchangeCommand command = command("stable-request", 2, null);
         ExchangeBatch existing = new ExchangeBatch();
         existing.setId(41L);
+        existing.setDisplayName("已冻结规格");
         existing.setPayloadHash(ExchangePayloadHash.calculate(command, null));
         CorsOperation operation = new CorsOperation();
         operation.setId(52L);
@@ -123,6 +124,7 @@ class ServiceCodeExchangeReserveServiceTest {
         verify(serviceCodeMapper, never()).selectAvailableForExchange(anyLong(), anyString(),
                 anyString(), any(), org.mockito.ArgumentMatchers.anyInt());
         verify(batchMapper, never()).insert(any(ExchangeBatch.class));
+        verify(durationMapper, never()).selectBySpecCodes(anyList());
         verify(operationMapper, never()).insert(any(CorsOperation.class));
     }
 
@@ -222,6 +224,7 @@ class ServiceCodeExchangeReserveServiceTest {
         verify(batchMapper).insert(batchCaptor.capture());
         ExchangeBatch batch = batchCaptor.getValue();
         assertEquals(88L, batch.getAssignedUserId());
+        assertEquals("标准规格", batch.getDisplayName());
         assertEquals(ExchangePayloadHash.calculate(command, 88L), batch.getPayloadHash());
 
         ArgumentCaptor<List<ExchangeDetail>> detailCaptor = ArgumentCaptor.forClass(List.class);
