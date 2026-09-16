@@ -79,7 +79,7 @@ public class AccountPasswordRevealAuditService {
     public void complete(Long actionId, Long expectedVersion) {
         LocalDateTime now = now();
         requireTransition(actionMapper.transitionFromProcessing(actionId, expectedVersion,
-                AccountPasswordActionConstants.SUCCEEDED, null, null, now, now));
+                AccountPasswordActionConstants.SUCCEEDED, null, null, now, now, null));
     }
 
     @Transactional
@@ -87,7 +87,7 @@ public class AccountPasswordRevealAuditService {
         LocalDateTime now = now();
         requireTransition(actionMapper.transitionFromProcessing(actionId, expectedVersion,
                 AccountPasswordActionConstants.FAILED, "PASSWORD_REVEAL_FAILED",
-                "Password reveal did not complete", now, now));
+                "Password reveal did not complete", now, now, null));
     }
 
     private LocalDateTime now() {

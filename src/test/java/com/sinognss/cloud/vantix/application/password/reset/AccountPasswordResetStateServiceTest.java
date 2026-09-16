@@ -52,7 +52,7 @@ class AccountPasswordResetStateServiceTest {
     void retryKeepsActionProcessingAndSchedulesOperationForOriginalRequestQuery() {
         when(actionMapper.transitionFromProcessing(eq(ACTION_ID), eq(5L), eq("PROCESSING"),
                 eq(AccountPasswordResetFailure.POST_UNKNOWN), eq("远程重置结果未知，等待后续安全查询"),
-                eq((LocalDateTime) null), eq(NOW))).thenReturn(1);
+                eq((LocalDateTime) null), eq(NOW), eq(SERVICE_ACCOUNT_ID))).thenReturn(1);
         when(operationMapper.scheduleRetry(eq(OPERATION_ID), eq(2L), eq(2), eq(NOW.plusSeconds(60)),
                 eq(AccountPasswordResetFailure.POST_UNKNOWN), eq("远程重置结果未知，等待后续安全查询"), eq(NOW)))
                 .thenReturn(1);
@@ -60,7 +60,8 @@ class AccountPasswordResetStateServiceTest {
         stateService.retryOrMarkManualReview(operation, action, AccountPasswordResetFailure.POST_UNKNOWN);
 
         verify(actionMapper).transitionFromProcessing(ACTION_ID, 5L, "PROCESSING",
-                AccountPasswordResetFailure.POST_UNKNOWN, "远程重置结果未知，等待后续安全查询", null, NOW);
+                AccountPasswordResetFailure.POST_UNKNOWN, "远程重置结果未知，等待后续安全查询", null, NOW,
+                SERVICE_ACCOUNT_ID);
         verify(operationMapper).scheduleRetry(OPERATION_ID, 2L, 2, NOW.plusSeconds(60),
                 AccountPasswordResetFailure.POST_UNKNOWN, "远程重置结果未知，等待后续安全查询", NOW);
     }
@@ -70,7 +71,8 @@ class AccountPasswordResetStateServiceTest {
         CorsOperation stale = operation("CLAIMED", 2L, 1);
         when(actionMapper.transitionFromProcessing(eq(ACTION_ID), eq(5L), eq("PROCESSING"),
                 eq(AccountPasswordResetFailure.CLAIM_TIMEOUT),
-                eq("重置任务执行超时，下一轮将先查询原请求标识"), eq((LocalDateTime) null), eq(NOW)))
+                eq("重置任务执行超时，下一轮将先查询原请求标识"), eq((LocalDateTime) null), eq(NOW),
+                eq(SERVICE_ACCOUNT_ID)))
                 .thenReturn(1);
         when(operationMapper.recoverClaimed(eq(OPERATION_ID), eq(2L), eq(AccountPasswordResetConstants.RETRY_WAIT),
                 eq(2), eq(NOW), eq(AccountPasswordResetFailure.CLAIM_TIMEOUT),
@@ -80,7 +82,7 @@ class AccountPasswordResetStateServiceTest {
 
         verify(actionMapper).transitionFromProcessing(ACTION_ID, 5L, "PROCESSING",
                 AccountPasswordResetFailure.CLAIM_TIMEOUT,
-                "重置任务执行超时，下一轮将先查询原请求标识", null, NOW);
+                "重置任务执行超时，下一轮将先查询原请求标识", null, NOW, SERVICE_ACCOUNT_ID);
         verify(operationMapper).recoverClaimed(OPERATION_ID, 2L, AccountPasswordResetConstants.RETRY_WAIT,
                 2, NOW, AccountPasswordResetFailure.CLAIM_TIMEOUT,
                 "重置任务执行超时，下一轮将先查询原请求标识", NOW);
@@ -90,7 +92,7 @@ class AccountPasswordResetStateServiceTest {
     void definitiveRejectTransitionsBothRowsToFailed() {
         when(actionMapper.transitionFromProcessing(eq(ACTION_ID), eq(5L),
                 eq("FAILED"), eq(AccountPasswordResetFailure.POST_DEFINITIVE_REJECT),
-                eq("远程重置请求已明确拒绝且未产生副作用"), eq(NOW), eq(NOW))).thenReturn(1);
+                eq("远程重置请求已明确拒绝且未产生副作用"), eq(NOW), eq(NOW), eq((Long) null))).thenReturn(1);
         when(operationMapper.markFailed(eq(OPERATION_ID), eq(2L),
                 eq(AccountPasswordResetFailure.POST_DEFINITIVE_REJECT),
                 eq("远程重置请求已明确拒绝且未产生副作用"), eq(NOW))).thenReturn(1);
@@ -99,7 +101,7 @@ class AccountPasswordResetStateServiceTest {
 
         verify(actionMapper).transitionFromProcessing(ACTION_ID, 5L, "FAILED",
                 AccountPasswordResetFailure.POST_DEFINITIVE_REJECT,
-                "远程重置请求已明确拒绝且未产生副作用", NOW, NOW);
+                "远程重置请求已明确拒绝且未产生副作用", NOW, NOW, null);
         verify(operationMapper).markFailed(OPERATION_ID, 2L,
                 AccountPasswordResetFailure.POST_DEFINITIVE_REJECT,
                 "远程重置请求已明确拒绝且未产生副作用", NOW);
@@ -113,7 +115,8 @@ class AccountPasswordResetStateServiceTest {
         stateService = new AccountPasswordResetStateService(operationMapper, actionMapper, properties, clock);
         when(actionMapper.transitionFromProcessing(eq(ACTION_ID), eq(5L), eq("MANUAL_REVIEW"),
                 eq(AccountPasswordResetFailure.RETRY_EXHAUSTED),
-                eq("重置任务超过自动重试上限，需要人工处理"), eq(NOW), eq(NOW))).thenReturn(1);
+                eq("重置任务超过自动重试上限，需要人工处理"), eq(NOW), eq(NOW),
+                eq(SERVICE_ACCOUNT_ID))).thenReturn(1);
         when(operationMapper.markManualReview(eq(OPERATION_ID), eq(2L),
                 eq(AccountPasswordResetFailure.RETRY_EXHAUSTED),
                 eq("重置任务超过自动重试上限，需要人工处理"), eq(NOW))).thenReturn(1);
@@ -122,7 +125,7 @@ class AccountPasswordResetStateServiceTest {
 
         verify(actionMapper).transitionFromProcessing(ACTION_ID, 5L, "MANUAL_REVIEW",
                 AccountPasswordResetFailure.RETRY_EXHAUSTED,
-                "重置任务超过自动重试上限，需要人工处理", NOW, NOW);
+                "重置任务超过自动重试上限，需要人工处理", NOW, NOW, SERVICE_ACCOUNT_ID);
         verify(operationMapper).markManualReview(OPERATION_ID, 2L,
                 AccountPasswordResetFailure.RETRY_EXHAUSTED,
                 "重置任务超过自动重试上限，需要人工处理", NOW);

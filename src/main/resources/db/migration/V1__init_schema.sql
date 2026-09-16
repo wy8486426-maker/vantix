@@ -226,12 +226,7 @@ CREATE TABLE exchange_detail (
     last_error_message VARCHAR(1024) NULL,
     created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
-    active_service_code_id BIGINT GENERATED ALWAYS AS (
-        CASE
-            WHEN status IN ('PROCESSING', 'COMPLETED') THEN service_code_id
-            ELSE NULL
-        END
-    ) STORED,
+    active_service_code_id BIGINT NULL,
     PRIMARY KEY (id),
     KEY idx_exchange_detail_code (service_code_id),
     KEY idx_exchange_detail_request (request_id),
@@ -297,18 +292,8 @@ CREATE TABLE account_renewal (
     updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
     completed_at DATETIME(3) NULL,
     version BIGINT NOT NULL DEFAULT 0,
-    active_service_code_id BIGINT GENERATED ALWAYS AS (
-        CASE
-            WHEN status IN ('PROCESSING', 'COMPLETED', 'MANUAL_REVIEW') THEN service_code_id
-            ELSE NULL
-        END
-    ) STORED,
-    active_service_account_id BIGINT GENERATED ALWAYS AS (
-        CASE
-            WHEN status IN ('PROCESSING', 'MANUAL_REVIEW') THEN service_account_id
-            ELSE NULL
-        END
-    ) STORED,
+    active_service_code_id BIGINT NULL,
+    active_service_account_id BIGINT NULL,
     PRIMARY KEY (id),
     KEY idx_account_renewal_code (service_code_id),
     UNIQUE KEY uk_account_renewal_request (request_id),
@@ -374,13 +359,7 @@ CREATE TABLE account_password_action (
     created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
     version BIGINT NOT NULL DEFAULT 0,
-    active_reset_account_id BIGINT GENERATED ALWAYS AS (
-        CASE
-            WHEN action_type = 'RESET' AND status IN ('PROCESSING', 'MANUAL_REVIEW')
-            THEN service_account_id
-            ELSE NULL
-        END
-    ) STORED,
+    active_reset_account_id BIGINT NULL,
     PRIMARY KEY (id),
     UNIQUE KEY uk_password_action_request (request_id),
     UNIQUE KEY uk_password_action_active_reset (active_reset_account_id),

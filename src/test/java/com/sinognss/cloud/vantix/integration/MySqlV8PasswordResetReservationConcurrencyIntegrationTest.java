@@ -16,6 +16,7 @@ import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.mybatis.spring.SqlSessionFactoryBean;
 import org.mybatis.spring.SqlSessionTemplate;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
@@ -25,6 +26,7 @@ import org.springframework.transaction.interceptor.TransactionInterceptor;
 import org.springframework.aop.framework.ProxyFactory;
 
 import javax.sql.DataSource;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -34,6 +36,8 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @org.junit.jupiter.api.condition.EnabledIf("com.sinognss.cloud.vantix.integration.LocalMySqlTestDatabase#isAvailable")
@@ -99,6 +103,28 @@ class MySqlV8PasswordResetReservationConcurrencyIntegrationTest {
         assertNotNull(jdbc.queryForObject(
                 "SELECT active_reset_account_id FROM account_password_action WHERE request_id = ?",
                 Long.class, original.requestId()));
+
+        assertThrows(DuplicateKeyException.class, () -> jdbc.update("INSERT INTO account_password_action "
+                        + "(request_id, action_type, service_account_id, owner_company_id, cors_account_id, account, "
+                        + "status, version, active_reset_account_id) VALUES (?, 'RESET', ?, 801, ?, ?, 'PROCESSING', 0, ?)",
+                "PWD-RS-RACE-DIRECT-DUP", SERVICE_ACCOUNT_ID, "cors-account-" + SERVICE_ACCOUNT_ID,
+                "account-" + SERVICE_ACCOUNT_ID, SERVICE_ACCOUNT_ID));
+
+        Long actionId = jdbc.queryForObject(
+                "SELECT id FROM account_password_action WHERE request_id = ?", Long.class, original.requestId());
+        LocalDateTime completedAt = LocalDateTime.now().withNano(0);
+        assertEquals(1, sessions.getMapper(AccountPasswordActionMapper.class).transitionFromProcessing(
+                actionId, 0L, "SUCCEEDED", null, null, completedAt, completedAt, null));
+        assertNull(jdbc.queryForObject(
+                "SELECT active_reset_account_id FROM account_password_action WHERE id = ?", Long.class, actionId));
+
+        AccountPasswordResetReservation next = transactionalReserve.reserve(
+                new AccountPasswordResetCommand("PWD-RS-RACE-C", SERVICE_ACCOUNT_ID),
+                globalScope(), operator());
+        assertEquals("PWD-RS-RACE-C", next.requestId());
+        assertEquals(SERVICE_ACCOUNT_ID, jdbc.queryForObject(
+                "SELECT active_reset_account_id FROM account_password_action WHERE request_id = ?",
+                Long.class, next.requestId()));
     }
 
     private List<Attempt> reserveConcurrently(AccountPasswordResetReserveTransaction reserve,

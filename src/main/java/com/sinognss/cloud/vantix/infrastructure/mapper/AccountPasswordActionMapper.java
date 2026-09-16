@@ -24,7 +24,8 @@ public interface AccountPasswordActionMapper extends BaseMapper<AccountPasswordA
             + "AND action_type = 'RESET' AND status IN ('PROCESSING', 'MANUAL_REVIEW') LIMIT 1")
     AccountPasswordAction selectActiveResetByServiceAccountId(@Param("serviceAccountId") Long serviceAccountId);
 
-    @Update("UPDATE account_password_action SET status = #{newStatus}, last_error_code = #{errorCode}, "
+    @Update("UPDATE account_password_action SET status = #{newStatus}, "
+            + "active_reset_account_id = #{activeResetAccountId}, last_error_code = #{errorCode}, "
             + "last_error_message = #{errorMessage}, completed_at = #{completedAt}, "
             + "version = version + 1, updated_at = #{now} "
             + "WHERE id = #{id} AND status = 'PROCESSING' AND version = #{expectedVersion}")
@@ -32,5 +33,6 @@ public interface AccountPasswordActionMapper extends BaseMapper<AccountPasswordA
                                  @Param("newStatus") String newStatus, @Param("errorCode") String errorCode,
                                  @Param("errorMessage") String errorMessage,
                                  @Param("completedAt") LocalDateTime completedAt,
-                                 @Param("now") LocalDateTime now);
+                                 @Param("now") LocalDateTime now,
+                                 @Param("activeResetAccountId") Long activeResetAccountId);
 }

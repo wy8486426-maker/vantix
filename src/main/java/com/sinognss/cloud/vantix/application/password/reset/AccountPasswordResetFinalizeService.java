@@ -66,7 +66,7 @@ public class AccountPasswordResetFinalizeService {
 
         LocalDateTime now = LocalDateTime.now(clock).truncatedTo(ChronoUnit.MILLIS);
         requireOne(actionMapper.transitionFromProcessing(action.getId(), action.getVersion(),
-                AccountPasswordActionConstants.SUCCEEDED, null, null, now, now),
+                AccountPasswordActionConstants.SUCCEEDED, null, null, now, now, null),
                 "Password reset audit action could not be completed");
         requireOne(operationMapper.markSucceeded(operation.getId(), operation.getVersion(), now),
                 "Password reset operation could not be completed");

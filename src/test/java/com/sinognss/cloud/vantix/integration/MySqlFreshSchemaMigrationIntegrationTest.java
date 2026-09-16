@@ -66,7 +66,8 @@ class MySqlFreshSchemaMigrationIntegrationTest {
         assertColumns(jdbc, "account_renewal", List.of(
                 "service_account_id", "service_code_id", "owner_company_id", "assigned_user_id",
                 "spec_code", "service_type", "duration_days", "code_silence_days",
-                "service_code_snapshot", "request_id", "status", "version"));
+                "service_code_snapshot", "request_id", "status", "version",
+                "active_service_code_id", "active_service_account_id"));
         assertColumns(jdbc, "cors_operation", List.of(
                 "request_id", "operation_type", "biz_type", "biz_id", "service_account_id",
                 "status", "retry_count", "next_retry_at", "claimed_at", "last_error_code",
@@ -75,6 +76,12 @@ class MySqlFreshSchemaMigrationIntegrationTest {
                 "request_id", "action_type", "service_account_id", "owner_company_id",
                 "assigned_user_id", "cors_account_id", "account", "status", "version",
                 "active_reset_account_id"));
+        assertPlainNullableColumn(jdbc, "exchange_detail", "active_service_code_id");
+        assertPlainNullableColumn(jdbc, "account_renewal", "active_service_code_id");
+        assertPlainNullableColumn(jdbc, "account_renewal", "active_service_account_id");
+        assertPlainNullableColumn(jdbc, "account_password_action", "active_reset_account_id");
+        assertColumnType(jdbc, "exchange_detail", "service_code_snapshot", "json");
+        assertColumnType(jdbc, "account_renewal", "service_code_snapshot", "json");
         assertPasswordSchemaDoesNotPersistCredentials(jdbc);
 
         assertIndexColumns(jdbc, "service_duration_config", "uk_service_duration_spec_code",
@@ -93,6 +100,14 @@ class MySqlFreshSchemaMigrationIntegrationTest {
                 List.of("owner_company_id", "assigned_user_id", "created_at", "id"));
         assertIndexColumns(jdbc, "account_renewal", "idx_account_renewal_created",
                 List.of("created_at", "id"));
+        assertIndexColumns(jdbc, "exchange_detail", "uk_exchange_detail_active_code",
+                List.of("active_service_code_id"));
+        assertIndexColumns(jdbc, "account_renewal", "uk_account_renewal_active_code",
+                List.of("active_service_code_id"));
+        assertIndexColumns(jdbc, "account_renewal", "uk_account_renewal_active_account",
+                List.of("active_service_account_id"));
+        assertIndexColumns(jdbc, "account_password_action", "uk_password_action_active_reset",
+                List.of("active_reset_account_id"));
         insertSpec(jdbc, "SC90A", "90天标准版", 90);
         insertSpec(jdbc, "SC90B", "90天体验版", 90);
         assertThrows(DuplicateKeyException.class,
@@ -143,6 +158,20 @@ class MySqlFreshSchemaMigrationIntegrationTest {
                 "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() "
                         + "AND table_name = ? AND column_name = ? AND is_nullable = 'NO'",
                 Integer.class, table, column), table + "." + column + " must be NOT NULL");
+    }
+
+    private void assertPlainNullableColumn(JdbcTemplate jdbc, String table, String column) {
+        assertEquals(1, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() "
+                        + "AND table_name = ? AND column_name = ? AND is_nullable = 'YES' "
+                        + "AND UPPER(extra) NOT LIKE '%GENERATED%'",
+                Integer.class, table, column), table + "." + column + " must be a plain nullable column");
+    }
+
+    private void assertColumnType(JdbcTemplate jdbc, String table, String column, String dataType) {
+        assertEquals(dataType, jdbc.queryForObject(
+                "SELECT data_type FROM information_schema.columns WHERE table_schema = DATABASE() "
+                        + "AND table_name = ? AND column_name = ?", String.class, table, column));
     }
 
     private void assertNoLegacyColumns(JdbcTemplate jdbc) {

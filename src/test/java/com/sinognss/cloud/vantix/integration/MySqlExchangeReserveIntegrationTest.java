@@ -16,12 +16,14 @@ import com.sinognss.cloud.vantix.integration.cors.CorsAccountGateway;
 import com.sinognss.cloud.vantix.integration.cors.CorsBatchCreateRequest;
 import com.sinognss.cloud.vantix.integration.cors.CorsBatchResult;
 import com.sinognss.cloud.vantix.integration.cors.CorsOutcome;
+import com.sinognss.cloud.vantix.infrastructure.mapper.ExchangeDetailMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -66,6 +68,9 @@ class MySqlExchangeReserveIntegrationTest {
 
     @Autowired
     private ServiceCodeExchangeService exchangeService;
+
+    @Autowired
+    private ExchangeDetailMapper detailMapper;
 
     @MockBean
     private CorsOperationRetryJob retryJob;
@@ -141,6 +146,10 @@ class MySqlExchangeReserveIntegrationTest {
                     "SELECT COUNT(DISTINCT service_code_id) FROM exchange_detail WHERE exchange_batch_id = ?",
                     Integer.class, b2bBatchId));
             assertEquals(10, jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM exchange_detail WHERE exchange_batch_id = ? "
+                            + "AND active_service_code_id = service_code_id",
+                    Integer.class, b2bBatchId));
+            assertEquals(10, jdbc.queryForObject(
                     "SELECT COUNT(*) FROM exchange_detail d "
                             + "JOIN service_code c ON c.id = d.service_code_id "
                             + "JOIN service_code_generate_batch g ON g.id = c.generate_batch_id "
@@ -164,6 +173,10 @@ class MySqlExchangeReserveIntegrationTest {
             assertTrue(offline.created());
             assertEquals(5, jdbc.queryForObject(
                     "SELECT COUNT(*) FROM exchange_detail WHERE exchange_batch_id = ?",
+                    Integer.class, offline.batchId()));
+            assertEquals(5, jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM exchange_detail WHERE exchange_batch_id = ? "
+                            + "AND active_service_code_id = service_code_id",
                     Integer.class, offline.batchId()));
             assertEquals(5, jdbc.queryForObject(
                     "SELECT COUNT(*) FROM exchange_detail d "
@@ -219,6 +232,43 @@ class MySqlExchangeReserveIntegrationTest {
                 "SELECT status FROM service_code WHERE code = 'REMOTE-BOUNDARY-001'", String.class));
         assertEquals("RETRY_WAIT", jdbc.queryForObject(
                 "SELECT status FROM cors_operation WHERE request_id = ?", String.class, requestId));
+    }
+
+    @Test
+    void activeExchangeCodeUniqueKeyRejectsASecondProcessingDetailAndCompletedKeepsTheLock() {
+        LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Shanghai"));
+        insertGeneration("B2B", 1007L, "B2B-ACTIVE-UNIQUE-ORDER", "B2B-ACTIVE-UNIQUE-BATCH", 1);
+        long serviceCodeId = insertCodes("ACTIVE-UNIQUE-CODE-", 1007L, 1, now.plusDays(180)).get(0);
+        setGlobalUser();
+
+        ExchangeReservation first = reserveService.reserve(new ServiceCodeExchangeCommand(
+                "ACTIVE-UNIQUE-FIRST", COMPANY_ID, SPEC_CODE, GenerationSource.B2B, 1));
+        assertEquals(serviceCodeId, jdbc.queryForObject(
+                "SELECT active_service_code_id FROM exchange_detail WHERE exchange_batch_id = ?",
+                Long.class, first.batchId()));
+
+        assertEquals(1, detailMapper.completeBatchDetails(first.batchId(),
+                List.of(new ExchangeDetailMapper.CompletedAccountRow(1, "cors-active-1", "account-active-1")),
+                now));
+        assertEquals("COMPLETED", jdbc.queryForObject(
+                "SELECT status FROM exchange_detail WHERE exchange_batch_id = ?", String.class, first.batchId()));
+        assertEquals(serviceCodeId, jdbc.queryForObject(
+                "SELECT active_service_code_id FROM exchange_detail WHERE exchange_batch_id = ?",
+                Long.class, first.batchId()));
+
+        jdbc.update("INSERT INTO exchange_batch "
+                        + "(exchange_batch_no, request_id, owner_company_id, generation_source, spec_code, "
+                        + "display_name, service_type, duration_days, account_silence_days, quantity, payload_hash, status) "
+                        + "VALUES ('EX-ACTIVE-UNIQUE-SECOND', 'ACTIVE-UNIQUE-SECOND', ?, 'B2B', ?, '1个月', "
+                        + "'CORS', 30, 360, 1, ?, 'PROCESSING')",
+                COMPANY_ID, SPEC_CODE, String.format("%064x", 1008L));
+        Long secondBatchId = jdbc.queryForObject(
+                "SELECT id FROM exchange_batch WHERE request_id = 'ACTIVE-UNIQUE-SECOND'", Long.class);
+
+        assertThrows(DuplicateKeyException.class, () -> jdbc.update("INSERT INTO exchange_detail "
+                        + "(exchange_batch_id, detail_index, service_code_id, request_id, service_code_snapshot, "
+                        + "status, active_service_code_id) VALUES (?, 1, ?, 'ACTIVE-UNIQUE-SECOND', '{}', 'PROCESSING', ?)",
+                secondBatchId, serviceCodeId, serviceCodeId));
     }
 
     @Test

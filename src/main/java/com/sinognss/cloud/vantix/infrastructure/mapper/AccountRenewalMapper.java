@@ -24,20 +24,23 @@ public interface AccountRenewalMapper extends BaseMapper<AccountRenewal> {
             + "AND status IN ('PROCESSING', 'MANUAL_REVIEW') ORDER BY id DESC LIMIT 1")
     AccountRenewal selectActiveByAccount(@Param("accountId") Long accountId);
 
-    @Update("UPDATE account_renewal SET status = 'COMPLETED', completed_at = #{now}, "
+    @Update("UPDATE account_renewal SET status = 'COMPLETED', active_service_code_id = service_code_id, "
+            + "active_service_account_id = NULL, completed_at = #{now}, "
             + "last_error_code = NULL, last_error_message = NULL, version = version + 1, updated_at = #{now} "
             + "WHERE id = #{id} AND status = 'PROCESSING' AND version = #{expectedVersion}")
     int complete(@Param("id") Long id, @Param("expectedVersion") Long expectedVersion,
                  @Param("now") LocalDateTime now);
 
-    @Update("UPDATE account_renewal SET status = 'FAILED', last_error_code = #{errorCode}, "
+    @Update("UPDATE account_renewal SET status = 'FAILED', active_service_code_id = NULL, "
+            + "active_service_account_id = NULL, last_error_code = #{errorCode}, "
             + "last_error_message = #{errorMessage}, version = version + 1, updated_at = #{now} "
             + "WHERE id = #{id} AND status = 'PROCESSING' AND version = #{expectedVersion}")
     int fail(@Param("id") Long id, @Param("expectedVersion") Long expectedVersion,
              @Param("errorCode") String errorCode, @Param("errorMessage") String errorMessage,
              @Param("now") LocalDateTime now);
 
-    @Update("UPDATE account_renewal SET status = 'MANUAL_REVIEW', last_error_code = #{errorCode}, "
+    @Update("UPDATE account_renewal SET status = 'MANUAL_REVIEW', active_service_code_id = service_code_id, "
+            + "active_service_account_id = service_account_id, last_error_code = #{errorCode}, "
             + "last_error_message = #{errorMessage}, version = version + 1, updated_at = #{now} "
             + "WHERE id = #{id} AND status = 'PROCESSING' AND version = #{expectedVersion}")
     int markManualReview(@Param("id") Long id, @Param("expectedVersion") Long expectedVersion,

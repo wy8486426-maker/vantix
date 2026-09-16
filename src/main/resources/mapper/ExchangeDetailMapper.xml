@@ -5,12 +5,13 @@
     <insert id="insertBatch">
         INSERT INTO exchange_detail (
             exchange_batch_id, detail_index, service_code_id, request_id,
-            service_code_snapshot, status, created_at, updated_at
+            service_code_snapshot, status, active_service_code_id, created_at, updated_at
         ) VALUES
         <foreach collection="details" item="item" separator=",">
             (
                 #{item.exchangeBatchId}, #{item.detailIndex}, #{item.serviceCodeId}, #{item.requestId},
-                #{item.serviceCodeSnapshot}, #{item.status}, #{item.createdAt}, #{item.updatedAt}
+                #{item.serviceCodeSnapshot}, #{item.status}, #{item.activeServiceCodeId},
+                #{item.createdAt}, #{item.updatedAt}
             )
         </foreach>
     </insert>

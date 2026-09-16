@@ -135,6 +135,10 @@ class MySqlAccountRenewalStaleIgnoredFinalizeIntegrationTest {
                 "SELECT processing_request_id FROM service_code WHERE id = ?", String.class, codeId));
         assertEquals("COMPLETED", jdbc.queryForObject(
                 "SELECT status FROM account_renewal WHERE id = ?", String.class, renewalId));
+        assertEquals(codeId, jdbc.queryForObject(
+                "SELECT active_service_code_id FROM account_renewal WHERE id = ?", Long.class, renewalId));
+        assertNull(jdbc.queryForObject(
+                "SELECT active_service_account_id FROM account_renewal WHERE id = ?", Long.class, renewalId));
         assertEquals("SUCCEEDED", jdbc.queryForObject(
                 "SELECT status FROM cors_operation WHERE id = ?", String.class, operationId));
         assertFalse(jdbc.queryForObject(
@@ -158,8 +162,9 @@ class MySqlAccountRenewalStaleIgnoredFinalizeIntegrationTest {
                 codeId, "VANTIX-STALE-" + codeId, requestId);
         jdbc.update("INSERT INTO account_renewal (service_account_id, service_code_id, owner_company_id, "
                         + "spec_code, service_type, duration_days, code_silence_days, service_code_snapshot, request_id, "
-                        + "status, version) VALUES (?, ?, 901, 'STALE', 'CORS', 30, 180, CAST('{}' AS JSON), ?, "
-                        + "'PROCESSING', 5)", accountId, codeId, requestId);
+                        + "status, version, active_service_code_id, active_service_account_id) "
+                        + "VALUES (?, ?, 901, 'STALE', 'CORS', 30, 180, CAST('{}' AS JSON), ?, "
+                        + "'PROCESSING', 5, ?, ?)", accountId, codeId, requestId, codeId, accountId);
         Long renewalId = jdbc.queryForObject(
                 "SELECT id FROM account_renewal WHERE request_id = ?", Long.class, requestId);
         jdbc.update("INSERT INTO cors_operation (request_id, operation_type, biz_type, biz_id, "

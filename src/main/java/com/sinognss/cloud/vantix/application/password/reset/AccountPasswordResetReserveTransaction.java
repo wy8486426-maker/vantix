@@ -73,6 +73,7 @@ public class AccountPasswordResetReserveTransaction {
         action.setCorsAccountId(account.getCorsAccountId());
         action.setAccount(account.getAccount());
         action.setStatus(AccountPasswordActionConstants.PROCESSING);
+        action.setActiveResetAccountId(account.getId());
         action.setOperatorUserId(operator == null ? null : operator.userId());
         action.setOperatorUserName(operator == null ? null : operator.userName());
         action.setCreatedAt(now);

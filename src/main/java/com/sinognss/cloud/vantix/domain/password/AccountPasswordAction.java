@@ -27,6 +27,7 @@ public class AccountPasswordAction {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private Long version;
+    private Long activeResetAccountId;
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -62,4 +63,6 @@ public class AccountPasswordAction {
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
     public Long getVersion() { return version; }
     public void setVersion(Long version) { this.version = version; }
+    public Long getActiveResetAccountId() { return activeResetAccountId; }
+    public void setActiveResetAccountId(Long activeResetAccountId) { this.activeResetAccountId = activeResetAccountId; }
 }

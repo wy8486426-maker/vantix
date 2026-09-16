@@ -137,6 +137,7 @@ public class ServiceCodeExchangeReserveService {
             detail.setExchangeBatchId(batch.getId());
             detail.setDetailIndex(index + 1);
             detail.setServiceCodeId(code.getId());
+            detail.setActiveServiceCodeId(code.getId());
             detail.setRequestId(command.requestId());
             detail.setServiceCodeSnapshot(serialize(new ExchangeCodeSnapshot(
                     code.getId(), code.getCode(), code.getOwnerCompanyId(), assignedUserId,

@@ -112,6 +112,12 @@ class MySqlV7AccountRenewalConcurrencyIntegrationTest {
 
     private void assertFailedCodeCanBeReused(JdbcTemplate jdbc) {
         insertRenewal(jdbc, new RenewalInsert(34_001L, 44_001L, "FAILED-CODE-REUSE-OLD", "FAILED"));
+        assertNull(jdbc.queryForObject(
+                "SELECT active_service_code_id FROM account_renewal WHERE request_id = 'FAILED-CODE-REUSE-OLD'",
+                Long.class));
+        assertNull(jdbc.queryForObject(
+                "SELECT active_service_account_id FROM account_renewal WHERE request_id = 'FAILED-CODE-REUSE-OLD'",
+                Long.class));
         insertRenewal(jdbc, new RenewalInsert(34_002L, 44_001L, "FAILED-CODE-REUSE-NEW", "PROCESSING"));
         assertEquals(2, countByServiceCode(jdbc, 44_001L));
         assertEquals(44_001L, jdbc.queryForObject(
@@ -121,10 +127,22 @@ class MySqlV7AccountRenewalConcurrencyIntegrationTest {
 
     private void assertProcessingAndManualReviewKeepTheirLocks(JdbcTemplate jdbc) {
         insertRenewal(jdbc, new RenewalInsert(35_001L, 45_001L, "PROCESSING-CODE-LOCK", "PROCESSING"));
+        assertEquals(45_001L, jdbc.queryForObject(
+                "SELECT active_service_code_id FROM account_renewal WHERE request_id = 'PROCESSING-CODE-LOCK'",
+                Long.class));
+        assertEquals(35_001L, jdbc.queryForObject(
+                "SELECT active_service_account_id FROM account_renewal WHERE request_id = 'PROCESSING-CODE-LOCK'",
+                Long.class));
         assertDuplicateRenewal(jdbc,
                 new RenewalInsert(35_002L, 45_001L, "PROCESSING-CODE-LOCK-RETRY", "PROCESSING"));
 
         insertRenewal(jdbc, new RenewalInsert(35_003L, 45_002L, "MANUAL-CODE-LOCK", "MANUAL_REVIEW"));
+        assertEquals(45_002L, jdbc.queryForObject(
+                "SELECT active_service_code_id FROM account_renewal WHERE request_id = 'MANUAL-CODE-LOCK'",
+                Long.class));
+        assertEquals(35_003L, jdbc.queryForObject(
+                "SELECT active_service_account_id FROM account_renewal WHERE request_id = 'MANUAL-CODE-LOCK'",
+                Long.class));
         assertDuplicateRenewal(jdbc,
                 new RenewalInsert(35_004L, 45_002L, "MANUAL-CODE-LOCK-RETRY", "PROCESSING"));
 
@@ -216,7 +234,9 @@ class MySqlV7AccountRenewalConcurrencyIntegrationTest {
                     statement.executeQuery().close();
                 }
                 try (PreparedStatement statement = connection.prepareStatement(
-                        "UPDATE account_renewal SET status = 'COMPLETED' WHERE request_id = ?")) {
+                        "UPDATE account_renewal SET status = 'COMPLETED', "
+                                + "active_service_code_id = service_code_id, active_service_account_id = NULL "
+                                + "WHERE request_id = ?")) {
                     statement.setString(1, requestId);
                     statement.executeUpdate();
                 }
@@ -319,7 +339,9 @@ class MySqlV7AccountRenewalConcurrencyIntegrationTest {
                         statement.executeUpdate();
                     }
                     try (PreparedStatement statement = connection.prepareStatement(
-                            "UPDATE account_renewal SET status = 'COMPLETED' WHERE request_id = ?")) {
+                            "UPDATE account_renewal SET status = 'COMPLETED', "
+                                    + "active_service_code_id = service_code_id, active_service_account_id = NULL "
+                                    + "WHERE request_id = ?")) {
                         statement.setString(1, requestId);
                         statement.executeUpdate();
                     }
@@ -352,7 +374,9 @@ class MySqlV7AccountRenewalConcurrencyIntegrationTest {
             try (Connection connection = dataSource.getConnection()) {
                 connection.setAutoCommit(false);
                 try (PreparedStatement renewalUpdate = connection.prepareStatement(
-                        "UPDATE account_renewal SET status = 'MANUAL_REVIEW' WHERE request_id = ?");
+                        "UPDATE account_renewal SET status = 'MANUAL_REVIEW', "
+                                + "active_service_code_id = service_code_id, "
+                                + "active_service_account_id = service_account_id WHERE request_id = ?");
                      PreparedStatement operationUpdate = connection.prepareStatement(
                              "UPDATE cors_operation SET status = 'MANUAL_REVIEW' WHERE request_id = ?")) {
                     renewalUpdate.setString(1, requestId);
@@ -408,20 +432,25 @@ class MySqlV7AccountRenewalConcurrencyIntegrationTest {
 
     private void insertRenewal(JdbcTemplate jdbc, RenewalInsert renewal) {
         jdbc.update("INSERT INTO account_renewal (service_account_id, service_code_id, owner_company_id, "
-                        + "spec_code, service_type, duration_days, code_silence_days, service_code_snapshot, request_id, status) "
-                        + "VALUES (?, ?, 100, 'RENEWAL', 'CORS', 1, 0, CAST('{}' AS JSON), ?, ?)",
-                renewal.serviceAccountId(), renewal.serviceCodeId(), renewal.requestId(), renewal.status());
+                        + "spec_code, service_type, duration_days, code_silence_days, service_code_snapshot, request_id, "
+                        + "status, active_service_code_id, active_service_account_id) "
+                        + "VALUES (?, ?, 100, 'RENEWAL', 'CORS', 1, 0, CAST('{}' AS JSON), ?, ?, ?, ?)",
+                renewal.serviceAccountId(), renewal.serviceCodeId(), renewal.requestId(), renewal.status(),
+                renewal.activeServiceCodeId(), renewal.activeServiceAccountId());
     }
 
     private void insertRenewal(Connection connection, RenewalInsert renewal) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(
                 "INSERT INTO account_renewal (service_account_id, service_code_id, owner_company_id, "
-                        + "spec_code, service_type, duration_days, code_silence_days, service_code_snapshot, request_id, status) "
-                        + "VALUES (?, ?, 100, 'RENEWAL', 'CORS', 1, 0, CAST('{}' AS JSON), ?, ?)")) {
+                        + "spec_code, service_type, duration_days, code_silence_days, service_code_snapshot, request_id, "
+                        + "status, active_service_code_id, active_service_account_id) "
+                        + "VALUES (?, ?, 100, 'RENEWAL', 'CORS', 1, 0, CAST('{}' AS JSON), ?, ?, ?, ?)")) {
             statement.setLong(1, renewal.serviceAccountId());
             statement.setLong(2, renewal.serviceCodeId());
             statement.setString(3, renewal.requestId());
             statement.setString(4, renewal.status());
+            statement.setObject(5, renewal.activeServiceCodeId());
+            statement.setObject(6, renewal.activeServiceAccountId());
             statement.executeUpdate();
         }
     }
@@ -446,5 +475,18 @@ class MySqlV7AccountRenewalConcurrencyIntegrationTest {
     }
 
     private record RenewalInsert(long serviceAccountId, long serviceCodeId, String requestId, String status) {
+        private Long activeServiceCodeId() {
+            return switch (status) {
+                case "PROCESSING", "COMPLETED", "MANUAL_REVIEW" -> serviceCodeId;
+                default -> null;
+            };
+        }
+
+        private Long activeServiceAccountId() {
+            return switch (status) {
+                case "PROCESSING", "MANUAL_REVIEW" -> serviceAccountId;
+                default -> null;
+            };
+        }
     }
 }

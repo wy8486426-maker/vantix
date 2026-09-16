@@ -80,6 +80,8 @@ class AccountRenewalReserveTransactionTest {
         AccountRenewal renewal = renewalCaptor.getValue();
         assertEquals(11L, renewal.getServiceAccountId());
         assertEquals(21L, renewal.getServiceCodeId());
+        assertEquals(21L, renewal.getActiveServiceCodeId());
+        assertEquals(11L, renewal.getActiveServiceAccountId());
         assertEquals(7L, renewal.getOwnerCompanyId());
         assertEquals(23L, renewal.getAssignedUserId());
         assertEquals("PROCESSING", renewal.getStatus());

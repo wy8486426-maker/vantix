@@ -94,6 +94,8 @@ public class AccountRenewalReserveTransaction {
                 code.getCodeSilenceDays(), code.getExpireAt())));
         renewal.setRequestId(command.requestId());
         renewal.setStatus(AccountRenewalConstants.PROCESSING);
+        renewal.setActiveServiceCodeId(code.getId());
+        renewal.setActiveServiceAccountId(account.getId());
         renewal.setOperatorUserId(operator == null ? null : operator.userId());
         renewal.setOperatorUserName(operator == null ? null : operator.userName());
         renewal.setCreatedAt(now);

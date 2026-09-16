@@ -14,6 +14,7 @@ public class ExchangeDetail {
     private Integer detailIndex;
     private String serviceCodeSnapshot;
     private Long serviceCodeId;
+    private Long activeServiceCodeId;
     private String requestId;
     private String corsAccountId;
     private String account;
@@ -34,6 +35,8 @@ public class ExchangeDetail {
     public void setServiceCodeSnapshot(String serviceCodeSnapshot) { this.serviceCodeSnapshot = serviceCodeSnapshot; }
     public Long getServiceCodeId() { return serviceCodeId; }
     public void setServiceCodeId(Long serviceCodeId) { this.serviceCodeId = serviceCodeId; }
+    public Long getActiveServiceCodeId() { return activeServiceCodeId; }
+    public void setActiveServiceCodeId(Long activeServiceCodeId) { this.activeServiceCodeId = activeServiceCodeId; }
     public String getRequestId() { return requestId; }
     public void setRequestId(String requestId) { this.requestId = requestId; }
     public String getCorsAccountId() { return corsAccountId; }

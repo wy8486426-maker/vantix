@@ -200,7 +200,15 @@ public class AccountPasswordResetStateService {
             throw new IllegalStateException("Password reset action identity is unavailable");
         }
         requireOne(actionMapper.transitionFromProcessing(action.getId(), action.getVersion(), status,
-                code, message, completedAt, now), "Password reset action state could not be updated");
+                code, message, completedAt, now, activeResetAccountId(action, status)),
+                "Password reset action state could not be updated");
+    }
+
+    private static Long activeResetAccountId(AccountPasswordAction action, String status) {
+        return AccountPasswordActionConstants.RESET.equals(action.getActionType())
+                && (AccountPasswordActionConstants.PROCESSING.equals(status)
+                || AccountPasswordActionConstants.MANUAL_REVIEW.equals(status))
+                ? action.getServiceAccountId() : null;
     }
 
     private Duration retryDelay(int retryCount) {

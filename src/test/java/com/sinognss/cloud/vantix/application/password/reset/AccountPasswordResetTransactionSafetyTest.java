@@ -191,7 +191,7 @@ class AccountPasswordResetTransactionSafetyTest {
                             + "last_error_code = ?, last_error_message = ?, completed_at = ?, updated_at = ? "
                             + "WHERE id = ? AND status = 'PROCESSING' AND version = ?",
                     nextStatus, code, message, completedAt, now, id, expectedVersion);
-        }).when(actionMapper).transitionFromProcessing(any(), any(), anyString(), any(), any(), any(), any());
+        }).when(actionMapper).transitionFromProcessing(any(), any(), anyString(), any(), any(), any(), any(), any());
         doThrow(new IllegalStateException("injected success update failure"))
                 .when(operationMapper).markSucceeded(17L, 1L, LocalDateTimeHolder.NOW);
         doAnswer(invocation -> {

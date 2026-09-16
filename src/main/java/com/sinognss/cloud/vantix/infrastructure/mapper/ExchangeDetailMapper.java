@@ -18,7 +18,7 @@ public interface ExchangeDetailMapper extends BaseMapper<ExchangeDetail> {
     List<ExchangeDetail> selectByBatchId(@Param("batchId") Long batchId);
 
     @Update({"<script>",
-            "UPDATE exchange_detail SET status = 'COMPLETED',",
+            "UPDATE exchange_detail SET status = 'COMPLETED', active_service_code_id = service_code_id,",
             "cors_account_id = CASE detail_index",
             "<foreach collection='accounts' item='item'> WHEN #{item.index} THEN #{item.accountId}</foreach>",
             "END, account = CASE detail_index",
@@ -31,7 +31,8 @@ public interface ExchangeDetailMapper extends BaseMapper<ExchangeDetail> {
                              @Param("accounts") List<CompletedAccountRow> accounts,
                              @Param("completedAt") LocalDateTime completedAt);
 
-    @Update("UPDATE exchange_detail SET status = 'FAILED', last_error_code = #{errorCode}, "
+    @Update("UPDATE exchange_detail SET status = 'FAILED', active_service_code_id = NULL, "
+            + "last_error_code = #{errorCode}, "
             + "last_error_message = #{errorMessage}, updated_at = #{updatedAt} "
             + "WHERE exchange_batch_id = #{batchId} AND status = 'PROCESSING'")
     int failByBatchId(@Param("batchId") Long batchId, @Param("errorCode") String errorCode,

@@ -84,6 +84,7 @@ class AccountPasswordResetReserveTransactionTest {
         CorsOperation operation = operationCaptor.getValue();
         assertEquals("RESET", action.getActionType());
         assertEquals("PROCESSING", action.getStatus());
+        assertEquals(SERVICE_ACCOUNT_ID, action.getActiveResetAccountId());
         assertEquals(SERVICE_ACCOUNT_ID, action.getServiceAccountId());
         assertEquals(CORS_ACCOUNT_ID, action.getCorsAccountId());
         assertEquals(ACCOUNT, action.getAccount());

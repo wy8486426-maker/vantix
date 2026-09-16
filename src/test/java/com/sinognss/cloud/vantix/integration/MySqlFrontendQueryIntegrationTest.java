@@ -389,10 +389,11 @@ class MySqlFrontendQueryIntegrationTest {
     private void insertExchangeDetail(long id, long batchId, int detailIndex, long serviceCodeId,
                                       String serviceCode, String status) {
         jdbc.update("INSERT INTO exchange_detail "
-                        + "(id, exchange_batch_id, detail_index, service_code_id, request_id, service_code_snapshot, status) "
-                        + "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        + "(id, exchange_batch_id, detail_index, service_code_id, request_id, service_code_snapshot, "
+                        + "status, active_service_code_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 id, batchId, detailIndex, serviceCodeId, "DETAIL-" + id,
-                "{\"code\":\"" + serviceCode + "\"}", status);
+                "{\"code\":\"" + serviceCode + "\"}", status,
+                "PROCESSING".equals(status) || "COMPLETED".equals(status) ? serviceCodeId : null);
     }
 
     private void insertRenewal(long id, long serviceAccountId, long serviceCodeId, long ownerCompanyId,
@@ -401,11 +402,14 @@ class MySqlFrontendQueryIntegrationTest {
         jdbc.update("INSERT INTO account_renewal "
                         + "(id, service_account_id, service_code_id, owner_company_id, assigned_user_id, spec_code, "
                         + "service_type, duration_days, code_silence_days, service_code_snapshot, request_id, status, "
-                        + "created_at, updated_at, completed_at, version) "
-                        + "VALUES (?, ?, ?, ?, ?, 'S1', 'CORS', 30, ?, ?, ?, ?, ?, ?, ?, 0)",
+                        + "created_at, updated_at, completed_at, version, active_service_code_id, "
+                        + "active_service_account_id) VALUES (?, ?, ?, ?, ?, 'S1', 'CORS', 30, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)",
                 id, serviceAccountId, serviceCodeId, ownerCompanyId, assignedUserId, codeSilenceDays,
                 "{\"code\":\"" + snapshotCode + "\"}", requestId, status, createdAt, createdAt,
-                "COMPLETED".equals(status) ? createdAt : null);
+                "COMPLETED".equals(status) ? createdAt : null,
+                "PROCESSING".equals(status) || "COMPLETED".equals(status) || "MANUAL_REVIEW".equals(status)
+                        ? serviceCodeId : null,
+                "PROCESSING".equals(status) || "MANUAL_REVIEW".equals(status) ? serviceAccountId : null);
     }
 
     private void asPersonalUser(long userId, long companyId) {

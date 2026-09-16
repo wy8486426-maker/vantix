@@ -28,6 +28,8 @@ public class AccountRenewal {
     private LocalDateTime updatedAt;
     private LocalDateTime completedAt;
     private Long version;
+    private Long activeServiceCodeId;
+    private Long activeServiceAccountId;
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -69,4 +71,8 @@ public class AccountRenewal {
     public void setCompletedAt(LocalDateTime completedAt) { this.completedAt = completedAt; }
     public Long getVersion() { return version; }
     public void setVersion(Long version) { this.version = version; }
+    public Long getActiveServiceCodeId() { return activeServiceCodeId; }
+    public void setActiveServiceCodeId(Long activeServiceCodeId) { this.activeServiceCodeId = activeServiceCodeId; }
+    public Long getActiveServiceAccountId() { return activeServiceAccountId; }
+    public void setActiveServiceAccountId(Long activeServiceAccountId) { this.activeServiceAccountId = activeServiceAccountId; }
 }

@@ -203,6 +203,7 @@ class ServiceCodeExchangeReserveServiceTest {
         verify(detailMapper).insertBatch(detailsCaptor.capture());
         List<ExchangeDetail> details = detailsCaptor.getValue();
         assertEquals(List.of(2L, 10L, 5L), details.stream().map(ExchangeDetail::getServiceCodeId).toList());
+        assertEquals(List.of(2L, 10L, 5L), details.stream().map(ExchangeDetail::getActiveServiceCodeId).toList());
         assertEquals(List.of(1, 2, 3), details.stream().map(ExchangeDetail::getDetailIndex).toList());
         ArgumentCaptor<List<Long>> idsCaptor = ArgumentCaptor.forClass(List.class);
         verify(serviceCodeMapper).reserveForExchange(idsCaptor.capture(), eq(1L), eq("ordered"), any());
