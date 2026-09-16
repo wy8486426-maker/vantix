@@ -181,7 +181,7 @@ class MySqlGenerationIntegrationTest {
     }
 
     @Test
-    void databaseEnforcesSpecRequestBusinessAndCodeUniquenessAndImmutableIdentifiers() {
+    void databaseEnforcesSpecRequestBusinessAndCodeUniqueness() {
         GenerateServiceCodeResult generated = generateService.generate(
                 command("B2B:UNIQUE", "ORDER-UNIQUE", 100L, "M1", 1), IntegrationActor.B2B.operatorIdentity());
 
@@ -204,27 +204,6 @@ class MySqlGenerationIntegrationTest {
                         + "code_silence_days, expire_at) VALUES (?, 100, 'M1', 'CORS', 30, 180, ?)",
                 generated.serviceCodes().get(0), LocalDateTime.now().plusDays(180)));
 
-        assertThrows(DataAccessException.class, () -> jdbc.update(
-                "UPDATE service_duration_config SET spec_code = 'CHANGED' WHERE spec_code = 'M1'"));
-        assertThrows(DataAccessException.class, () -> jdbc.update(
-                "UPDATE service_duration_config SET duration_days = 31 WHERE spec_code = 'M1'"));
-        assertThrows(DataAccessException.class, () -> jdbc.update(
-                "UPDATE service_duration_config SET service_type = 'SDK' WHERE spec_code = 'M1'"));
-        jdbc.update("UPDATE service_duration_config "
-                + "SET code_silence_days = 200, enabled = 0, remark = 'changed' WHERE spec_code = 'M1'");
-        var mutableConfig = jdbc.queryForMap(
-                "SELECT spec_code, duration_days, code_silence_days, enabled, remark "
-                        + "FROM service_duration_config WHERE spec_code = 'M1'");
-        assertEquals("M1", mutableConfig.get("spec_code"));
-        assertEquals(30, mutableConfig.get("duration_days"));
-        assertEquals(200, mutableConfig.get("code_silence_days"));
-        assertEquals(false, mutableConfig.get("enabled"));
-        assertEquals("changed", mutableConfig.get("remark"));
-        jdbc.update("UPDATE service_code SET code = 'CHANGED' WHERE code = ?", generated.serviceCodes().get(0));
-        assertEquals(generated.serviceCodes().get(0), jdbc.queryForObject(
-                "SELECT code FROM service_code WHERE generate_batch_id = "
-                        + "(SELECT id FROM service_code_generate_batch WHERE batch_no = ?) LIMIT 1",
-                String.class, generated.batch().batchNo()));
     }
 
     @Test

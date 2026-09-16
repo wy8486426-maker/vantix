@@ -3,7 +3,6 @@ package com.sinognss.cloud.vantix.integration;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
-import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
@@ -34,6 +33,9 @@ class MySqlFreshSchemaMigrationIntegrationTest {
         assertEquals(List.of("1"), jdbc.queryForList(
                 "SELECT version FROM flyway_schema_history WHERE success = 1 ORDER BY installed_rank",
                 String.class));
+        assertEquals(0, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.triggers WHERE trigger_schema = DATABASE()",
+                Integer.class));
         assertEquals(0, jdbc.queryForObject(
                 "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() "
                         + "AND table_name = 'account_config'", Integer.class));
@@ -103,8 +105,6 @@ class MySqlFreshSchemaMigrationIntegrationTest {
                 "SELECT duration_days FROM service_duration_config WHERE spec_code = 'SC45'", Integer.class));
         assertEquals(60, jdbc.queryForObject(
                 "SELECT account_silence_days FROM service_duration_config WHERE spec_code = 'SC45'", Integer.class));
-        assertThrows(DataAccessException.class, () -> jdbc.update(
-                "UPDATE service_duration_config SET duration_days = 91 WHERE spec_code = 'SC45'"));
         assertEquals(2, jdbc.queryForObject(
                 "SELECT COUNT(*) FROM service_duration_config WHERE duration_days = 90", Integer.class));
     }

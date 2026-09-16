@@ -93,7 +93,8 @@ public class ServiceDurationConfigService {
         config.setEnabled(command.enabled());
         config.setRemark(remark);
         config.setUpdatedBy(operator.userId());
-        mapper.updateById(config);
+        mapper.updateMutableFields(id, displayName, command.codeSilenceDays(),
+                command.accountSilenceDays(), command.enabled(), remark, operator.userId());
         log.info("Service duration config updated, configId={}, specCode={}, operatorUserId={}",
                 id, config.getSpecCode(), operator.userId());
         return ServiceDurationConfigView.from(config);

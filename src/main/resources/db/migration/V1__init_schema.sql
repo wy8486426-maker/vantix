@@ -1,9 +1,10 @@
 /*
  * Pre-release baseline schema for Vantix.
  *
- * This is intentionally a complete days-based schema. Development databases
- * created from V1 through V9 are not upgraded in place; they are recreated
- * before applying this baseline.
+ * The project is not released yet. During development, schema changes are
+ * made directly in this single V1 baseline and development databases are
+ * dropped and recreated before applying it. Once the first production
+ * release is made, V1 is frozen and subsequent changes use V2+ migrations.
  */
 
 CREATE TABLE dealer_company (
@@ -75,18 +76,6 @@ CREATE TABLE service_duration_config (
     UNIQUE KEY uk_service_duration_display_name (display_name),
     KEY idx_duration_enabled (enabled)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TRIGGER trg_service_duration_identity_immutable
-BEFORE UPDATE ON service_duration_config
-FOR EACH ROW
-BEGIN
-    IF NOT (BINARY NEW.spec_code <=> BINARY OLD.spec_code)
-       OR NOT (BINARY NEW.service_type <=> BINARY OLD.service_type)
-       OR NOT (NEW.duration_days <=> OLD.duration_days) THEN
-        SIGNAL SQLSTATE '45000'
-            SET MESSAGE_TEXT = 'service duration identity is immutable';
-    END IF;
-END;
 
 CREATE TABLE service_code_generate_order (
     id BIGINT NOT NULL AUTO_INCREMENT,
@@ -171,10 +160,6 @@ CREATE TABLE service_code (
     KEY idx_service_code_generate_batch (generate_batch_id),
     KEY idx_service_code_processing_request (processing_request_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TRIGGER trg_service_code_code_immutable
-BEFORE UPDATE ON service_code
-FOR EACH ROW SET NEW.code = OLD.code;
 
 CREATE TABLE service_code_transfer (
     id BIGINT NOT NULL AUTO_INCREMENT,

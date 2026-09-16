@@ -46,6 +46,8 @@
 
 Vantix 尚未正式生产发布，当前 schema 已 squash 为新的 V1 baseline。任何使用旧 V1~V9 migration 的开发/测试数据库都必须由开发人员手工删除并重新创建；不支持把 pre-release legacy business data 原地升级到新 baseline。正式第一次生产部署后，V1 将被冻结，后续 schema 变化才使用 V2/V3/...。
 
+当前开发目标数据库为 TXSQL `5.7.33-v17-txsql-22.6.0-20240227`。V1 保持单一的 pre-release baseline，避免依赖数据库 Trigger；服务时长规格的 `spec_code`、`service_type`、`duration_days` 与服务码的 `code` 由应用层显式 UPDATE contract 和 SQL 测试保证不可变。本说明不表示 TXSQL 与 MySQL 5.7 完全等价。
+
 开发环境重建示例：
 
 ```sql

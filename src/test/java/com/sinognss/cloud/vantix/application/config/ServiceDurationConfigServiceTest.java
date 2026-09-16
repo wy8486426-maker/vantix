@@ -102,7 +102,7 @@ class ServiceDurationConfigServiceTest {
         assertEquals(false, updated.enabled());
         assertEquals("changed", updated.remark());
         assertEquals(7L, config.getUpdatedBy());
-        verify(mapper).updateById(config);
+        verify(mapper).updateMutableFields(1L, "新月度规格", 6, 7, false, "changed", 7L);
     }
 
     private ServiceDurationConfig existingMonth() {

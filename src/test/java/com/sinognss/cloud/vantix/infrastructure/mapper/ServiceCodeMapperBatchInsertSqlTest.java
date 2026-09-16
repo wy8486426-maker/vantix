@@ -34,6 +34,7 @@ class ServiceCodeMapperBatchInsertSqlTest {
         String sql = boundSql.getSql().replaceAll("\\s+", " ").trim();
 
         assertTrue(sql.contains("INSERT INTO service_code"));
+        assertTrue(sql.matches("(?is).*INSERT INTO service_code\\s*\\(.*\\bcode\\b.*"), sql);
         assertEquals(1, sql.split("\\)\\s*,\\s*\\(", -1).length - 1, sql);
         assertEquals(36, boundSql.getParameterMappings().size());
         assertEquals(6, boundSql.getParameterMappings().stream()
