@@ -5,6 +5,8 @@ import com.sinognss.cloud.vantix.application.cors.CorsOperationStateService;
 import com.sinognss.cloud.vantix.common.exception.BusinessException;
 import com.sinognss.cloud.vantix.common.exception.ErrorCode;
 import com.sinognss.cloud.vantix.domain.account.ServiceAccount;
+import com.sinognss.cloud.vantix.domain.account.AccountSource;
+import com.sinognss.cloud.vantix.domain.account.AccountSourceInvariant;
 import com.sinognss.cloud.vantix.domain.cors.CorsOperation;
 import com.sinognss.cloud.vantix.domain.exchange.ExchangeBatch;
 import com.sinognss.cloud.vantix.domain.exchange.ExchangeDetail;
@@ -173,6 +175,7 @@ public class ServiceCodeExchangeFinalizeService {
                     "兑换服务码快照内容无效");
         }
         ServiceAccount account = new ServiceAccount();
+        account.setAccountSource(AccountSource.EXCHANGE);
         account.setCorsAccountId(String.valueOf(corsAccount.id()));
         account.setAccount(corsAccount.name());
         account.setOwnerCompanyId(snapshot.ownerCompanyId());
@@ -189,6 +192,7 @@ public class ServiceCodeExchangeFinalizeService {
         account.setVersion(0L);
         account.setCreatedAt(now);
         account.setUpdatedAt(now);
+        AccountSourceInvariant.validate(account);
         return account;
     }
 

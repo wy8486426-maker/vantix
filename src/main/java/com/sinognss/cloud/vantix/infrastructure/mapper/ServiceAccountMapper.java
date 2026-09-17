@@ -37,4 +37,26 @@ public interface ServiceAccountMapper extends BaseMapper<ServiceAccount> {
                                                                 @Param("limit") int limit);
 
     ServiceAccount selectForCorsRealtimeRefreshByAccount(@Param("account") String account);
+
+    @Select({"<script>",
+            "SELECT * FROM service_account WHERE cors_account_id IN",
+            "<foreach collection='corsAccountIds' item='corsAccountId' open='(' separator=',' close=')'>",
+            "#{corsAccountId}",
+            "</foreach>",
+            "</script>"})
+    List<ServiceAccount> selectByCorsAccountIds(@Param("corsAccountIds") List<String> corsAccountIds);
+
+    @Select({"<script>",
+            "SELECT * FROM service_account WHERE account IN",
+            "<foreach collection='accounts' item='account' open='(' separator=',' close=')'>",
+            "#{account}",
+            "</foreach>",
+            "</script>"})
+    List<ServiceAccount> selectByAccountNames(@Param("accounts") List<String> accounts);
+
+    @Select("SELECT * FROM service_account WHERE test_issue_batch_id = #{batchId} ORDER BY id")
+    List<ServiceAccount> selectByTestIssueBatchId(@Param("batchId") Long batchId);
+
+    @Select("SELECT * FROM service_account WHERE history_import_batch_id = #{batchId} ORDER BY id")
+    List<ServiceAccount> selectByHistoryImportBatchId(@Param("batchId") Long batchId);
 }

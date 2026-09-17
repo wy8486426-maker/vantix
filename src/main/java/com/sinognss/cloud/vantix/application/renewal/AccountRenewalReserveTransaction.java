@@ -7,6 +7,7 @@ import com.sinognss.cloud.vantix.common.exception.ErrorCode;
 import com.sinognss.cloud.vantix.common.user.OperatorIdentity;
 import com.sinognss.cloud.vantix.common.user.UserScope;
 import com.sinognss.cloud.vantix.domain.account.ServiceAccount;
+import com.sinognss.cloud.vantix.domain.account.AccountSource;
 import com.sinognss.cloud.vantix.domain.cors.CorsOperation;
 import com.sinognss.cloud.vantix.domain.renewal.AccountRenewal;
 import com.sinognss.cloud.vantix.domain.renewal.AccountRenewalCodeSnapshot;
@@ -55,6 +56,7 @@ public class AccountRenewalReserveTransaction {
         ServiceAccount account = accountMapper.selectByIdForUpdate(command.serviceAccountId());
         if (account == null) throw new BusinessException(ErrorCode.NOT_FOUND, "服务账号不存在");
         AccountRenewalReserveService.assertAccess(scope, account.getOwnerCompanyId(), account.getAssignedUserId());
+        assertRenewableSource(account);
         if (!hasIdentity(account)) {
             throw new BusinessException(ErrorCode.ACCOUNT_RENEWAL_STATE_INCONSISTENT,
                     "服务账号缺少 CORS 账号标识");
@@ -147,6 +149,15 @@ public class AccountRenewalReserveTransaction {
     private static boolean hasIdentity(ServiceAccount account) {
         return account.getOwnerCompanyId() != null && nonblank(account.getCorsAccountId())
                 && nonblank(account.getAccount());
+    }
+
+    private static void assertRenewableSource(ServiceAccount account) {
+        if (account.getAccountSource() != AccountSource.EXCHANGE) {
+            String message = account.getAccountSource() == AccountSource.TEST
+                    ? "测试账号暂不支持服务码续期"
+                    : "历史导入账号暂不支持服务码续期";
+            throw new BusinessException(ErrorCode.ACCOUNT_SOURCE_NOT_RENEWABLE, message);
+        }
     }
 
     private static void validateCode(ServiceCode code, ServiceAccount account, LocalDateTime now) {

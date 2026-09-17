@@ -30,6 +30,14 @@ public interface CorsOperationMapper extends BaseMapper<CorsOperation> {
     List<Long> selectDueIds(@Param("now") LocalDateTime now, @Param("limit") int limit);
 
     @Select({"<script>",
+            "SELECT id FROM cors_operation WHERE operation_type = 'TEST_ACCOUNT_CREATE'",
+            "AND biz_type = 'TEST_ACCOUNT_ISSUE_BATCH' AND status IN ('PENDING', 'RETRY_WAIT')",
+            "AND (next_retry_at IS NULL OR next_retry_at &lt;= #{now})",
+            "ORDER BY created_at, id LIMIT #{limit}",
+            "</script>"})
+    List<Long> selectDueTestAccountIssueIds(@Param("now") LocalDateTime now, @Param("limit") int limit);
+
+    @Select({"<script>",
             "SELECT id FROM cors_operation WHERE operation_type = 'RENEW_ACCOUNT'",
             "AND biz_type = 'ACCOUNT_RENEWAL' AND status IN ('PENDING', 'RETRY_WAIT')",
             "AND (next_retry_at IS NULL OR next_retry_at &lt;= #{now})",
@@ -51,6 +59,14 @@ public interface CorsOperationMapper extends BaseMapper<CorsOperation> {
             "</script>"})
     List<CorsOperation> selectStaleClaimed(@Param("cutoff") LocalDateTime cutoff,
                                            @Param("limit") int limit);
+
+    @Select({"<script>",
+            "SELECT * FROM cors_operation WHERE operation_type = 'TEST_ACCOUNT_CREATE'",
+            "AND biz_type = 'TEST_ACCOUNT_ISSUE_BATCH' AND status = 'CLAIMED'",
+            "AND claimed_at &lt; #{cutoff} ORDER BY claimed_at, id LIMIT #{limit}",
+            "</script>"})
+    List<CorsOperation> selectStaleTestAccountIssueClaimed(@Param("cutoff") LocalDateTime cutoff,
+                                                            @Param("limit") int limit);
 
     @Select({"<script>",
             "SELECT * FROM cors_operation WHERE operation_type = 'RENEW_ACCOUNT'",

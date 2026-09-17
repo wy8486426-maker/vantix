@@ -19,6 +19,18 @@ public interface ServiceAccountQueryMapper {
             @Param("scopeCompanyId") Long scopeCompanyId,
             @Param("scopeAssignedUserId") Long scopeAssignedUserId);
 
+    IPage<ServiceAccountQueryRow> pageForFrontendWithSource(
+            IPage<?> page,
+            @Param("keyword") String keyword,
+            @Param("status") String status,
+            @Param("specCode") String specCode,
+            @Param("durationDays") Integer durationDays,
+            @Param("ownerCompanyId") Long ownerCompanyId,
+            @Param("assignedUserId") Long assignedUserId,
+            @Param("scopeCompanyId") Long scopeCompanyId,
+            @Param("scopeAssignedUserId") Long scopeAssignedUserId,
+            @Param("accountSource") com.sinognss.cloud.vantix.domain.account.AccountSource accountSource);
+
     ServiceAccountStatisticsRow statistics(
             @Param("keyword") String keyword,
             @Param("specCode") String specCode,

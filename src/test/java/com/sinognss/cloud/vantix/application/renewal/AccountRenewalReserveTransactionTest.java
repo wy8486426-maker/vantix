@@ -7,6 +7,7 @@ import com.sinognss.cloud.vantix.common.exception.ErrorCode;
 import com.sinognss.cloud.vantix.common.user.OperatorIdentity;
 import com.sinognss.cloud.vantix.common.user.UserScope;
 import com.sinognss.cloud.vantix.domain.account.ServiceAccount;
+import com.sinognss.cloud.vantix.domain.account.AccountSource;
 import com.sinognss.cloud.vantix.domain.cors.CorsOperation;
 import com.sinognss.cloud.vantix.domain.renewal.AccountRenewal;
 import com.sinognss.cloud.vantix.domain.servicecode.ServiceCode;
@@ -199,6 +200,22 @@ class AccountRenewalReserveTransactionTest {
         assertThrows(BusinessException.class,
                 () -> service.reserve(new CreateAccountRenewalCommand("RN-2", 11L, 21L),
                         new UserScope(23L, 7L), new OperatorIdentity(23L, "operator")));
+    }
+
+    @Test
+    void nonExchangeAccountIsRejectedBeforeReadingOrReservingServiceCode() {
+        ServiceAccount testAccount = account();
+        testAccount.setAccountSource(AccountSource.TEST);
+        when(accountMapper.selectByIdForUpdate(11L)).thenReturn(testAccount);
+
+        BusinessException error = assertThrows(BusinessException.class,
+                () -> service.reserve(command(), new UserScope(23L, 7L), new OperatorIdentity(23L, "operator")));
+
+        assertEquals(ErrorCode.ACCOUNT_SOURCE_NOT_RENEWABLE, error.getVantixErrorCode());
+        verify(serviceCodeMapper, never()).selectByIdForUpdate(anyLong());
+        verify(serviceCodeMapper, never()).reserveForRenewal(anyLong(), anyLong(), anyString(), anyLong(), any());
+        verify(renewalMapper, never()).insert(any(AccountRenewal.class));
+        verify(operationMapper, never()).insert(any(CorsOperation.class));
     }
 
     private static CreateAccountRenewalCommand command() {

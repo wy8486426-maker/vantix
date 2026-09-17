@@ -45,6 +45,7 @@ class MySqlFreshSchemaMigrationIntegrationTest {
                 "company_exchange_config",
                 "service_code_generate_order", "service_code_generate_batch", "service_code",
                 "service_code_transfer", "exchange_batch", "exchange_detail", "service_account",
+                "test_account_issue_batch", "history_account_import_batch",
                 "account_renewal", "cors_operation", "cors_event_record", "account_password_action"));
         assertNoLegacyColumns(jdbc);
         assertColumns(jdbc, "service_duration_config", List.of(
@@ -53,10 +54,21 @@ class MySqlFreshSchemaMigrationIntegrationTest {
         assertColumns(jdbc, "service_code", List.of(
                 "spec_code", "service_type", "duration_days", "code_silence_days"));
         assertColumns(jdbc, "service_account", List.of(
+                "account_source", "test_issue_batch_id", "history_import_batch_id",
                 "spec_code", "service_type", "duration_days", "account_silence_days",
                 "cors_status", "cors_activation_status", "activated_at", "expire_at",
                 "cors_created_at", "cors_updated_at", "last_sync_at", "status_sync_next_at",
                 "status_sync_last_attempt_at", "status_sync_failure_count"));
+        assertPlainNullableColumn(jdbc, "service_account", "source_service_code_id");
+        assertColumns(jdbc, "test_account_issue_batch", List.of(
+                "issue_batch_no", "request_id", "owner_company_id", "spec_code", "service_type",
+                "duration_days", "account_silence_days", "quantity", "account_prefix", "payload_hash",
+                "status", "operator_user_id", "operator_user_name", "last_error_code", "last_error_message",
+                "completed_at", "created_at", "updated_at"));
+        assertColumns(jdbc, "history_account_import_batch", List.of(
+                "import_batch_no", "request_id", "owner_company_id", "spec_code", "service_type",
+                "duration_days", "account_silence_days", "quantity", "payload_hash", "status",
+                "operator_user_id", "operator_user_name", "created_at", "completed_at", "updated_at"));
         assertColumns(jdbc, "exchange_batch", List.of(
                 "exchange_batch_no", "request_id", "owner_company_id", "assigned_user_id",
                 "generation_source", "spec_code", "display_name", "service_type", "duration_days",

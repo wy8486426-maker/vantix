@@ -43,6 +43,8 @@ class FrontendQueryMapperSqlTest {
         assertNotNull(configuration.getMappedStatement(
                 "com.sinognss.cloud.vantix.infrastructure.mapper.ServiceAccountQueryMapper.pageForFrontend"));
         assertNotNull(configuration.getMappedStatement(
+                "com.sinognss.cloud.vantix.infrastructure.mapper.ServiceAccountQueryMapper.pageForFrontendWithSource"));
+        assertNotNull(configuration.getMappedStatement(
                 "com.sinognss.cloud.vantix.infrastructure.mapper.ServiceAccountQueryMapper.statistics"));
         assertNotNull(configuration.getMappedStatement(
                 "com.sinognss.cloud.vantix.infrastructure.mapper.ServiceAccountQueryMapper.detailForFrontend"));

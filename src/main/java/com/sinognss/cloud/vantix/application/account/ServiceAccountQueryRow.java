@@ -1,5 +1,6 @@
 package com.sinognss.cloud.vantix.application.account;
 
+import com.sinognss.cloud.vantix.domain.account.AccountSource;
 import java.time.LocalDateTime;
 
 public class ServiceAccountQueryRow {
@@ -16,11 +17,13 @@ public class ServiceAccountQueryRow {
     private Long ownerCompanyId;
     private String ownerCompanyName;
     private Long assignedUserId;
+    private AccountSource accountSource;
     private Long sourceServiceCodeId;
     private String sourceServiceCode;
     private Long exchangeBatchId;
     private String exchangeBatchNo;
     private String exchangeRequestId;
+    private LocalDateTime exchangeAt;
     private LocalDateTime activatedAt;
     private LocalDateTime expireAt;
     private LocalDateTime corsCreatedAt;
@@ -55,6 +58,8 @@ public class ServiceAccountQueryRow {
     public void setOwnerCompanyName(String ownerCompanyName) { this.ownerCompanyName = ownerCompanyName; }
     public Long getAssignedUserId() { return assignedUserId; }
     public void setAssignedUserId(Long assignedUserId) { this.assignedUserId = assignedUserId; }
+    public AccountSource getAccountSource() { return accountSource; }
+    public void setAccountSource(AccountSource accountSource) { this.accountSource = accountSource; }
     public Long getSourceServiceCodeId() { return sourceServiceCodeId; }
     public void setSourceServiceCodeId(Long sourceServiceCodeId) { this.sourceServiceCodeId = sourceServiceCodeId; }
     public String getSourceServiceCode() { return sourceServiceCode; }
@@ -65,6 +70,8 @@ public class ServiceAccountQueryRow {
     public void setExchangeBatchNo(String exchangeBatchNo) { this.exchangeBatchNo = exchangeBatchNo; }
     public String getExchangeRequestId() { return exchangeRequestId; }
     public void setExchangeRequestId(String exchangeRequestId) { this.exchangeRequestId = exchangeRequestId; }
+    public LocalDateTime getExchangeAt() { return exchangeAt; }
+    public void setExchangeAt(LocalDateTime exchangeAt) { this.exchangeAt = exchangeAt; }
     public LocalDateTime getActivatedAt() { return activatedAt; }
     public void setActivatedAt(LocalDateTime activatedAt) { this.activatedAt = activatedAt; }
     public LocalDateTime getExpireAt() { return expireAt; }

@@ -3,6 +3,7 @@ package com.sinognss.cloud.vantix.application.exchange;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.sinognss.cloud.vantix.domain.account.ServiceAccount;
+import com.sinognss.cloud.vantix.domain.account.AccountSource;
 import com.sinognss.cloud.vantix.domain.cors.CorsOperation;
 import com.sinognss.cloud.vantix.domain.exchange.ExchangeBatch;
 import com.sinognss.cloud.vantix.domain.exchange.ExchangeDetail;
@@ -93,6 +94,8 @@ class ServiceCodeExchangeFinalizeServiceTest {
                 accounts.stream().map(ServiceAccount::getAccount).toList());
         assertEquals(List.of("10001", "10002"),
                 accounts.stream().map(ServiceAccount::getCorsAccountId).toList());
+        assertEquals(List.of(AccountSource.EXCHANGE, AccountSource.EXCHANGE),
+                accounts.stream().map(ServiceAccount::getAccountSource).toList());
 
         ArgumentCaptor<List<ExchangeDetailMapper.CompletedAccountRow>> detailCaptor =
                 ArgumentCaptor.forClass((Class) List.class);

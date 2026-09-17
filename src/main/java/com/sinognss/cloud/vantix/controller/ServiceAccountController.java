@@ -4,6 +4,7 @@ import com.sinognss.cloud.vantix.application.account.ServiceAccountPageQuery;
 import com.sinognss.cloud.vantix.application.account.ServiceAccountQueryService;
 import com.sinognss.cloud.vantix.application.account.ServiceAccountStatisticsQuery;
 import com.sinognss.cloud.vantix.common.api.CommonResultAdapter;
+import com.sinognss.cloud.vantix.domain.account.AccountSource;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import org.springframework.validation.annotation.Validated;
@@ -30,9 +31,10 @@ public class ServiceAccountController {
                        @RequestParam(required = false) @Size(max = 32) String specCode,
                        @RequestParam(required = false) @Positive Integer durationDays,
                        @RequestParam(required = false) @Positive Long ownerCompanyId,
-                       @RequestParam(required = false) @Positive Long assignedUserId) {
+                       @RequestParam(required = false) @Positive Long assignedUserId,
+                       @RequestParam(required = false) AccountSource accountSource) {
         return CommonResultAdapter.success(service.page(new ServiceAccountPageQuery(current, size, keyword, status,
-                specCode, durationDays, ownerCompanyId, assignedUserId)));
+                specCode, durationDays, ownerCompanyId, assignedUserId, accountSource)));
     }
 
     @GetMapping("/statistics")

@@ -6,6 +6,7 @@ import com.sinognss.cloud.vantix.common.exception.BusinessException;
 import com.sinognss.cloud.vantix.common.exception.ErrorCode;
 import com.sinognss.cloud.vantix.common.user.UserHolderBridge;
 import com.sinognss.cloud.vantix.common.user.UserScope;
+import com.sinognss.cloud.vantix.domain.account.AccountSource;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceAccountQueryMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -95,5 +96,27 @@ class ServiceAccountQueryServiceTest {
         assertEquals(new ServiceAccountStatistics(4, 1, 1, 1, 1), result);
         verify(mapper).statistics(eq("x"), eq("S1"), eq(30), eq(null), eq(null), eq(null), eq(null));
         verify(mapper, never()).detailForFrontend(any(), any(), any());
+    }
+
+    @Test
+    void pageCanFilterByAccountSourceAndReturnsItInTheView() {
+        when(userHolder.getUserScope()).thenReturn(new UserScope(null, null));
+        Page<ServiceAccountQueryRow> page = new Page<>(1, 20);
+        ServiceAccountQueryRow row = new ServiceAccountQueryRow();
+        row.setAccountSource(AccountSource.HISTORY_IMPORT);
+        row.setExchangeAt(null);
+        row.setExchangeBatchNo(null);
+        page.setRecords(java.util.List.of(row));
+        when(mapper.pageForFrontendWithSource(any(), eq(null), eq(null), eq(null), eq(null), eq(null), eq(null),
+                eq(null), eq(null), eq(AccountSource.HISTORY_IMPORT))).thenReturn(page);
+
+        ServiceAccountView result = service.page(new ServiceAccountPageQuery(1, 20, null, null, null, null,
+                null, null, AccountSource.HISTORY_IMPORT)).records().get(0);
+
+        assertEquals(AccountSource.HISTORY_IMPORT, result.accountSource());
+        assertEquals(null, result.exchangeAt());
+        assertEquals(null, result.exchangeBatchNo());
+        verify(mapper).pageForFrontendWithSource(any(), eq(null), eq(null), eq(null), eq(null), eq(null), eq(null),
+                eq(null), eq(null), eq(AccountSource.HISTORY_IMPORT));
     }
 }

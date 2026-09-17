@@ -14,9 +14,12 @@ public class ServiceAccount {
     private String account;
     private Long ownerCompanyId;
     private Long assignedUserId;
+    private AccountSource accountSource = AccountSource.EXCHANGE;
     private Long sourceServiceCodeId;
     private Long exchangeBatchId;
     private Long exchangeDetailId;
+    private Long testIssueBatchId;
+    private Long historyImportBatchId;
     private String specCode;
     private String serviceType;
     private Integer durationDays;
@@ -46,12 +49,18 @@ public class ServiceAccount {
     public void setOwnerCompanyId(Long ownerCompanyId) { this.ownerCompanyId = ownerCompanyId; }
     public Long getAssignedUserId() { return assignedUserId; }
     public void setAssignedUserId(Long assignedUserId) { this.assignedUserId = assignedUserId; }
+    public AccountSource getAccountSource() { return accountSource; }
+    public void setAccountSource(AccountSource accountSource) { this.accountSource = accountSource; }
     public Long getSourceServiceCodeId() { return sourceServiceCodeId; }
     public void setSourceServiceCodeId(Long sourceServiceCodeId) { this.sourceServiceCodeId = sourceServiceCodeId; }
     public Long getExchangeBatchId() { return exchangeBatchId; }
     public void setExchangeBatchId(Long exchangeBatchId) { this.exchangeBatchId = exchangeBatchId; }
     public Long getExchangeDetailId() { return exchangeDetailId; }
     public void setExchangeDetailId(Long exchangeDetailId) { this.exchangeDetailId = exchangeDetailId; }
+    public Long getTestIssueBatchId() { return testIssueBatchId; }
+    public void setTestIssueBatchId(Long testIssueBatchId) { this.testIssueBatchId = testIssueBatchId; }
+    public Long getHistoryImportBatchId() { return historyImportBatchId; }
+    public void setHistoryImportBatchId(Long historyImportBatchId) { this.historyImportBatchId = historyImportBatchId; }
     public String getSpecCode() { return specCode; }
     public void setSpecCode(String specCode) { this.specCode = specCode; }
     public String getServiceType() { return serviceType; }

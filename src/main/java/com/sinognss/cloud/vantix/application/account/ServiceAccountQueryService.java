@@ -7,6 +7,7 @@ import com.sinognss.cloud.vantix.common.exception.BusinessException;
 import com.sinognss.cloud.vantix.common.exception.ErrorCode;
 import com.sinognss.cloud.vantix.common.user.UserHolderBridge;
 import com.sinognss.cloud.vantix.common.user.UserScope;
+import com.sinognss.cloud.vantix.domain.account.AccountSource;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceAccountQueryMapper;
 import org.springframework.stereotype.Service;
 
@@ -28,9 +29,13 @@ public class ServiceAccountQueryService {
     public PageResponse<ServiceAccountView> page(ServiceAccountPageQuery input) {
         ServiceAccountPageQuery query = validatePage(input);
         Scope scope = resolveScope(query.ownerCompanyId(), query.assignedUserId());
-        IPage<ServiceAccountQueryRow> page = mapper.pageForFrontend(new Page<>(query.current(), query.size()),
-                query.keyword(), query.status(), query.specCode(), query.durationDays(), query.ownerCompanyId(),
-                query.assignedUserId(), scope.companyId(), scope.assignedUserId());
+        IPage<ServiceAccountQueryRow> page = query.accountSource() == null
+                ? mapper.pageForFrontend(new Page<>(query.current(), query.size()), query.keyword(), query.status(),
+                query.specCode(), query.durationDays(), query.ownerCompanyId(), query.assignedUserId(),
+                scope.companyId(), scope.assignedUserId())
+                : mapper.pageForFrontendWithSource(new Page<>(query.current(), query.size()), query.keyword(),
+                query.status(), query.specCode(), query.durationDays(), query.ownerCompanyId(),
+                query.assignedUserId(), scope.companyId(), scope.assignedUserId(), query.accountSource());
         return new PageResponse<>(page.getRecords().stream().map(ServiceAccountView::from).toList(),
                 page.getCurrent(), page.getSize(), page.getTotal(), page.getPages());
     }
@@ -62,7 +67,7 @@ public class ServiceAccountQueryService {
         return new ServiceAccountPageQuery(input.current(), input.size(), normalize(input.keyword(), 100, "keyword"),
                 normalizeStatus(input.status()), normalize(input.specCode(), 32, "specCode"),
                 validatePositive(input.durationDays(), "durationDays"), validatePositive(input.ownerCompanyId(),
-                "ownerCompanyId"), validatePositive(input.assignedUserId(), "assignedUserId"));
+                "ownerCompanyId"), validatePositive(input.assignedUserId(), "assignedUserId"), input.accountSource());
     }
 
     private ServiceAccountStatisticsQuery validateStatistics(ServiceAccountStatisticsQuery input) {
