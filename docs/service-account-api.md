@@ -20,7 +20,15 @@
 
 ## 详情
 
-`GET /api/service-accounts/{id}`
+`GET /api/service-accounts/detail?id={id}`
+
+> **接口地址已变更**
+>
+> 原接口：`GET /api/service-accounts/{id}`
+>
+> 新接口：`GET /api/service-accounts/detail?id={id}`
+>
+> 变更：`id` 从 Path 参数调整为 Query 参数。
 
 返回列表字段及可靠的 CORS 快照字段。GLOBAL 可访问全局；COMPANY 强制当前公司；PERSONAL 强制当前公司和当前 `assigned_user_id`。越权或不存在统一按项目查询模式返回 NOT_FOUND，不暴露 password。
 

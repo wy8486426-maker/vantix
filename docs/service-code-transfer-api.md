@@ -12,7 +12,17 @@
 
 `quantity` 来源于该批次的 `COUNT(*)`，不是 Java 内存计数。SQL 使用聚合列和稳定排序，兼容 MySQL 5.7 `ONLY_FULL_GROUP_BY`。
 
-## `GET /api/service-code-transfers/{transferNo}`
+## `GET /api/service-code-transfers/detail`
+
+> **接口地址已变更**
+>
+> 原接口：`GET /api/service-code-transfers/{transferNo}`
+>
+> 新接口：`GET /api/service-code-transfers/detail?transferNo={transferNo}`
+>
+> 变更：`transferNo` 从 Path 参数调整为 Query 参数。
+
+Query 参数：`transferNo`，必填，转赠批次号。
 
 返回：
 
@@ -40,4 +50,4 @@
 
 明细项包含 `serviceCodeId`、`serviceCode`、`specCode`、历史冻结 `displayName`、`serviceType`、`durationDays`、`expireAt`。`displayName` 从服务码关联的生成批次快照读取，不读取当前规格名称。
 
-GLOBAL 可查看全部；COMPANY 和 PERSONAL 仅可查看当前公司作为转出方或转入方的批次，PERSONAL 不按用户过滤；UNSUPPORTED 或缺少用户上下文拒绝。已有 `GET /api/service-codes/{id}/transfers` 和转赠写接口保持不变。
+GLOBAL 可查看全部；COMPANY 和 PERSONAL 仅可查看当前公司作为转出方或转入方的批次，PERSONAL 不按用户过滤；UNSUPPORTED 或缺少用户上下文拒绝。单码转赠历史现使用 `GET /api/service-codes/transfers/history?id={id}`，原接口为 `GET /api/service-codes/{id}/transfers`；转赠写接口保持不变。

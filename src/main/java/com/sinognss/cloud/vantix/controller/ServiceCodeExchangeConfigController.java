@@ -24,7 +24,7 @@ public class ServiceCodeExchangeConfigController {
         return CommonResultAdapter.success(service.getCurrent());
     }
 
-    @PostMapping
+    @PostMapping("/configure")
     public Object configure(@Valid @RequestBody ExchangeConfigRequest request) {
         return CommonResultAdapter.success(service.configure(request.accountPrefix()));
     }

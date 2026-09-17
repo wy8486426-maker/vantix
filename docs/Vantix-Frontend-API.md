@@ -58,6 +58,35 @@ Vantix 不新增登录接口或 Token Header，继续使用现有 `sino-cloud-ba
 | CompanyStatus | `ACTIVE`, `INACTIVE` |
 | CompanyLevel | `FIRST_LEVEL`, `SECOND_LEVEL` |
 
+## Controller URL 权限兼容改造
+
+由于权限中心按 URL path 分配权限、不区分 HTTP Method，且不支持路径参数，本次对部分 API URL 进行了调整。以下接口使用静态 URL，原路径中的业务标识改为 Query 参数；同路径不同 Method 的接口通过动作后缀拆分。
+
+| 功能 | Method | 原接口 | 新接口 | 参数变化 |
+|---|---|---|---|---|
+| 账号详情 | GET | `/api/service-accounts/{id}` | `/api/service-accounts/detail` | `id` 从 Path 改为 Query |
+| 服务码详情 | GET | `/api/service-codes/{id}` | `/api/service-codes/detail` | `id` 从 Path 改为 Query |
+| 单码转赠历史 | GET | `/api/service-codes/{id}/transfers` | `/api/service-codes/transfers/history` | `id` 从 Path 改为 Query |
+| 兑换配置写入 | POST | `/api/service-code-exchange-config` | `/api/service-code-exchange-config/configure` | 无，增加动作后缀 |
+| 发起兑换 | POST | `/api/service-code-exchanges` | `/api/service-code-exchanges/create` | 无，增加动作后缀 |
+| 兑换结果 | GET | `/api/service-code-exchanges/{requestId}` | `/api/service-code-exchanges/result` | `requestId` 从 Path 改为 Query |
+| 兑换日志详情 | GET | `/api/service-code-exchanges/{requestId}/detail` | `/api/service-code-exchanges/detail` | `requestId` 从 Path 改为 Query |
+| 转赠批次详情 | GET | `/api/service-code-transfers/{transferNo}` | `/api/service-code-transfers/detail` | `transferNo` 从 Path 改为 Query |
+| 来源订单详情 | GET | `/api/service-code-generations/orders/{orderNo}` | `/api/service-code-generations/orders/detail` | `orderNo` 从 Path 改为 Query |
+| 生成批次详情 | GET | `/api/service-code-generation-batches/{batchNo}` | `/api/service-code-generation-batches/detail` | `batchNo` 从 Path 改为 Query |
+| 公司详情 | GET | `/api/companies/{companyId}` | `/api/companies/detail` | `companyId` 从 Path 改为 Query |
+| 公司直属下级 | GET | `/api/companies/{companyId}/children` | `/api/companies/children` | `companyId` 从 Path 改为 Query |
+| 公司上下级维护 | PUT | `/api/companies/{companyId}/parent` | `/api/companies/parent/update` | `companyId` 从 Path 改为 Query |
+| 服务规格创建 | POST | `/api/config/service-durations` | `/api/config/service-durations/create` | 增加动作后缀 |
+| 服务规格更新 | PUT | `/api/config/service-durations/{id}` | `/api/config/service-durations/update` | `id` 从 Path 改为 Query |
+| 服务规格详情 | GET | `/api/config/service-durations/{id}` | `/api/config/service-durations/detail` | `id` 从 Path 改为 Query |
+| 系统公司更新 | PUT | `/api/config/system-company` | `/api/config/system-company/update` | 增加动作后缀 |
+| 发起续期 | POST | `/api/account-renewals` | `/api/account-renewals/create` | 增加动作后缀 |
+| 续期详情 | GET | `/api/account-renewals/{requestId}` | `/api/account-renewals/detail` | `requestId` 从 Path 改为 Query |
+| 密码重置 | POST | `/api/service-accounts/{serviceAccountId}/password/reset` | `/api/service-accounts/password/reset` | `serviceAccountId` 从 Path 改为 Query |
+| 密码重置结果 | GET | `/api/account-password-resets/{requestId}` | `/api/account-password-resets/result` | `requestId` 从 Path 改为 Query |
+| 临时查看密码 | POST | `/api/service-accounts/{serviceAccountId}/password/reveal` | `/api/service-accounts/password/reveal` | `serviceAccountId` 从 Path 改为 Query |
+
 ---
 
 # 1. Dashboard
@@ -179,9 +208,21 @@ GET /api/service-accounts?current=1&size=20&status=ACTIVE&keyword=AB12
 }
 ```
 
-## 2.3 GET `/api/service-accounts/{id}`
+## 2.3 GET `/api/service-accounts/detail`
+
+> **接口地址已变更**
+>
+> 原接口：`GET /api/service-accounts/{id}`
+>
+> 新接口：`GET /api/service-accounts/detail?id={id}`
+>
+> 变更：`id` 从 Path 参数调整为 Query 参数。
 
 **作用**：账号详情。
+
+**Query**：`id`，必填，服务账号 ID。
+
+示例：`GET /api/service-accounts/detail?id=1001`
 
 **响应**：单个账号对象，字段与分页记录一致。
 
@@ -259,9 +300,21 @@ specCode, durationDays, sourceOrderNo, ownerCompanyId
 
 统计接口不接收状态筛选；前端点状态卡片时只把状态加到列表接口。
 
-## 3.3 GET `/api/service-codes/{id}`
+## 3.3 GET `/api/service-codes/detail`
+
+> **接口地址已变更**
+>
+> 原接口：`GET /api/service-codes/{id}`
+>
+> 新接口：`GET /api/service-codes/detail?id={id}`
+>
+> 变更：`id` 从 Path 参数调整为 Query 参数。
 
 **作用**：服务码详情。响应字段同列表单条记录。
+
+**Query**：`id`，必填，服务码 ID。
+
+示例：`GET /api/service-codes/detail?id=501`
 
 ---
 
@@ -286,7 +339,15 @@ specCode, durationDays, sourceOrderNo, ownerCompanyId
 
 未配置时 `configured=false`，配置字段可为 null。
 
-## 4.2 POST `/api/service-code-exchange-config`
+## 4.2 POST `/api/service-code-exchange-config/configure`
+
+> **接口地址已变更**
+>
+> 原接口：`POST /api/service-code-exchange-config`
+>
+> 新接口：`POST /api/service-code-exchange-config/configure`
+>
+> 变更：与 GET 查询接口使用不同静态 URL，请求 Body 不变。
 
 **Body**：
 
@@ -331,7 +392,15 @@ specCode, durationDays, sourceOrderNo, ownerCompanyId
 
 # 6. 服务码兑换 / 兑换日志
 
-## 6.1 POST `/api/service-code-exchanges`
+## 6.1 POST `/api/service-code-exchanges/create`
+
+> **接口地址已变更**
+>
+> 原接口：`POST /api/service-code-exchanges`
+>
+> 新接口：`POST /api/service-code-exchanges/create`
+>
+> 变更：与 GET 日志列表使用不同静态 URL，请求 Body 不变。
 
 **作用**：发起兑换。
 
@@ -361,9 +430,19 @@ specCode, durationDays, sourceOrderNo, ownerCompanyId
 
 `created=false` 表示同一 requestId 已存在并复用。网络超时必须复用同一个 `requestId` 重试。
 
-## 6.2 GET `/api/service-code-exchanges/{requestId}`
+## 6.2 GET `/api/service-code-exchanges/result`
+
+> **接口地址已变更**
+>
+> 原接口：`GET /api/service-code-exchanges/{requestId}`
+>
+> 新接口：`GET /api/service-code-exchanges/result?requestId={requestId}`
+>
+> 变更：`requestId` 从 Path 参数调整为 Query 参数。
 
 **作用**：查询一次兑换处理结果。
+
+**Query**：`requestId`，必填。
 
 **响应 data**：
 
@@ -439,9 +518,19 @@ specCode, ownerCompanyId, createdFrom, createdTo
 
 `displayName` 为首次 reservation 时冻结在 exchange batch 的历史快照。
 
-## 6.4 GET `/api/service-code-exchanges/{requestId}/detail`
+## 6.4 GET `/api/service-code-exchanges/detail`
+
+> **接口地址已变更**
+>
+> 原接口：`GET /api/service-code-exchanges/{requestId}/detail`
+>
+> 新接口：`GET /api/service-code-exchanges/detail?requestId={requestId}`
+>
+> 变更：`requestId` 从 Path 参数调整为 Query 参数。
 
 **作用**：兑换日志详情。
+
+**Query**：`requestId`，必填。
 
 **响应 data**：
 
@@ -508,9 +597,19 @@ specCode, ownerCompanyId, createdFrom, createdTo
 }
 ```
 
-## 7.2 GET `/api/service-codes/{id}/transfers`
+## 7.2 GET `/api/service-codes/transfers/history`
+
+> **接口地址已变更**
+>
+> 原接口：`GET /api/service-codes/{id}/transfers`
+>
+> 新接口：`GET /api/service-codes/transfers/history?id={id}`
+>
+> 变更：`id` 从 Path 参数调整为 Query 参数。
 
 **作用**：查看单个服务码的转赠历史。
+
+**Query**：`id`，必填，服务码 ID。
 
 **响应 data**：
 
@@ -565,7 +664,17 @@ specCode, durationDays
 
 完整响应仍是分页结构。
 
-## 7.4 GET `/api/service-code-transfers/{transferNo}`
+## 7.4 GET `/api/service-code-transfers/detail`
+
+> **接口地址已变更**
+>
+> 原接口：`GET /api/service-code-transfers/{transferNo}`
+>
+> 新接口：`GET /api/service-code-transfers/detail?transferNo={transferNo}`
+>
+> 变更：`transferNo` 从 Path 参数调整为 Query 参数。
+
+**Query**：`transferNo`，必填，转赠批次号。
 
 **响应 data**：
 
@@ -653,9 +762,17 @@ status, ownerCompanyId, createdFrom, createdTo
 }
 ```
 
-## 8.3 GET `/api/service-code-generations/orders/{orderNo}`
+## 8.3 GET `/api/service-code-generations/orders/detail`
 
-**Query**：`companyId` 可选。
+> **接口地址已变更**
+>
+> 原接口：`GET /api/service-code-generations/orders/{orderNo}`
+>
+> 新接口：`GET /api/service-code-generations/orders/detail?orderNo={orderNo}`
+>
+> 变更：`orderNo` 从 Path 参数调整为 Query 参数。
+
+**Query**：`orderNo` 必填，`companyId` 可选。
 
 **响应 data**：数组。
 
@@ -686,7 +803,17 @@ status, ownerCompanyId, createdFrom, createdTo
 ]
 ```
 
-## 8.4 GET `/api/service-code-generation-batches/{batchNo}`
+## 8.4 GET `/api/service-code-generation-batches/detail`
+
+> **接口地址已变更**
+>
+> 原接口：`GET /api/service-code-generation-batches/{batchNo}`
+>
+> 新接口：`GET /api/service-code-generation-batches/detail?batchNo={batchNo}`
+>
+> 变更：`batchNo` 从 Path 参数调整为 Query 参数。
+
+**Query**：`batchNo`，必填，生成批次号。
 
 **响应 data**：
 
@@ -820,13 +947,33 @@ level=FIRST_LEVEL|SECOND_LEVEL
 
 完整响应为分页结构。
 
-## 10.3 GET `/api/companies/{companyId}`
+## 10.3 GET `/api/companies/detail`
+
+> **接口地址已变更**
+>
+> 原接口：`GET /api/companies/{companyId}`
+>
+> 新接口：`GET /api/companies/detail?companyId={companyId}`
+>
+> 变更：`companyId` 从 Path 参数调整为 Query 参数。
 
 **作用**：公司详情。响应字段同 10.1 单条。
 
-## 10.4 GET `/api/companies/{companyId}/children`
+**Query**：`companyId`，必填。
+
+## 10.4 GET `/api/companies/children`
+
+> **接口地址已变更**
+>
+> 原接口：`GET /api/companies/{companyId}/children`
+>
+> 新接口：`GET /api/companies/children?companyId={companyId}`
+>
+> 变更：`companyId` 从 Path 参数调整为 Query 参数。
 
 **作用**：查询直属下级，响应为公司对象数组。
+
+**Query**：`companyId`，必填。
 
 ## 10.5 GET `/api/companies/partners`
 
@@ -847,7 +994,17 @@ level=FIRST_LEVEL|SECOND_LEVEL
 ]
 ```
 
-## 10.6 PUT `/api/companies/{companyId}/parent`
+## 10.6 PUT `/api/companies/parent/update`
+
+> **接口地址已变更**
+>
+> 原接口：`PUT /api/companies/{companyId}/parent`
+>
+> 新接口：`PUT /api/companies/parent/update?companyId={companyId}`
+>
+> 变更：`companyId` 从 Path 参数调整为 Query 参数。
+
+**Query**：`companyId`，必填。
 
 设为二级：
 
@@ -901,11 +1058,29 @@ level=FIRST_LEVEL|SECOND_LEVEL
 ]
 ```
 
-## 11.2 GET `/api/config/service-durations/{id}`
+## 11.2 GET `/api/config/service-durations/detail`
+
+> **接口地址已变更**
+>
+> 原接口：`GET /api/config/service-durations/{id}`
+>
+> 新接口：`GET /api/config/service-durations/detail?id={id}`
+>
+> 变更：`id` 从 Path 参数调整为 Query 参数。
+
+**Query**：`id`，必填，服务规格 ID。
 
 响应为单个服务规格对象。
 
-## 11.3 POST `/api/config/service-durations`
+## 11.3 POST `/api/config/service-durations/create`
+
+> **接口地址已变更**
+>
+> 原接口：`POST /api/config/service-durations`
+>
+> 新接口：`POST /api/config/service-durations/create`
+>
+> 变更：与 GET 列表接口使用不同静态 URL，请求 Body 不变。
 
 **Body**：
 
@@ -923,7 +1098,16 @@ level=FIRST_LEVEL|SECOND_LEVEL
 
 `specCode` 由后端生成。
 
-## 11.4 PUT `/api/config/service-durations/{id}`
+## 11.4 PUT `/api/config/service-durations/update`
+
+> **接口地址已变更**
+>
+> 原接口：`PUT /api/config/service-durations/{id}`
+>
+> 新接口：`PUT /api/config/service-durations/update?id={id}`
+> 变更：`id` 从 Path 参数调整为 Query 参数。
+
+**Query**：`id`，必填，服务规格 ID。
 
 **Body**：
 
@@ -947,7 +1131,15 @@ level=FIRST_LEVEL|SECOND_LEVEL
 10001
 ```
 
-## 11.6 PUT `/api/config/system-company`
+## 11.6 PUT `/api/config/system-company/update`
+
+> **接口地址已变更**
+>
+> 原接口：`PUT /api/config/system-company`
+>
+> 新接口：`PUT /api/config/system-company/update`
+>
+> 变更：与 GET 查询接口使用不同静态 URL，请求 Body 不变。
 
 **Body**：
 
@@ -1003,9 +1195,19 @@ ownerCompanyId, createdFrom, createdTo
 
 完整响应为分页结构。PERSONAL 只能看到分配给当前用户的账号续期记录。
 
-## 12.2 GET `/api/account-renewals/{requestId}`
+## 12.2 GET `/api/account-renewals/detail`
+
+> **接口地址已变更**
+>
+> 原接口：`GET /api/account-renewals/{requestId}`
+>
+> 新接口：`GET /api/account-renewals/detail?requestId={requestId}`
+>
+> 变更：`requestId` 从 Path 参数调整为 Query 参数。
 
 **作用**：续期详情；此 GET 是本地查询，不依赖 CORS renewal 开关。
+
+**Query**：`requestId`，必填。
 
 **响应 data**：
 
@@ -1036,7 +1238,15 @@ ownerCompanyId, createdFrom, createdTo
 }
 ```
 
-## 12.3 POST `/api/account-renewals`
+## 12.3 POST `/api/account-renewals/create`
+
+> **接口地址已变更**
+>
+> 原接口：`POST /api/account-renewals`
+>
+> 新接口：`POST /api/account-renewals/create`
+>
+> 变更：与 GET 日志列表使用不同静态 URL，请求 Body 不变。
 
 > 条件接口：仅当 `vantix.cors.renewal.enabled=true` 且 CORS renewal/status Gateway 可用时注册。
 
@@ -1069,7 +1279,17 @@ ownerCompanyId, createdFrom, createdTo
 
 > 以下接口只有 `vantix.cors.password.enabled=true` 且对应 CORS Gateway 存在时才注册。账号列表/详情不会返回密码。
 
-## 13.1 POST `/api/service-accounts/{serviceAccountId}/password/reset`
+## 13.1 POST `/api/service-accounts/password/reset`
+
+> **接口地址已变更**
+>
+> 原接口：`POST /api/service-accounts/{serviceAccountId}/password/reset`
+>
+> 新接口：`POST /api/service-accounts/password/reset?serviceAccountId={serviceAccountId}`
+>
+> 变更：`serviceAccountId` 从 Path 参数调整为 Query 参数。
+
+**Query**：`serviceAccountId`，必填。
 
 **Body**：
 
@@ -1089,7 +1309,17 @@ ownerCompanyId, createdFrom, createdTo
 }
 ```
 
-## 13.2 GET `/api/account-password-resets/{requestId}`
+## 13.2 GET `/api/account-password-resets/result`
+
+> **接口地址已变更**
+>
+> 原接口：`GET /api/account-password-resets/{requestId}`
+>
+> 新接口：`GET /api/account-password-resets/result?requestId={requestId}`
+>
+> 变更：`requestId` 从 Path 参数调整为 Query 参数。
+
+**Query**：`requestId`，必填。
 
 **响应 data**：
 
@@ -1107,7 +1337,17 @@ ownerCompanyId, createdFrom, createdTo
 }
 ```
 
-## 13.3 POST `/api/service-accounts/{serviceAccountId}/password/reveal`
+## 13.3 POST `/api/service-accounts/password/reveal`
+
+> **接口地址已变更**
+>
+> 原接口：`POST /api/service-accounts/{serviceAccountId}/password/reveal`
+>
+> 新接口：`POST /api/service-accounts/password/reveal?serviceAccountId={serviceAccountId}`
+>
+> 变更：`serviceAccountId` 从 Path 参数调整为 Query 参数。
+
+**Query**：`serviceAccountId`，必填。
 
 **Body**：
 
@@ -1145,13 +1385,13 @@ GET /api/service-codes
 ```text
 GET  /api/service-code-exchange-config
   ↓ 未配置时
-POST /api/service-code-exchange-config
+POST /api/service-code-exchange-config/configure
   ↓
 GET  /api/service-code-exchange-groups
   ↓
-POST /api/service-code-exchanges
+POST /api/service-code-exchanges/create
   ↓
-GET  /api/service-code-exchanges/{requestId}
+GET  /api/service-code-exchanges/result?requestId={requestId}
 ```
 
 ### 账号管理 / 我的账号
@@ -1159,27 +1399,27 @@ GET  /api/service-code-exchanges/{requestId}
 ```text
 GET /api/service-accounts/statistics
 GET /api/service-accounts
-GET /api/service-accounts/{id}
+GET /api/service-accounts/detail?id={id}
 ```
 
 续期：
 
 ```text
-POST /api/account-renewals
-GET  /api/account-renewals/{requestId}
+POST /api/account-renewals/create
+GET  /api/account-renewals/detail?requestId={requestId}
 ```
 
 ### 操作日志
 
 ```text
 兑换：GET /api/service-code-exchanges
-      GET /api/service-code-exchanges/{requestId}/detail
+      GET /api/service-code-exchanges/detail?requestId={requestId}
 
 续期：GET /api/account-renewals
-      GET /api/account-renewals/{requestId}
+      GET /api/account-renewals/detail?requestId={requestId}
 
 转赠：GET /api/service-code-transfers
-      GET /api/service-code-transfers/{transferNo}
+      GET /api/service-code-transfers/detail?transferNo={transferNo}
 ```
 
 ---
@@ -1191,46 +1431,46 @@ GET  /api/account-renewals/{requestId}
 | Dashboard | GET | `/api/dashboard` | 控制台统计 |
 | 账号 | GET | `/api/service-accounts` | 账号分页 |
 | 账号 | GET | `/api/service-accounts/statistics` | 账号统计 |
-| 账号 | GET | `/api/service-accounts/{id}` | 账号详情 |
+| 账号 | GET | `/api/service-accounts/detail`（`id` Query） | 账号详情 |
 | 服务码 | GET | `/api/service-codes` | 服务码分页 |
 | 服务码 | GET | `/api/service-codes/statistics` | 服务码统计 |
-| 服务码 | GET | `/api/service-codes/{id}` | 服务码详情 |
+| 服务码 | GET | `/api/service-codes/detail`（`id` Query） | 服务码详情 |
 | 转赠 | POST | `/api/service-codes/transfers` | 发起转赠 |
-| 转赠 | GET | `/api/service-codes/{id}/transfers` | 单码转赠历史 |
+| 转赠 | GET | `/api/service-codes/transfers/history`（`id` Query） | 单码转赠历史 |
 | 兑换配置 | GET | `/api/service-code-exchange-config` | 查询 prefix |
-| 兑换配置 | POST | `/api/service-code-exchange-config` | 首次设置 prefix |
+| 兑换配置 | POST | `/api/service-code-exchange-config/configure` | 首次设置 prefix |
 | 兑换 | GET | `/api/service-code-exchange-groups` | 可兑换库存分组 |
-| 兑换 | POST | `/api/service-code-exchanges` | 发起兑换 |
-| 兑换 | GET | `/api/service-code-exchanges/{requestId}` | 查询兑换结果 |
+| 兑换 | POST | `/api/service-code-exchanges/create` | 发起兑换 |
+| 兑换 | GET | `/api/service-code-exchanges/result`（`requestId` Query） | 查询兑换结果 |
 | 兑换日志 | GET | `/api/service-code-exchanges` | 日志分页 |
-| 兑换日志 | GET | `/api/service-code-exchanges/{requestId}/detail` | 日志详情 |
+| 兑换日志 | GET | `/api/service-code-exchanges/detail`（`requestId` Query） | 日志详情 |
 | 转赠日志 | GET | `/api/service-code-transfers` | 日志分页 |
-| 转赠日志 | GET | `/api/service-code-transfers/{transferNo}` | 日志详情 |
+| 转赠日志 | GET | `/api/service-code-transfers/detail`（`transferNo` Query） | 日志详情 |
 | 来源订单 | GET | `/api/service-code-generations/orders` | 分页 |
 | 来源订单 | GET | `/api/service-code-generations/orders/statistics` | 统计 |
-| 来源订单 | GET | `/api/service-code-generations/orders/{orderNo}` | 详情 |
-| 生成批次 | GET | `/api/service-code-generation-batches/{batchNo}` | 批次详情 |
+| 来源订单 | GET | `/api/service-code-generations/orders/detail`（`orderNo` Query） | 详情 |
+| 生成批次 | GET | `/api/service-code-generation-batches/detail`（`batchNo` Query） | 批次详情 |
 | 生成批次 | GET | `/api/service-code-generation-batches` | 按订单查批次 |
 | 线下导入 | GET | `/api/service-codes/offline-import/template` | 下载模板 |
 | 线下导入 | POST | `/api/service-codes/offline-import` | 上传 Excel |
 | 公司 | GET | `/api/companies` | 轻量列表 |
 | 公司 | GET | `/api/companies/page` | 全局分页 |
-| 公司 | GET | `/api/companies/{companyId}` | 详情 |
-| 公司 | GET | `/api/companies/{companyId}/children` | 直属下级 |
+| 公司 | GET | `/api/companies/detail`（`companyId` Query） | 详情 |
+| 公司 | GET | `/api/companies/children`（`companyId` Query） | 直属下级 |
 | 公司 | GET | `/api/companies/partners` | 合作伙伴 |
-| 公司 | PUT | `/api/companies/{companyId}/parent` | 维护上下级 |
+| 公司 | PUT | `/api/companies/parent/update`（`companyId` Query） | 维护上下级 |
 | 配置 | GET | `/api/config/service-durations` | 规格列表 |
-| 配置 | GET | `/api/config/service-durations/{id}` | 规格详情 |
-| 配置 | POST | `/api/config/service-durations` | 新建规格 |
-| 配置 | PUT | `/api/config/service-durations/{id}` | 修改规格 |
+| 配置 | GET | `/api/config/service-durations/detail`（`id` Query） | 规格详情 |
+| 配置 | POST | `/api/config/service-durations/create` | 新建规格 |
+| 配置 | PUT | `/api/config/service-durations/update`（`id` Query） | 修改规格 |
 | 配置 | GET | `/api/config/system-company` | 系统公司 |
-| 配置 | PUT | `/api/config/system-company` | 修改系统公司 |
+| 配置 | PUT | `/api/config/system-company/update` | 修改系统公司 |
 | 续期 | GET | `/api/account-renewals` | 日志分页 |
-| 续期 | GET | `/api/account-renewals/{requestId}` | 详情 |
-| 续期 | POST | `/api/account-renewals` | 发起续期（CORS 条件） |
-| 密码 | POST | `/api/service-accounts/{id}/password/reset` | 重置（CORS 条件） |
-| 密码 | GET | `/api/account-password-resets/{requestId}` | 重置结果（CORS 条件） |
-| 密码 | POST | `/api/service-accounts/{id}/password/reveal` | 临时查看（CORS 条件） |
+| 续期 | GET | `/api/account-renewals/detail`（`requestId` Query） | 详情 |
+| 续期 | POST | `/api/account-renewals/create` | 发起续期（CORS 条件） |
+| 密码 | POST | `/api/service-accounts/password/reset`（`serviceAccountId` Query） | 重置（CORS 条件） |
+| 密码 | GET | `/api/account-password-resets/result`（`requestId` Query） | 重置结果（CORS 条件） |
+| 密码 | POST | `/api/service-accounts/password/reveal`（`serviceAccountId` Query） | 临时查看（CORS 条件） |
 
 ---
 

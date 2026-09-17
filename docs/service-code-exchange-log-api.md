@@ -12,6 +12,6 @@ GLOBAL 查询全局。COMPANY/PERSONAL 均限定当前公司；兑换属于公�
 
 ## 详情
 
-既有 `GET /api/service-code-exchanges/{requestId}` 保持原响应和权限语义。新增 `GET /api/service-code-exchanges/{requestId}/detail` 返回 batch 主体及 items。每个 item 返回 `serviceCodeId`、服务码快照、`serviceAccountId`、CORS account ID、账号名和 exchange detail 状态；处理中的明细可能尚无账号 ID。详情也执行公司 scope 校验，其他公司记录按 NOT_FOUND 处理。
+`GET /api/service-code-exchanges/result?requestId={requestId}` 保持原响应和权限语义；原接口为 `GET /api/service-code-exchanges/{requestId}`。兑换日志详情现使用 `GET /api/service-code-exchanges/detail?requestId={requestId}`，原接口为 `GET /api/service-code-exchanges/{requestId}/detail`。两个接口均将 `requestId` 从 Path 参数调整为 Query 参数。每个 item 返回 `serviceCodeId`、服务码快照、`serviceAccountId`、CORS account ID、账号名和 exchange detail 状态；处理中的明细可能尚无账号 ID。详情也执行公司 scope 校验，其他公司记录按 NOT_FOUND 处理。
 
 任何响应都不返回 password。

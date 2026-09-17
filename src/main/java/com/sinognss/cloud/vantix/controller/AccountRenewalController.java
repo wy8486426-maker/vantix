@@ -28,7 +28,7 @@ public class AccountRenewalController {
         this.reserveService = reserveService;
     }
 
-    @PostMapping
+    @PostMapping("/create")
     public Object create(@Valid @RequestBody CreateRequest request) {
         return CommonResultAdapter.success(reserveService.reserve(new CreateAccountRenewalCommand(
                 request.requestId(), request.serviceAccountId(), request.serviceCodeId())));

@@ -18,7 +18,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
         "spring.datasource.url=jdbc:h2:mem:bootcompat;MODE=MySQL;DB_CLOSE_DELAY=-1",
         "spring.datasource.username=sa",
         "spring.datasource.password=",
-        "spring.datasource.driver-class-name=org.h2.Driver"
+        "spring.datasource.driver-class-name=org.h2.Driver",
+        "spring.cloud.nacos.config.import-check.enabled=false"
 })
 class BootBaseCompatibilityTest {
     @Autowired

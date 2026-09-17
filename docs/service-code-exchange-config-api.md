@@ -37,7 +37,15 @@
 }
 ```
 
-## `POST /api/service-code-exchange-config`
+## `POST /api/service-code-exchange-config/configure`
+
+> **接口地址已变更**
+>
+> 原接口：`POST /api/service-code-exchange-config`
+>
+> 新接口：`POST /api/service-code-exchange-config/configure`
+>
+> 变更：与 GET 查询接口使用不同静态 URL，请求 Body 不变。
 
 请求只接受账号前缀，`companyId` 必须从当前 UserScope 获取：
 
@@ -53,6 +61,6 @@
 
 ## 兑换接口变化
 
-`POST /api/service-code-exchanges` 的请求只保留 `requestId`、`companyId`、`specCode`、`generationSource`、`quantity`，不再接受 `accountPrefix`。创建新兑换批次前必须存在公司兑换配置，否则返回 `EXCHANGE_CONFIG_REQUIRED`。
+`POST /api/service-code-exchanges/create` 的请求只保留 `requestId`、`companyId`、`specCode`、`generationSource`、`quantity`，不再接受 `accountPrefix`。创建新兑换批次前必须存在公司兑换配置，否则返回 `EXCHANGE_CONFIG_REQUIRED`。
 
 已有 `requestId` 时先执行原有幂等检查，直接复用 `exchange_batch.account_prefix` 快照，不重新读取当前配置。第一次预留时读取的配置前缀会冻结到 `exchange_batch.account_prefix`，后续重试和 CORS 请求都使用该快照。客户端 payload hash 不包含服务端兑换配置前缀。

@@ -22,6 +22,16 @@ GLOBAL 可查询全部并可选按公司筛选；COMPANY 和 PERSONAL 只查询�
 
 当前只有两种来源，因此 `total = b2b + offline`。
 
-## 已有接口
+## 订单详情
 
-`GET /api/service-code-generations/orders/{orderNo}` 继续保留，用于按来源订单号读取订单及规格批次详情；服务码查询接口及其现有筛选契约不变。
+> **接口地址已变更**
+>
+> 原接口：`GET /api/service-code-generations/orders/{orderNo}`
+>
+> 新接口：`GET /api/service-code-generations/orders/detail?orderNo={orderNo}`
+>
+> 变更：`orderNo` 从 Path 参数调整为 Query 参数，`companyId` 仍为可选 Query 参数。
+
+`GET /api/service-code-generations/orders/detail?orderNo={orderNo}` 用于按来源订单号读取订单及规格批次详情；服务码查询接口及其现有筛选契约不变。
+
+生成批次详情同样已调整：原接口为 `GET /api/service-code-generation-batches/{batchNo}`，新接口为 `GET /api/service-code-generation-batches/detail?batchNo={batchNo}`，`batchNo` 从 Path 参数调整为 Query 参数。

@@ -9,7 +9,6 @@ import jakarta.validation.constraints.Size;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -43,8 +42,8 @@ public class AccountRenewalLogController {
                 ownerCompanyId, createdFrom, createdTo)));
     }
 
-    @GetMapping("/{requestId}")
-    public Object detail(@PathVariable String requestId) {
+    @GetMapping("/detail")
+    public Object detail(@RequestParam String requestId) {
         return CommonResultAdapter.success(queryService.get(requestId));
     }
 }

@@ -8,11 +8,28 @@
 
 返回全部服务规格，包含 `specCode`、`displayName`、`serviceType`、`durationDays`、`codeSilenceDays`、`accountSilenceDays`、`enabled`、`remark`、`createdBy`、`updatedBy` 以及审计时间。服务规格按类型、时长和名称稳定排序。
 
-### `GET /api/config/service-durations/{id}`
+### `GET /api/config/service-durations/detail`
+
+> **接口地址已变更**
+>
+> 原接口：`GET /api/config/service-durations/{id}`
+>
+> 新接口：`GET /api/config/service-durations/detail?id={id}`
+>
+> 变更：`id` 从 Path 参数调整为 Query 参数。
+
+Query 参数：`id`，必填，服务规格 ID。
 
 返回单个服务规格详情；不存在时返回 `NOT_FOUND`。
 
-### `POST /api/config/service-durations`
+### `POST /api/config/service-durations/create`
+
+> **接口地址已变更**
+>
+> 原接口：`POST /api/config/service-durations`
+>
+> 新接口：`POST /api/config/service-durations/create`
+> 变更：与 GET 列表接口使用不同静态 URL，请求 Body 不变。
 
 创建请求字段：
 
@@ -30,7 +47,17 @@
 
 `durationDays` 必须大于 0；两个沉默天数必须大于等于 0。系统生成稳定唯一的 `specCode`，`displayName` 全局唯一。
 
-### `PUT /api/config/service-durations/{id}`
+### `PUT /api/config/service-durations/update`
+
+> **接口地址已变更**
+>
+> 原接口：`PUT /api/config/service-durations/{id}`
+>
+> 新接口：`PUT /api/config/service-durations/update?id={id}`
+>
+> 变更：`id` 从 Path 参数调整为 Query 参数。
+
+Query 参数：`id`，必填，服务规格 ID。
 
 更新请求只接受：
 
@@ -52,7 +79,13 @@
 
 返回当前 `systemCompanyId`。
 
-### `PUT /api/config/system-company`
+### `PUT /api/config/system-company/update`
+
+> **接口地址已变更**
+>
+> 原接口：`PUT /api/config/system-company`
+> 新接口：`PUT /api/config/system-company/update`
+> 变更：与 GET 查询接口使用不同静态 URL，请求 Body 不变。
 
 请求：
 

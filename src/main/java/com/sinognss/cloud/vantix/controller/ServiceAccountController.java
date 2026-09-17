@@ -8,7 +8,6 @@ import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -46,8 +45,8 @@ public class ServiceAccountController {
                 durationDays, ownerCompanyId, assignedUserId)));
     }
 
-    @GetMapping("/{id}")
-    public Object detail(@PathVariable @Positive Long id) {
+    @GetMapping("/detail")
+    public Object detail(@RequestParam @Positive Long id) {
         return CommonResultAdapter.success(service.get(id));
     }
 }

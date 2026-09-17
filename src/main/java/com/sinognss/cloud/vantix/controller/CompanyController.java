@@ -10,7 +10,6 @@ import com.sinognss.cloud.vantix.domain.company.CompanyStatus;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Size;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -38,13 +37,13 @@ public class CompanyController {
         return CommonResultAdapter.success(companyService.list(name, status));
     }
 
-    @GetMapping("/{companyId}")
-    public Object detail(@PathVariable Long companyId) {
+    @GetMapping("/detail")
+    public Object detail(@RequestParam Long companyId) {
         return CommonResultAdapter.success(companyService.get(companyId));
     }
 
-    @GetMapping("/{companyId}/children")
-    public Object children(@PathVariable Long companyId) {
+    @GetMapping("/children")
+    public Object children(@RequestParam Long companyId) {
         return CommonResultAdapter.success(companyService.directChildren(companyId));
     }
 
@@ -64,8 +63,8 @@ public class CompanyController {
         return CommonResultAdapter.success(frontendQueryService.partners(companyId));
     }
 
-    @PutMapping("/{companyId}/parent")
-    public Object updateParent(@PathVariable Long companyId, @Valid @RequestBody UpdateParentRequest request) {
+    @PutMapping("/parent/update")
+    public Object updateParent(@RequestParam Long companyId, @Valid @RequestBody UpdateParentRequest request) {
         return CommonResultAdapter.success(companyService.updateParent(
                 new UpdateCompanyParentCommand(companyId, request.parentCompanyId(), request.reason())));
     }

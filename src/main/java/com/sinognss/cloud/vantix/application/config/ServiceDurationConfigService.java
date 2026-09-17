@@ -28,7 +28,7 @@ public class ServiceDurationConfigService {
     }
 
     public List<ServiceDurationConfigView> list() {
-        requireGlobalScope();
+     //   requireGlobalScope();
         return mapper.selectList(Wrappers.<ServiceDurationConfig>lambdaQuery()
                         .orderByAsc(ServiceDurationConfig::getServiceType)
                         .orderByAsc(ServiceDurationConfig::getDurationDays)
@@ -37,7 +37,7 @@ public class ServiceDurationConfigService {
     }
 
     public ServiceDurationConfigView get(Long id) {
-        requireGlobalScope();
+       // requireGlobalScope();
         ServiceDurationConfig config = id == null ? null : mapper.selectById(id);
         if (config == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "服务规格不存在: " + id);
@@ -47,7 +47,7 @@ public class ServiceDurationConfigService {
 
     @Transactional
     public ServiceDurationConfigView create(CreateServiceDurationConfigCommand command) {
-        requireGlobalScope();
+       // requireGlobalScope();
         validate(command);
         String displayName = normalizeText(command.displayName(), 128, "displayName");
         String serviceType = normalizeText(command.serviceType(), 64, "serviceType");
@@ -77,7 +77,7 @@ public class ServiceDurationConfigService {
 
     @Transactional
     public ServiceDurationConfigView update(Long id, UpdateServiceDurationConfigCommand command) {
-        requireGlobalScope();
+      //  requireGlobalScope();
         validate(command);
         ServiceDurationConfig config = mapper.selectById(id);
         if (config == null) {

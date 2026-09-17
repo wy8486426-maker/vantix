@@ -1,6 +1,6 @@
 spring:
   application:
-    name: vantix
+    name: vantix-service
   datasource:
     url: ${VANTIX_DB_URL:jdbc:mysql://localhost:3306/vantix?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
     username: ${VANTIX_DB_USERNAME:root}

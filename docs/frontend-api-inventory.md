@@ -6,14 +6,14 @@
 | --- | --- | --- |
 | 服务码 | IMPLEMENTED | 现有列表、统计、详情及单码转赠历史 |
 | 配置中心 | IMPLEMENTED | 服务规格列表/详情/创建/更新，系统公司读取/更新；GLOBAL only |
-| 兑换配置 | IMPLEMENTED | `GET/POST /api/service-code-exchange-config` |
+| 兑换配置 | IMPLEMENTED | `GET /api/service-code-exchange-config`、`POST /api/service-code-exchange-config/configure` |
 | 服务码来源订单 | IMPLEMENTED | 订单分页、统计、既有订单号详情 |
 | 客户/合作伙伴 | IMPLEMENTED | `GET /api/companies/page`、`GET /api/companies/partners` |
 | 转赠日志 | IMPLEMENTED | 批次分页、批次详情；按 `transferNo` 聚合 |
 | Dashboard | IMPLEMENTED | `GET /api/dashboard`，实时聚合服务码、账号和操作数量 |
-| Account management | IMPLEMENTED | `GET /api/service-accounts`、`/statistics`、`/{id}` |
-| Exchange logs | IMPLEMENTED | `GET /api/service-code-exchanges`、`/{requestId}`、`/{requestId}/detail` |
-| Renewal logs | IMPLEMENTED | `GET /api/account-renewals`，并保留既有 `/{requestId}` |
+| Account management | IMPLEMENTED | `GET /api/service-accounts`、`/statistics`、`/detail?id=...` |
+| Exchange logs | IMPLEMENTED | `GET /api/service-code-exchanges`、`/result?requestId=...`、`/detail?requestId=...` |
+| Renewal logs | IMPLEMENTED | `GET /api/account-renewals`、`/detail?requestId=...` |
 | SDK | DEFERRED | 本轮不实现 SDK 中心 |
 | Free trial | DEFERRED | 本轮不实现免费试用 |
 | Device | BLOCKED_EXTERNAL | 依赖外部设备能力 |

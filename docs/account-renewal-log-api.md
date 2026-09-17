@@ -14,4 +14,4 @@ GLOBAL 查询全局；COMPANY 强制当前公司；PERSONAL 强制当前公司�
 
 ## 详情
 
-`GET /api/account-renewals/{requestId}` 保留，并与列表一样始终可用，不依赖 `vantix.cors.renewal.enabled`。它继续返回原有 `AccountRenewalView` 契约，并扩展返回账号、公司、来源服务码和生成批次 displayName 等可可靠关联字段。查询权限仍遵守既有续期账号权限，响应不包含 password，也不改变 reserve/process/finalize 状态机；只有 POST 创建续期仍受续期开关和 CORS 能力条件控制。
+`GET /api/account-renewals/detail?requestId={requestId}` 与列表一样始终可用，不依赖 `vantix.cors.renewal.enabled`。原接口为 `GET /api/account-renewals/{requestId}`，`requestId` 从 Path 参数调整为 Query 参数。它继续返回原有 `AccountRenewalView` 契约，并扩展返回账号、公司、来源服务码和生成批次 displayName 等可可靠关联字段。查询权限仍遵守既有续期账号权限，响应不包含 password，也不改变 reserve/process/finalize 状态机；发起续期现使用 `POST /api/account-renewals/create`，原接口为 `POST /api/account-renewals`。

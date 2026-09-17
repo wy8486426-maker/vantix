@@ -7,7 +7,6 @@ import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -22,8 +21,8 @@ public class ServiceCodeGenerationBatchController {
         this.queryService = queryService;
     }
 
-    @GetMapping("/{batchNo}")
-    public Object get(@PathVariable @NotBlank @Size(max = 64) String batchNo) {
+    @GetMapping("/detail")
+    public Object get(@RequestParam @NotBlank @Size(max = 64) String batchNo) {
         return CommonResultAdapter.success(queryService.get(batchNo));
     }
 

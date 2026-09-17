@@ -12,10 +12,10 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -29,8 +29,8 @@ public class AccountPasswordRevealController {
         this.revealService = revealService;
     }
 
-    @PostMapping(value = "/{serviceAccountId}/password/reveal", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<?> reveal(@PathVariable Long serviceAccountId,
+    @PostMapping(value = "/password/reveal", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<?> reveal(@RequestParam Long serviceAccountId,
                                     @Valid @RequestBody RevealRequest request) {
         PasswordRevealResponse response = revealService.reveal(serviceAccountId, request.requestId());
         HttpHeaders headers = new HttpHeaders();

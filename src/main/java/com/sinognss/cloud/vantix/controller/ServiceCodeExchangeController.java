@@ -14,7 +14,6 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -39,20 +38,20 @@ public class ServiceCodeExchangeController {
         this.logQueryService = logQueryService;
     }
 
-    @PostMapping
+    @PostMapping("/create")
     public Object exchange(@Valid @RequestBody ExchangeRequest request) {
         return CommonResultAdapter.success(exchangeService.exchange(new ServiceCodeExchangeCommand(
                 request.requestId(), request.companyId(), request.specCode(), request.generationSource(),
                 request.quantity())));
     }
 
-    @GetMapping("/{requestId}")
-    public Object get(@PathVariable String requestId) {
+    @GetMapping("/result")
+    public Object get(@RequestParam String requestId) {
         return CommonResultAdapter.success(queryService.get(requestId));
     }
 
-    @GetMapping("/{requestId}/detail")
-    public Object detail(@PathVariable String requestId) {
+    @GetMapping("/detail")
+    public Object detail(@RequestParam String requestId) {
         return CommonResultAdapter.success(logQueryService.detail(requestId));
     }
 

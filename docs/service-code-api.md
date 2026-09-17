@@ -93,11 +93,23 @@ keyword 搜索以下字段：服务码 `code`、`service_code.source_order_no`�
 
 五种展示状态互斥且覆盖 `total`，因此 `total = waiting + expiring + expired + processing + consumed`。统计使用同一次请求的 `now` 和 `upcomingAt`，不会加载全部服务码到 Java 内存计数。
 
-## `GET /api/service-codes/{id}`
+## `GET /api/service-codes/detail`
+
+> **接口地址已变更**
+>
+> 原接口：`GET /api/service-codes/{id}`
+>
+> 新接口：`GET /api/service-codes/detail?id={id}`
+>
+> 变更：`id` 从 Path 参数调整为 Query 参数。
+
+Query 参数：`id`，必填，服务码 ID。
 
 详情返回与列表相同的服务码字段：`id`、`code`、`specCode`、`displayName`、`serviceType`、`durationDays`、`codeSilenceDays`、`sourceOrderId`、`sourceOrderNo`、`generateBatchId`、`batchNo`、`ownerCompanyId`、`ownerCompanyName`、`expireAt`、`status`、`displayStatus`、`processingType`、`processingRequestId`、`consumeType`、`consumedAt`、`version`、`createdAt`、`updatedAt`。
 
-详情执行与列表相同的 UserScope 权限检查，不嵌入转赠历史，也不查询 Exchange、CORS 或 `service_account`。转赠历史继续通过 `GET /api/service-codes/{id}/transfers` 独立查询。
+详情执行与列表相同的 UserScope 权限检查，不嵌入转赠历史，也不查询 Exchange、CORS 或 `service_account`。转赠历史现通过 `GET /api/service-codes/transfers/history?id={id}` 独立查询。
+
+> 转赠历史接口地址已变更：原接口为 `GET /api/service-codes/{id}/transfers`，新接口为 `GET /api/service-codes/transfers/history?id={id}`，`id` 从 Path 参数调整为 Query 参数。
 
 ## UserScope
 

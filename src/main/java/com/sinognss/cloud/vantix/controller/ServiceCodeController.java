@@ -14,7 +14,6 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -60,8 +59,8 @@ public class ServiceCodeController {
                 keyword, specCode, durationDays, sourceOrderNo, ownerCompanyId)));
     }
 
-    @GetMapping("/{id}")
-    public Object detail(@PathVariable Long id) {
+    @GetMapping("/detail")
+    public Object detail(@RequestParam Long id) {
         return CommonResultAdapter.success(serviceCodeService.get(id));
     }
 
@@ -71,8 +70,8 @@ public class ServiceCodeController {
                 request.fromCompanyId(), request.toCompanyId(), request.serviceCodeIds(), request.reason())));
     }
 
-    @GetMapping("/{id}/transfers")
-    public Object history(@PathVariable Long id) {
+    @GetMapping("/transfers/history")
+    public Object history(@RequestParam Long id) {
         return CommonResultAdapter.success(transferService.history(id));
     }
 

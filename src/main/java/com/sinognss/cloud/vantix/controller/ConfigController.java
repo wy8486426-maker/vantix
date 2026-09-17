@@ -11,11 +11,11 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -35,18 +35,18 @@ public class ConfigController {
         return CommonResultAdapter.success(durationService.list());
     }
 
-    @PostMapping("/service-durations")
+    @PostMapping("/service-durations/create")
     public Object durationCreate(@Valid @RequestBody CreateServiceDurationRequest request) {
         return CommonResultAdapter.success(durationService.create(request.toCreateCommand()));
     }
 
-    @PutMapping("/service-durations/{id}")
-    public Object durationUpdate(@PathVariable Long id, @Valid @RequestBody UpdateServiceDurationRequest request) {
+    @PutMapping("/service-durations/update")
+    public Object durationUpdate(@RequestParam Long id, @Valid @RequestBody UpdateServiceDurationRequest request) {
         return CommonResultAdapter.success(durationService.update(id, request.toCommand()));
     }
 
-    @GetMapping("/service-durations/{id}")
-    public Object durationDetail(@PathVariable Long id) {
+    @GetMapping("/service-durations/detail")
+    public Object durationDetail(@RequestParam Long id) {
         return CommonResultAdapter.success(durationService.get(id));
     }
 
@@ -55,7 +55,7 @@ public class ConfigController {
         return CommonResultAdapter.success(systemConfigService.getSystemCompanyId());
     }
 
-    @PutMapping("/system-company")
+    @PutMapping("/system-company/update")
     public Object updateSystemCompany(@Valid @RequestBody SystemCompanyRequest request) {
         return CommonResultAdapter.success(systemConfigService.updateSystemCompany(request.systemCompanyId()));
     }
