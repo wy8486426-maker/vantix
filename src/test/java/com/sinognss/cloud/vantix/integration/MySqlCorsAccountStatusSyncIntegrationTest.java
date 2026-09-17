@@ -117,9 +117,9 @@ class MySqlCorsAccountStatusSyncIntegrationTest {
                         + "(?, ?, 1, 'SYNC', 'CORS', 1, 0, ?, 'PENDING', 0)",
                 codeId, "SYNC-CODE-" + codeId, LocalDateTime.of(2027, 1, 1, 0, 0));
         vantixJdbc.update("INSERT INTO service_account (id, cors_account_id, account, owner_company_id, "
-                        + "source_service_code_id, spec_code, service_type, duration_days, account_silence_days, "
+                        + "source_service_code_id, spec_code, display_name, service_type, duration_days, account_silence_days, "
                         + "cors_status, cors_activation_status, activated_at, expire_at, cors_updated_at, version) VALUES "
-                        + "(?, ?, ?, 1, ?, 'SYNC', 'CORS', 1, 0, ?, ?, ?, ?, ?, 0)",
+                        + "(?, ?, ?, 1, ?, 'SYNC', '同步规格', 'CORS', 1, 0, ?, ?, ?, ?, ?, 0)",
                 accountId, String.valueOf(corsAccountId), "cors-account-" + corsAccountId, codeId, status, activationStatus,
                 LocalDateTime.of(2026, 9, 15, 8, 0), LocalDateTime.of(2026, 10, 15, 8, 0), corsUpdatedAt);
     }

@@ -65,6 +65,7 @@ public class HistoryAccountImportTransaction {
                 .findFirst().orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "服务规格不存在: " + command.specCode()));
         if (spec.getDurationDays() == null || spec.getDurationDays() <= 0
+                || spec.getDisplayName() == null || spec.getDisplayName().isBlank()
                 || spec.getAccountSilenceDays() == null || spec.getAccountSilenceDays() < 0
                 || spec.getServiceType() == null || spec.getServiceType().isBlank()) {
             throw new BusinessException(ErrorCode.CONFIG_INVALID, "服务规格配置无效: " + command.specCode());
@@ -84,6 +85,7 @@ public class HistoryAccountImportTransaction {
         batch.setRequestId(command.requestId());
         batch.setOwnerCompanyId(command.companyId());
         batch.setSpecCode(command.specCode());
+        batch.setDisplayName(spec.getDisplayName());
         batch.setServiceType(spec.getServiceType());
         batch.setDurationDays(spec.getDurationDays());
         batch.setAccountSilenceDays(spec.getAccountSilenceDays());
@@ -106,6 +108,7 @@ public class HistoryAccountImportTransaction {
             account.setAccount(input.name());
             account.setOwnerCompanyId(command.companyId());
             account.setSpecCode(spec.getSpecCode());
+            account.setDisplayName(spec.getDisplayName());
             account.setServiceType(spec.getServiceType());
             account.setDurationDays(spec.getDurationDays());
             account.setAccountSilenceDays(spec.getAccountSilenceDays());

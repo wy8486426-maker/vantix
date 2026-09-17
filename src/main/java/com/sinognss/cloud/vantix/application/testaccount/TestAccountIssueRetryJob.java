@@ -23,7 +23,7 @@ public class TestAccountIssueRetryJob {
         this.properties = properties;
     }
 
-    @Scheduled(fixedDelayString = "${vantix.cors-operation.poll-interval:5s}")
+    @Scheduled(fixedDelayString = "${vantix.cors-operation.poll-interval:PT5S}")
     public void poll() {
         try {
             claimService.recoverStaleClaims();

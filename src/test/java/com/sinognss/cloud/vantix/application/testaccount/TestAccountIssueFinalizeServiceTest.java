@@ -52,6 +52,8 @@ class TestAccountIssueFinalizeServiceTest {
         verify(accountMapper).insertBatch(captor.capture());
         assertEquals(List.of(AccountSource.TEST, AccountSource.TEST),
                 captor.getValue().stream().map(ServiceAccount::getAccountSource).toList());
+        assertEquals(List.of("测试规格", "测试规格"),
+                captor.getValue().stream().map(ServiceAccount::getDisplayName).toList());
         assertTrue(captor.getValue().stream().allMatch(account -> account.getSourceServiceCodeId() == null
                 && account.getExchangeBatchId() == null && account.getExchangeDetailId() == null
                 && account.getExchangeAt() == null && account.getTestIssueBatchId().equals(9L)
@@ -76,6 +78,7 @@ class TestAccountIssueFinalizeServiceTest {
         batch.setId(9L);
         batch.setOwnerCompanyId(123L);
         batch.setSpecCode("S1");
+        batch.setDisplayName("测试规格");
         batch.setServiceType("STANDARD");
         batch.setDurationDays(365);
         batch.setAccountSilenceDays(30);

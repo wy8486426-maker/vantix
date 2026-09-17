@@ -11,6 +11,7 @@ import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceAccountMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceDurationConfigMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.dao.DuplicateKeyException;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -39,6 +40,7 @@ class HistoryAccountImportTransactionTest {
         when(companyMapper.selectCount(any())).thenReturn(1L);
         ServiceDurationConfig spec = new ServiceDurationConfig();
         spec.setSpecCode("OLD");
+        spec.setDisplayName("历史规格");
         spec.setServiceType("STANDARD");
         spec.setDurationDays(30);
         spec.setAccountSilenceDays(12);
@@ -58,12 +60,14 @@ class HistoryAccountImportTransactionTest {
                 new OperatorIdentity(7L, "operator"));
 
         assertEquals(8L, result.getId());
+        assertEquals("历史规格", result.getDisplayName());
         ArgumentCaptor<List<ServiceAccount>> captor = ArgumentCaptor.forClass((Class) List.class);
         verify(accountMapper).insertBatch(captor.capture());
         ServiceAccount account = captor.getValue().get(0);
         assertEquals(AccountSource.HISTORY_IMPORT, account.getAccountSource());
         assertEquals("10001", account.getCorsAccountId());
         assertEquals("legacy-1", account.getAccount());
+        assertEquals("历史规格", account.getDisplayName());
         assertEquals(8L, account.getHistoryImportBatchId());
         assertEquals(null, account.getExchangeAt());
     }
@@ -86,6 +90,31 @@ class HistoryAccountImportTransactionTest {
         assertThrows(RuntimeException.class, () -> transaction.importBatch(duplicate, "hash",
                 new OperatorIdentity(7L, "operator")));
         verify(accountMapper, never()).insertBatch(anyList());
+    }
+
+    @Test
+    void duplicateAccountInsertStopsBatchCompletionForTransactionRollback() {
+        when(batchMapper.selectByRequestId("H-1")).thenReturn(null);
+        when(companyMapper.selectCount(any())).thenReturn(1L);
+        ServiceDurationConfig spec = new ServiceDurationConfig();
+        spec.setSpecCode("OLD");
+        spec.setDisplayName("历史规格");
+        spec.setServiceType("STANDARD");
+        spec.setDurationDays(30);
+        spec.setAccountSilenceDays(12);
+        when(durationMapper.selectBySpecCodes(List.of("OLD"))).thenReturn(List.of(spec));
+        when(accountMapper.selectByCorsAccountIds(anyList())).thenReturn(List.of());
+        when(accountMapper.selectByAccountNames(anyList())).thenReturn(List.of());
+        when(batchMapper.insert(any(HistoryAccountImportBatch.class))).thenAnswer(invocation -> {
+            ((HistoryAccountImportBatch) invocation.getArgument(0)).setId(8L);
+            return 1;
+        });
+        when(accountMapper.insertBatch(anyList())).thenThrow(new DuplicateKeyException("uk_service_account_account"));
+
+        assertThrows(DuplicateKeyException.class, () -> transaction.importBatch(command(), "hash",
+                new OperatorIdentity(7L, "operator")));
+
+        verify(batchMapper, never()).complete(any(), any());
     }
 
     private static HistoryAccountImportCommand command() {

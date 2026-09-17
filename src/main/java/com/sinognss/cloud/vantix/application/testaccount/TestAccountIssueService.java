@@ -113,6 +113,7 @@ public class TestAccountIssueService {
         batch.setRequestId(command.requestId());
         batch.setOwnerCompanyId(command.companyId());
         batch.setSpecCode(command.specCode());
+        batch.setDisplayName(spec.getDisplayName());
         batch.setServiceType(spec.getServiceType());
         batch.setDurationDays(spec.getDurationDays());
         batch.setAccountSilenceDays(spec.getAccountSilenceDays());
@@ -183,7 +184,8 @@ public class TestAccountIssueService {
 
     private static void validateSpec(ServiceDurationConfig spec, String specCode) {
         if (spec == null) throw new BusinessException(ErrorCode.NOT_FOUND, "服务规格不存在或未启用: " + specCode);
-        if (spec.getDurationDays() == null || spec.getDurationDays() <= 0
+        if (spec.getDisplayName() == null || spec.getDisplayName().isBlank()
+                || spec.getDurationDays() == null || spec.getDurationDays() <= 0
                 || spec.getAccountSilenceDays() == null || spec.getAccountSilenceDays() < 0
                 || spec.getServiceType() == null || spec.getServiceType().isBlank()) {
             throw new BusinessException(ErrorCode.CONFIG_INVALID, "服务规格配置无效: " + specCode);

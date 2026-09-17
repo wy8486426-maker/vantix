@@ -68,6 +68,7 @@ public class TestAccountIssueFinalizeService {
             account.setOwnerCompanyId(batch.getOwnerCompanyId());
             account.setAssignedUserId(null);
             account.setSpecCode(batch.getSpecCode());
+            account.setDisplayName(batch.getDisplayName());
             account.setServiceType(batch.getServiceType());
             account.setDurationDays(batch.getDurationDays());
             account.setAccountSilenceDays(batch.getAccountSilenceDays());

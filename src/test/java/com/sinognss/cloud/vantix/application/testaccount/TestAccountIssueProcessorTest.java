@@ -82,6 +82,7 @@ class TestAccountIssueProcessorTest {
         batch.setId(9L);
         batch.setOwnerCompanyId(123L);
         batch.setSpecCode("S1");
+        batch.setDisplayName("测试规格");
         batch.setServiceType("STANDARD");
         batch.setDurationDays(365);
         batch.setAccountSilenceDays(30);

@@ -198,8 +198,8 @@ class MySqlV7AccountRenewalConcurrencyIntegrationTest {
         String requestId = "RENEWAL-LOCK-ORDER";
         long serviceCodeId = insertPendingServiceCode(jdbc, "RENEWAL-LOCK-CODE");
         jdbc.update("INSERT INTO service_account (id, owner_company_id, source_service_code_id, service_type, "
-                        + "spec_code, duration_days, account_silence_days) "
-                        + "VALUES (?, 100, ?, 'CORS', 'RENEWAL', 30, 180)",
+                        + "spec_code, display_name, duration_days, account_silence_days) "
+                        + "VALUES (?, 100, ?, 'CORS', 'RENEWAL', '续期规格', 30, 180)",
                 serviceAccountId, serviceCodeId);
         insertRenewal(jdbc, new RenewalInsert(serviceAccountId, serviceCodeId, requestId, "PROCESSING"));
         SqlSessionFactory sqlSessionFactory = accountRenewalSqlSessionFactory(dataSource);
@@ -295,9 +295,9 @@ class MySqlV7AccountRenewalConcurrencyIntegrationTest {
         String requestId = "RENEWAL-FINALIZE-ROLLBACK";
         String originalExpiry = "2030-01-01 00:00:00.000000";
         jdbc.update("INSERT INTO service_account (id, cors_account_id, account, owner_company_id, "
-                        + "source_service_code_id, spec_code, service_type, duration_days, account_silence_days, "
+                        + "source_service_code_id, spec_code, display_name, service_type, duration_days, account_silence_days, "
                         + "cors_status, cors_activation_status, activated_at, expire_at, cors_updated_at) "
-                        + "VALUES (?, ?, ?, 100, ?, 'RENEWAL', 'CORS', 30, 180, 'ACTIVE', 'ACTIVE', "
+                        + "VALUES (?, ?, ?, 100, ?, 'RENEWAL', '续期规格', 'CORS', 30, 180, 'ACTIVE', 'ACTIVE', "
                         + "'2029-01-01 00:00:00.000', ?, '2029-01-01 00:00:00.000')",
                 serviceAccountId, "cors-" + serviceAccountId, "account-" + serviceAccountId,
                 serviceAccountId, originalExpiry);

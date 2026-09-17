@@ -21,6 +21,7 @@ public class ServiceAccount {
     private Long testIssueBatchId;
     private Long historyImportBatchId;
     private String specCode;
+    private String displayName;
     private String serviceType;
     private Integer durationDays;
     private Integer accountSilenceDays;
@@ -63,6 +64,8 @@ public class ServiceAccount {
     public void setHistoryImportBatchId(Long historyImportBatchId) { this.historyImportBatchId = historyImportBatchId; }
     public String getSpecCode() { return specCode; }
     public void setSpecCode(String specCode) { this.specCode = specCode; }
+    public String getDisplayName() { return displayName; }
+    public void setDisplayName(String displayName) { this.displayName = displayName; }
     public String getServiceType() { return serviceType; }
     public void setServiceType(String serviceType) { this.serviceType = serviceType; }
     public Integer getDurationDays() { return durationDays; }

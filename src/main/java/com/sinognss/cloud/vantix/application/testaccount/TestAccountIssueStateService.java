@@ -118,16 +118,14 @@ public class TestAccountIssueStateService {
     }
 
     private boolean outsideWindow(CorsOperation operation, LocalDateTime now) {
-        LocalDateTime start = operation.getFirstAttemptAt() == null
-                ? operation.getCreatedAt() : operation.getFirstAttemptAt();
+        LocalDateTime start = operation.getFirstAttemptAt();
         if (start == null) return false;
         try { return !now.isBefore(start.plus(properties.getResultWindow())); }
         catch (ArithmeticException exception) { return true; }
     }
 
     private boolean atDeadline(CorsOperation operation, LocalDateTime next) {
-        LocalDateTime start = operation.getFirstAttemptAt() == null
-                ? operation.getCreatedAt() : operation.getFirstAttemptAt();
+        LocalDateTime start = operation.getFirstAttemptAt();
         if (start == null) return false;
         try { return !next.isBefore(start.plus(properties.getResultWindow())); }
         catch (ArithmeticException exception) { return true; }

@@ -24,7 +24,7 @@ public class AccountRenewalRetryJob {
         this.properties = properties;
     }
 
-    @Scheduled(fixedDelayString = "${vantix.cors.renewal.poll-interval:5s}")
+    @Scheduled(fixedDelayString = "${vantix.cors.renewal.poll-interval:PT5S}")
     public void poll() {
         if (!running.compareAndSet(false, true)) {
             log.warn("Account renewal poll skipped because the previous run is still active");

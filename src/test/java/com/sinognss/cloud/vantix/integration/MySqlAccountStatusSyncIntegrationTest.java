@@ -353,9 +353,9 @@ class MySqlAccountStatusSyncIntegrationTest {
         String account = "account-" + sourceCodeId;
         jdbc.update("INSERT INTO service_account "
                         + "(cors_account_id, account, owner_company_id, source_service_code_id, service_type, "
-                        + "spec_code, duration_days, account_silence_days, cors_activation_status, "
+                        + "spec_code, display_name, duration_days, account_silence_days, cors_activation_status, "
                         + "last_sync_at, status_sync_next_at, version) "
-                        + "VALUES (?, ?, 1, ?, 'SYNC', 1, 0, ?, ?, ?, 0)",
+                        + "VALUES (?, ?, 1, ?, 'SYNC', '同步规格', 1, 0, ?, ?, ?, 0)",
                 corsAccountId, account, sourceCodeId, activationStatus, lastSyncAt, nextAt);
         return jdbc.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
     }

@@ -366,9 +366,9 @@ class MySqlFrontendQueryIntegrationTest {
                                LocalDateTime createdAt) {
         jdbc.update("INSERT INTO service_account "
                         + "(id, cors_account_id, account, owner_company_id, assigned_user_id, source_service_code_id, "
-                        + "spec_code, service_type, duration_days, account_silence_days, cors_status, "
+                        + "spec_code, display_name, service_type, duration_days, account_silence_days, cors_status, "
                         + "cors_activation_status, expire_at, created_at, updated_at) "
-                        + "VALUES (?, ?, ?, ?, ?, ?, 'S1', 'CORS', 30, 360, ?, ?, ?, ?, ?)",
+                        + "VALUES (?, ?, ?, ?, ?, ?, 'S1', '测试规格', 'CORS', 30, 360, ?, ?, ?, ?, ?)",
                 id, "CORS-ACCOUNT-" + id, "ACCOUNT-" + id, ownerCompanyId, assignedUserId, sourceServiceCodeId,
                 corsStatus, activationStatus, expireAt, createdAt, createdAt);
     }

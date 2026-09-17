@@ -99,8 +99,7 @@ public class TestAccountIssueClaimService {
     }
 
     private boolean isOutsideResultWindow(CorsOperation operation, LocalDateTime now) {
-        LocalDateTime start = operation.getFirstAttemptAt() == null
-                ? operation.getCreatedAt() : operation.getFirstAttemptAt();
+        LocalDateTime start = operation.getFirstAttemptAt();
         if (start == null) return false;
         try {
             return !now.isBefore(start.plus(properties.getResultWindow()));

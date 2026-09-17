@@ -24,7 +24,7 @@ public class AccountPasswordResetRetryJob {
         this.properties = properties;
     }
 
-    @Scheduled(fixedDelayString = "${vantix.cors.password.poll-interval:5s}")
+    @Scheduled(fixedDelayString = "${vantix.cors.password.poll-interval:PT5S}")
     public void poll() {
         if (!running.compareAndSet(false, true)) {
             log.warn("Password reset poll skipped because the previous run is still active");

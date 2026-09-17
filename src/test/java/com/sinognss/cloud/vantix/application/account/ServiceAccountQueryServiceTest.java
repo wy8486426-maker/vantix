@@ -44,7 +44,7 @@ class ServiceAccountQueryServiceTest {
         page.setRecords(java.util.List.of(row));
         page.setTotal(1);
         when(mapper.pageForFrontend(any(), eq("account"), eq("ACTIVE"), eq("S1"), eq(30),
-                eq(null), eq(null), eq(null), eq(null))).thenReturn(page);
+                eq(null), eq(null), eq(null), eq(null), eq(null))).thenReturn(page);
 
         PageResponse<ServiceAccountView> result = service.page(new ServiceAccountPageQuery(
                 1, 20, " account ", "ACTIVE", "S1", 30, null, null));
@@ -54,7 +54,7 @@ class ServiceAccountQueryServiceTest {
         assertFalse(Arrays.stream(ServiceAccountView.class.getRecordComponents())
                 .anyMatch(component -> component.getName().toLowerCase().contains("password")));
         verify(mapper).pageForFrontend(any(), eq("account"), eq("ACTIVE"), eq("S1"), eq(30),
-                eq(null), eq(null), eq(null), eq(null));
+                eq(null), eq(null), eq(null), eq(null), eq(null));
     }
 
     @Test
@@ -68,10 +68,10 @@ class ServiceAccountQueryServiceTest {
         Page<ServiceAccountQueryRow> page = new Page<>(1, 20);
         page.setRecords(java.util.List.of());
         when(mapper.pageForFrontend(any(), eq(null), eq(null), eq(null), eq(null), eq(null), eq(null),
-                eq(10L), eq(7L))).thenReturn(page);
+                eq(10L), eq(7L), eq(null))).thenReturn(page);
         service.page(new ServiceAccountPageQuery(1, 20, null, null, null, null, null, null));
         verify(mapper).pageForFrontend(any(), eq(null), eq(null), eq(null), eq(null), eq(null), eq(null),
-                eq(10L), eq(7L));
+                eq(10L), eq(7L), eq(null));
 
         assertEquals(ErrorCode.SERVICE_CODE_NOT_OWNED, assertThrows(BusinessException.class,
                 () -> service.page(new ServiceAccountPageQuery(1, 20, null, null, null, null, null, 8L)))
@@ -107,7 +107,7 @@ class ServiceAccountQueryServiceTest {
         row.setExchangeAt(null);
         row.setExchangeBatchNo(null);
         page.setRecords(java.util.List.of(row));
-        when(mapper.pageForFrontendWithSource(any(), eq(null), eq(null), eq(null), eq(null), eq(null), eq(null),
+        when(mapper.pageForFrontend(any(), eq(null), eq(null), eq(null), eq(null), eq(null), eq(null),
                 eq(null), eq(null), eq(AccountSource.HISTORY_IMPORT))).thenReturn(page);
 
         ServiceAccountView result = service.page(new ServiceAccountPageQuery(1, 20, null, null, null, null,
@@ -116,7 +116,7 @@ class ServiceAccountQueryServiceTest {
         assertEquals(AccountSource.HISTORY_IMPORT, result.accountSource());
         assertEquals(null, result.exchangeAt());
         assertEquals(null, result.exchangeBatchNo());
-        verify(mapper).pageForFrontendWithSource(any(), eq(null), eq(null), eq(null), eq(null), eq(null), eq(null),
+        verify(mapper).pageForFrontend(any(), eq(null), eq(null), eq(null), eq(null), eq(null), eq(null),
                 eq(null), eq(null), eq(AccountSource.HISTORY_IMPORT));
     }
 }

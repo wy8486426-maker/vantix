@@ -96,6 +96,8 @@ class ServiceCodeExchangeFinalizeServiceTest {
                 accounts.stream().map(ServiceAccount::getCorsAccountId).toList());
         assertEquals(List.of(AccountSource.EXCHANGE, AccountSource.EXCHANGE),
                 accounts.stream().map(ServiceAccount::getAccountSource).toList());
+        assertEquals(List.of("专业版", "专业版"),
+                accounts.stream().map(ServiceAccount::getDisplayName).toList());
 
         ArgumentCaptor<List<ExchangeDetailMapper.CompletedAccountRow>> detailCaptor =
                 ArgumentCaptor.forClass((Class) List.class);
@@ -178,6 +180,7 @@ class ServiceCodeExchangeFinalizeServiceTest {
         batch.setAssignedUserId(55L);
         batch.setQuantity(2);
         batch.setSpecCode("PRO");
+        batch.setDisplayName("专业版");
         batch.setServiceType("STANDARD");
         batch.setDurationDays(30);
         batch.setAccountSilenceDays(12);

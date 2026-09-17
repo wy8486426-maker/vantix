@@ -184,6 +184,7 @@ public class ServiceCodeExchangeFinalizeService {
         account.setExchangeBatchId(batch.getId());
         account.setExchangeDetailId(detail.getId());
         account.setSpecCode(snapshot.specCode() == null ? batch.getSpecCode() : snapshot.specCode());
+        account.setDisplayName(batch.getDisplayName());
         account.setServiceType(snapshot.serviceType());
         account.setDurationDays(snapshot.durationDays());
         account.setAccountSilenceDays(batch.getAccountSilenceDays());

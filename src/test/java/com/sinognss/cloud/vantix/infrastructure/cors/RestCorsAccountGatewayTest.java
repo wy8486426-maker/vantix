@@ -19,7 +19,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 class RestCorsAccountGatewayTest {
     private static final String BASE_URL = "http://cors.test";
-    private static final String CREATE_URL = BASE_URL + "/userInfo/add";
+    private static final String CREATE_URL = BASE_URL + "/BaseUser/userInfo/add";
     private static final String REQUEST_ID = "EXCHANGE-cors-1";
 
     @Test

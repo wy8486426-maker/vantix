@@ -10,7 +10,11 @@ public final class AccountSourceInvariant {
     public static void validate(ServiceAccount account) {
         if (account == null || account.getAccountSource() == null
                 || account.getOwnerCompanyId() == null
-                || blank(account.getCorsAccountId()) || blank(account.getAccount())) {
+                || blank(account.getCorsAccountId()) || blank(account.getAccount())
+                || blank(account.getSpecCode()) || blank(account.getDisplayName())
+                || blank(account.getServiceType()) || account.getDurationDays() == null
+                || account.getDurationDays() <= 0 || account.getAccountSilenceDays() == null
+                || account.getAccountSilenceDays() < 0) {
             invalid();
         }
         boolean exchange = account.getAccountSource() == AccountSource.EXCHANGE;

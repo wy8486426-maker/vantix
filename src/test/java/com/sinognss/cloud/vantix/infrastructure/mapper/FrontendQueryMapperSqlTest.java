@@ -1,12 +1,17 @@
 package com.sinognss.cloud.vantix.infrastructure.mapper;
 
+import com.sinognss.cloud.vantix.domain.account.AccountSource;
 import org.apache.ibatis.builder.xml.XMLMapperBuilder;
+import org.apache.ibatis.mapping.BoundSql;
+import org.apache.ibatis.mapping.MappedStatement;
 import org.apache.ibatis.session.Configuration;
 import org.junit.jupiter.api.Test;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -42,7 +47,7 @@ class FrontendQueryMapperSqlTest {
                 "com.sinognss.cloud.vantix.infrastructure.mapper.ServiceCodeTransferQueryMapper.detailItems"));
         assertNotNull(configuration.getMappedStatement(
                 "com.sinognss.cloud.vantix.infrastructure.mapper.ServiceAccountQueryMapper.pageForFrontend"));
-        assertNotNull(configuration.getMappedStatement(
+        assertFalse(configuration.hasStatement(
                 "com.sinognss.cloud.vantix.infrastructure.mapper.ServiceAccountQueryMapper.pageForFrontendWithSource"));
         assertNotNull(configuration.getMappedStatement(
                 "com.sinognss.cloud.vantix.infrastructure.mapper.ServiceAccountQueryMapper.statistics"));
@@ -85,11 +90,66 @@ class FrontendQueryMapperSqlTest {
         assertTrue(renewalSql.contains("r.assigned_user_id = #{scopeassigneduserid}"));
     }
 
+    @Test
+    void serviceAccountPageBuildsWithoutSourceParameterValue() throws Exception {
+        BoundSql boundSql = serviceAccountStatement("pageForFrontend")
+                .getBoundSql(serviceAccountParameters(null));
+
+        String sql = boundSql.getSql().replaceAll("\\s+", " ").trim();
+        assertFalse(sql.contains("account_source ="), sql);
+        assertTrue(sql.contains("a.display_name"), sql);
+        assertFalse(sql.contains("gb.display_name"), sql);
+    }
+
+    @Test
+    void serviceAccountPageAddsSourceFilterWhenRequested() throws Exception {
+        BoundSql boundSql = serviceAccountStatement("pageForFrontend")
+                .getBoundSql(serviceAccountParameters(AccountSource.TEST));
+
+        String sql = boundSql.getSql().replaceAll("\\s+", " ").trim();
+        assertTrue(sql.contains("a.account_source = ?"), sql);
+    }
+
+    @Test
+    void serviceAccountStatisticsDoesNotRequireOrApplySourceParameter() throws Exception {
+        Map<String, Object> parameters = serviceAccountParameters(null);
+        parameters.remove("accountSource");
+        BoundSql boundSql = serviceAccountStatement("statistics").getBoundSql(parameters);
+
+        String sql = boundSql.getSql().replaceAll("\\s+", " ").trim();
+        assertFalse(sql.contains("account_source"), sql);
+    }
+
     private String read(String resource) throws Exception {
         try (InputStream input = getClass().getResourceAsStream(resource)) {
             assertNotNull(input, resource);
             return new String(input.readAllBytes(), StandardCharsets.UTF_8).toLowerCase();
         }
+    }
+
+    private MappedStatement serviceAccountStatement(String id) throws Exception {
+        Configuration configuration = new Configuration();
+        try (InputStream mapperXml = getClass().getResourceAsStream("/mapper/ServiceAccountQueryMapper.xml")) {
+            assertNotNull(mapperXml);
+            new XMLMapperBuilder(mapperXml, configuration, "mapper/ServiceAccountQueryMapper.xml",
+                    configuration.getSqlFragments()).parse();
+        }
+        return configuration.getMappedStatement(
+                "com.sinognss.cloud.vantix.infrastructure.mapper.ServiceAccountQueryMapper." + id);
+    }
+
+    private Map<String, Object> serviceAccountParameters(AccountSource accountSource) {
+        Map<String, Object> parameters = new HashMap<>();
+        parameters.put("keyword", null);
+        parameters.put("status", null);
+        parameters.put("specCode", null);
+        parameters.put("durationDays", null);
+        parameters.put("ownerCompanyId", null);
+        parameters.put("assignedUserId", null);
+        parameters.put("scopeCompanyId", null);
+        parameters.put("scopeAssignedUserId", null);
+        parameters.put("accountSource", accountSource);
+        return parameters;
     }
 
     private void parse(Configuration configuration, String resource) throws Exception {

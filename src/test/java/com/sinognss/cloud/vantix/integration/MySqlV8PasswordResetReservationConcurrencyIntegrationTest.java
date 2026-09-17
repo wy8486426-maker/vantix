@@ -163,8 +163,8 @@ class MySqlV8PasswordResetReservationConcurrencyIntegrationTest {
 
     private void insertAccount(JdbcTemplate jdbc) {
         jdbc.update("INSERT INTO service_account (id, cors_account_id, account, owner_company_id, assigned_user_id, "
-                        + "source_service_code_id, spec_code, service_type, duration_days, account_silence_days) "
-                        + "VALUES (?, ?, ?, 801, 1101, ?, 'PASSWORD', 'CORS', 30, 180)",
+                        + "source_service_code_id, spec_code, display_name, service_type, duration_days, account_silence_days) "
+                        + "VALUES (?, ?, ?, 801, 1101, ?, 'PASSWORD', '密码规格', 'CORS', 30, 180)",
                 SERVICE_ACCOUNT_ID, "cors-account-" + SERVICE_ACCOUNT_ID,
                 "account-" + SERVICE_ACCOUNT_ID, SERVICE_ACCOUNT_ID);
     }

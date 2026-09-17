@@ -148,10 +148,10 @@ class MySqlAccountRenewalStaleIgnoredFinalizeIntegrationTest {
 
     private static void insertFixture(JdbcTemplate jdbc, long accountId, long codeId, String requestId) {
         jdbc.update("INSERT INTO service_account (id, cors_account_id, account, owner_company_id, "
-                        + "source_service_code_id, spec_code, service_type, duration_days, account_silence_days, "
+                        + "source_service_code_id, spec_code, display_name, service_type, duration_days, account_silence_days, "
                         + "cors_status, cors_activation_status, activated_at, expire_at, "
                         + "cors_updated_at, last_sync_at, version) "
-                        + "VALUES (?, ?, ?, 901, ?, 'STALE', 'CORS', 30, 180, 'ENABLED', 'ACTIVE', "
+                        + "VALUES (?, ?, ?, 901, ?, 'STALE', '旧规格', 'CORS', 30, 180, 'ENABLED', 'ACTIVE', "
                         + "'2030-01-01 00:00:00.000', '2031-02-01 00:00:00.000', "
                         + "'2031-01-20 12:00:00.000', '2031-01-20 12:00:00.000', 10)",
                 accountId, "cors-renewal-" + accountId, "renewal-account-" + accountId, accountId);

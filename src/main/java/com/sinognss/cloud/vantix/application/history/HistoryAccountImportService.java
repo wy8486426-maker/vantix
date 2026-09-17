@@ -54,7 +54,10 @@ public class HistoryAccountImportService {
             return view(created);
         } catch (DuplicateKeyException duplicate) {
             HistoryAccountImportBatch concurrent = batchMapper.selectByRequestId(command.requestId());
-            if (concurrent == null) throw duplicate;
+            if (concurrent == null) {
+                throw new BusinessException(ErrorCode.HISTORY_IMPORT_IDENTITY_CONFLICT,
+                        "历史账号 CORS identity 已被纳管，不能覆盖或重复导入");
+            }
             verifyPayload(concurrent, payloadHash);
             return view(concurrent);
         }

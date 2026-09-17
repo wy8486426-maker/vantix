@@ -63,6 +63,7 @@ class TestAccountIssueServiceTest {
         when(companyMapper.selectCount(any())).thenReturn(1L);
         ServiceDurationConfig spec = new ServiceDurationConfig();
         spec.setSpecCode("S1");
+        spec.setDisplayName("测试规格");
         spec.setServiceType("STANDARD");
         spec.setDurationDays(365);
         spec.setAccountSilenceDays(30);
@@ -85,6 +86,7 @@ class TestAccountIssueServiceTest {
         ArgumentCaptor<TestAccountIssueBatch> batchCaptor = ArgumentCaptor.forClass(TestAccountIssueBatch.class);
         verify(batchMapper).insert(batchCaptor.capture());
         assertEquals("TEST", batchCaptor.getValue().getAccountPrefix());
+        assertEquals("测试规格", batchCaptor.getValue().getDisplayName());
         assertEquals(365, batchCaptor.getValue().getDurationDays());
         assertEquals(30, batchCaptor.getValue().getAccountSilenceDays());
         ArgumentCaptor<CorsOperation> operationCaptor = ArgumentCaptor.forClass(CorsOperation.class);

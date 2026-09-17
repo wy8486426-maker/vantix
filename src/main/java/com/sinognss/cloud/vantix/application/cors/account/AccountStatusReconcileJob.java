@@ -33,7 +33,7 @@ public class AccountStatusReconcileJob {
         this.clock = clock;
     }
 
-    @Scheduled(fixedDelayString = "${vantix.cors.account-status-sync.fixed-delay:1m}")
+    @Scheduled(fixedDelayString = "${vantix.cors.account-status-sync.fixed-delay:PT1M}")
     public void reconcile() {
         if (!running.compareAndSet(false, true)) {
             log.warn("Account status reconciliation skipped because the previous run is still active");
