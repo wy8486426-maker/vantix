@@ -1,40 +1,41 @@
 package com.sinognss.cloud.vantix.application.cors;
 
-import com.sinognss.cloud.vantix.config.CorsOperationProperties;
-import com.sinognss.cloud.vantix.domain.cors.CorsOperation;
 import com.sinognss.cloud.vantix.application.exchange.ServiceCodeExchangeFinalizeService;
+import com.sinognss.cloud.vantix.domain.cors.CorsOperation;
 import com.sinognss.cloud.vantix.domain.exchange.ExchangeBatch;
 import com.sinognss.cloud.vantix.domain.exchange.ExchangeStatus;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ExchangeBatchMapper;
 import com.sinognss.cloud.vantix.integration.cors.CorsAccountGateway;
+import com.sinognss.cloud.vantix.integration.cors.CorsAddAccountData;
 import com.sinognss.cloud.vantix.integration.cors.CorsBatchCreateRequest;
 import com.sinognss.cloud.vantix.integration.cors.CorsBatchResult;
 import com.sinognss.cloud.vantix.integration.cors.CorsOutcome;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class CorsOperationProcessor {
+    private static final Logger log = LoggerFactory.getLogger(CorsOperationProcessor.class);
+
     private final CorsOperationClaimService claimService;
     private final CorsOperationStateService stateService;
     private final ServiceCodeExchangeFinalizeService finalizeService;
     private final ExchangeBatchMapper batchMapper;
     private final CorsAccountGateway corsGateway;
-    private final CorsOperationProperties properties;
 
     public CorsOperationProcessor(CorsOperationClaimService claimService,
                                   CorsOperationStateService stateService,
                                   ServiceCodeExchangeFinalizeService finalizeService,
                                   ExchangeBatchMapper batchMapper,
-                                  CorsAccountGateway corsGateway,
-                                  CorsOperationProperties properties) {
+                                  CorsAccountGateway corsGateway) {
         this.claimService = claimService;
         this.stateService = stateService;
         this.finalizeService = finalizeService;
         this.batchMapper = batchMapper;
         this.corsGateway = corsGateway;
-        this.properties = properties;
     }
 
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
@@ -43,7 +44,7 @@ public class CorsOperationProcessor {
         if (claim == null) return;
 
         CorsOperation operation = claim.operation();
-        ExchangeBatch batch = batchMapper.selectByRequestId(operation.getRequestId());
+        ExchangeBatch batch = batchMapper.selectById(operation.getBizId());
         if (batch == null || !batch.getId().equals(operation.getBizId())) {
             stateService.markManualReview(operation, "EXCHANGE_BATCH_MISSING",
                     "CORS 操作关联的兑换批次不存在");
@@ -56,65 +57,28 @@ public class CorsOperationProcessor {
             return;
         }
 
-        if (claim.queryFirst()) {
-            CorsBatchResult query = corsGateway.queryBatch(batch.getRequestId());
-            if (handleQueryResult(operation, query)) return;
-        }
-        sendCreate(operation, batch);
-    }
-
-    private boolean handleQueryResult(CorsOperation operation, CorsBatchResult result) {
-        if (result == null || result.outcome() == null) {
-            stateService.retryOrMarkManualReview(operation, "CORS_QUERY_UNKNOWN",
-                    "查询 CORS 操作结果时未获得有效响应");
-            return true;
-        }
-        return switch (result.outcome()) {
-            case SUCCESS -> {
-                finalizeOrReview(operation, result);
-                yield true;
-            }
-            case NOT_FOUND -> {
-                if (operation.getRetryCount() != null
-                        && operation.getRetryCount() > properties.getMaxRetries()) {
-                    stateService.markManualReview(operation, "CORS_RETRY_EXHAUSTED",
-                            "CORS requestId 尚未创建账号，已达到自动重试上限");
-                    yield true;
-                }
-                yield false;
-            }
-            case IDEMPOTENCY_CONFLICT -> {
-                stateService.markManualReview(operation, "CORS_IDEMPOTENCY_CONFLICT",
-                        "CORS requestId 已对应不同请求参数");
-                yield true;
-            }
-            case UNKNOWN, DEFINITIVE_REJECT -> {
-                stateService.retryOrMarkManualReview(operation,
-                        safeCode(result.errorCode(), "CORS_QUERY_UNKNOWN"),
-                        safeMessage(result.errorMessage(), "查询 CORS 操作结果不明确"));
-                yield true;
-            }
-        };
-    }
-
-    private void sendCreate(CorsOperation operation, ExchangeBatch batch) {
-        if (batch.getDurationDays() == null || batch.getDurationDays() <= 0
-                || batch.getAccountSilenceDays() == null || batch.getAccountSilenceDays() < 0) {
-            stateService.markManualReview(operation, "EXCHANGE_DURATION_INVALID",
-                    "兑换批次的 days 快照无效");
+        CorsBatchCreateRequest request;
+        try {
+            request = new CorsBatchCreateRequest(operation.getRequestId(), batch.getQuantity(),
+                    0, requirePositive(batch.getDurationDays(), "durationDays"),
+                    requireAccountName(batch.getAccountPrefix()), 0,
+                    requireNonNegative(batch.getAccountSilenceDays(), "accountSilenceDays"),
+                    1, "", batch.getOwnerCompanyId(), 0);
+        } catch (IllegalArgumentException exception) {
+            stateService.markManualReview(operation, "EXCHANGE_SNAPSHOT_INVALID",
+                    "兑换批次的 CORS 请求快照无效");
             return;
         }
-        CorsBatchCreateRequest request = new CorsBatchCreateRequest(batch.getRequestId(),
-                batch.getDurationDays(), batch.getAccountSilenceDays(), batch.getQuantity(),
-                batch.getAccountPrefix());
+
         CorsBatchResult result = corsGateway.createBatch(request);
+        logResult(operation, batch, result);
         if (result == null || result.outcome() == null) {
             stateService.retryOrMarkManualReview(operation, "CORS_CREATE_UNKNOWN",
                     "CORS 创建账号结果不明确");
             return;
         }
         switch (result.outcome()) {
-            case SUCCESS -> finalizeOrReview(operation, result);
+            case SUCCESS -> handleSuccess(operation, batch, result);
             case DEFINITIVE_REJECT -> failOrReview(operation, result);
             case IDEMPOTENCY_CONFLICT -> stateService.markManualReview(operation,
                     "CORS_IDEMPOTENCY_CONFLICT", "CORS requestId 已对应不同请求参数");
@@ -122,6 +86,21 @@ public class CorsOperationProcessor {
                     safeCode(result.errorCode(), "CORS_CREATE_UNKNOWN"),
                     safeMessage(result.errorMessage(), "CORS 创建账号结果不明确"));
         }
+    }
+
+    private void handleSuccess(CorsOperation operation, ExchangeBatch batch, CorsBatchResult result) {
+        CorsAddAccountData data = result.data();
+        if (data == null) {
+            stateService.retryOrMarkManualReview(operation, "CORS_RESULT_PENDING",
+                    "CORS 创建请求已成功接受，但结果详情暂未获取到");
+            return;
+        }
+        if (!data.hasValidCorsNameList(batch.getQuantity())) {
+            stateService.retryOrMarkManualReview(operation, "CORS_RESULT_INCOMPLETE",
+                    "CORS 返回的 corsNameList 不完整或包含空账号名");
+            return;
+        }
+        finalizeOrReview(operation, result);
     }
 
     private void finalizeOrReview(CorsOperation operation, CorsBatchResult result) {
@@ -142,6 +121,29 @@ public class CorsOperationProcessor {
             stateService.markManualReview(operation, "LOCAL_RELEASE_FAILED",
                     "CORS 已明确拒绝，但 Vantix 未能安全释放预留服务码，需要人工复核");
         }
+    }
+
+    private void logResult(CorsOperation operation, ExchangeBatch batch, CorsBatchResult result) {
+        log.info("CORS add-account result operationId={} batchId={} requestId={} code={} message={} retryCount={} outcome={}",
+                operation.getId(), batch.getId(), operation.getRequestId(),
+                result == null ? null : safeCode(result.errorCode(), "0"),
+                result == null ? null : safeMessage(result.errorMessage(), ""),
+                operation.getRetryCount(), result == null ? null : result.outcome());
+    }
+
+    private static int requirePositive(Integer value, String name) {
+        if (value == null || value <= 0) throw new IllegalArgumentException(name + " is invalid");
+        return value;
+    }
+
+    private static int requireNonNegative(Integer value, String name) {
+        if (value == null || value < 0) throw new IllegalArgumentException(name + " is invalid");
+        return value;
+    }
+
+    private static String requireAccountName(String value) {
+        if (value == null || value.isBlank()) throw new IllegalArgumentException("accountName is invalid");
+        return value;
     }
 
     private static String safeCode(String value, String fallback) {

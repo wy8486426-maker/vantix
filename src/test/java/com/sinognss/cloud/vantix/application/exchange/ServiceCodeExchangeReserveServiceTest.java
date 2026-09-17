@@ -187,6 +187,22 @@ class ServiceCodeExchangeReserveServiceTest {
     }
 
     @Test
+    void createsAndPersistsASeparateCorsRequestIdForTheBatchSideEffect() {
+        when(serviceCodeMapper.selectAvailableForExchange(eq(1L), eq("SPEC-1"), eq("B2B"),
+                any(), eq(1))).thenReturn(List.of(code(101L, LocalDateTime.of(2026, 2, 1, 0, 0))));
+
+        assertTrue(service.reserve(command("external-exchange-request", 1, null)).created());
+
+        ArgumentCaptor<CorsOperation> operationCaptor = ArgumentCaptor.forClass(CorsOperation.class);
+        verify(operationMapper).insert(operationCaptor.capture());
+        CorsOperation operation = operationCaptor.getValue();
+        assertTrue(operation.getRequestId().startsWith("EXCHANGE_"));
+        assertNotEquals("external-exchange-request", operation.getRequestId());
+        assertEquals(400L, operation.getBizId());
+        assertEquals(null, operation.getFirstAttemptAt());
+    }
+
+    @Test
     void selectedCodesAreReservedInEarliestExpiryThenIdOrderAndDetailsUseOneBasedIndexes() {
         // The mapper's ordered result represents expiry ASC, then id ASC, including ties.
         List<ServiceCode> ordered = List.of(

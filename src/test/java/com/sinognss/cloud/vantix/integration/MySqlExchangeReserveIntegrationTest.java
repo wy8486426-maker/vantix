@@ -36,10 +36,12 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -208,6 +210,8 @@ class MySqlExchangeReserveIntegrationTest {
 
         String requestId = "REMOTE-BOUNDARY-REQUEST";
         when(corsGateway.createBatch(any(CorsBatchCreateRequest.class))).thenAnswer(invocation -> {
+            CorsBatchCreateRequest corsRequest = invocation.getArgument(0);
+            assertNotEquals(requestId, corsRequest.requestId());
             assertFalse(TransactionSynchronizationManager.isActualTransactionActive());
             assertEquals("PROCESSING", jdbc.queryForObject(
                     "SELECT status FROM service_code WHERE code = 'REMOTE-BOUNDARY-001'", String.class));
@@ -219,7 +223,7 @@ class MySqlExchangeReserveIntegrationTest {
             assertEquals(1, jdbc.queryForObject(
                     "SELECT COUNT(*) FROM exchange_detail WHERE request_id = ? AND status = 'PROCESSING'",
                     Integer.class, requestId));
-            return CorsBatchResult.outcome(CorsOutcome.UNKNOWN, requestId, "TIMEOUT", "mock unknown");
+            return CorsBatchResult.outcome(CorsOutcome.UNKNOWN, corsRequest.requestId(), "TIMEOUT", "mock unknown");
         });
 
         ServiceCodeExchangeView response = exchangeService.exchange(new ServiceCodeExchangeCommand(
@@ -231,7 +235,9 @@ class MySqlExchangeReserveIntegrationTest {
         assertEquals("PROCESSING", jdbc.queryForObject(
                 "SELECT status FROM service_code WHERE code = 'REMOTE-BOUNDARY-001'", String.class));
         assertEquals("RETRY_WAIT", jdbc.queryForObject(
-                "SELECT status FROM cors_operation WHERE request_id = ?", String.class, requestId));
+                "SELECT status FROM cors_operation WHERE biz_type = 'EXCHANGE_BATCH' "
+                        + "AND biz_id = (SELECT id FROM exchange_batch WHERE request_id = ?)",
+                String.class, requestId));
     }
 
     @Test
@@ -278,10 +284,14 @@ class MySqlExchangeReserveIntegrationTest {
         long serviceCodeId = insertCodes("REUSE-CODE-", 1004L, 1, now.plusDays(180)).get(0);
         setGlobalUser();
 
-        when(corsGateway.createBatch(any(CorsBatchCreateRequest.class))).thenReturn(
-                CorsBatchResult.outcome(CorsOutcome.DEFINITIVE_REJECT, "REUSE-REQ-A",
-                        "INVALID_ARGUMENT", "invalid prefix"),
-                CorsBatchResult.outcome(CorsOutcome.UNKNOWN, "REUSE-REQ-B", "TIMEOUT", "unknown"));
+        AtomicInteger attempts = new AtomicInteger();
+        when(corsGateway.createBatch(any(CorsBatchCreateRequest.class))).thenAnswer(invocation -> {
+            CorsBatchCreateRequest request = invocation.getArgument(0);
+            return attempts.getAndIncrement() == 0
+                    ? CorsBatchResult.outcome(CorsOutcome.DEFINITIVE_REJECT, request.requestId(),
+                    "5302", "用户名称重复")
+                    : CorsBatchResult.outcome(CorsOutcome.UNKNOWN, request.requestId(), "TIMEOUT", "unknown");
+        });
 
         ServiceCodeExchangeView rejected = exchangeService.exchange(new ServiceCodeExchangeCommand(
                 "REUSE-REQ-A", COMPANY_ID, SPEC_CODE, GenerationSource.B2B, 1));
@@ -290,7 +300,9 @@ class MySqlExchangeReserveIntegrationTest {
         assertEquals("FAILED", jdbc.queryForObject(
                 "SELECT status FROM exchange_detail WHERE request_id = 'REUSE-REQ-A'", String.class));
         assertEquals("FAILED", jdbc.queryForObject(
-                "SELECT status FROM cors_operation WHERE request_id = 'REUSE-REQ-A'", String.class));
+                "SELECT status FROM cors_operation WHERE biz_type = 'EXCHANGE_BATCH' "
+                        + "AND biz_id = (SELECT id FROM exchange_batch WHERE request_id = 'REUSE-REQ-A')",
+                String.class));
         assertEquals("PENDING", jdbc.queryForObject(
                 "SELECT status FROM service_code WHERE id = ?", String.class, serviceCodeId));
         assertNull(jdbc.queryForObject(

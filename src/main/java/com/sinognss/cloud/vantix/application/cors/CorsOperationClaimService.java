@@ -45,7 +45,19 @@ public class CorsOperationClaimService {
                 && current.getNextRetryAt() != null && current.getNextRetryAt().isAfter(now)) {
             return null;
         }
-        boolean queryFirst = "RETRY_WAIT".equals(current.getStatus());
+        if (isOutsideResultWindow(current, now)) {
+            String message = "CORS Redis 回传窗口已超过 2 分钟，停止自动重试，需要人工复核";
+            if (operationMapper.markPendingManualReview(current.getId(), current.getVersion(),
+                    "CORS_RESULT_WINDOW_EXPIRED", message, now) != 1) {
+                return null;
+            }
+            if (batchMapper.markManualReview(current.getBizId(), "CORS_RESULT_WINDOW_EXPIRED", message, now)
+                    != 1) {
+                throw new BusinessException(ErrorCode.EXCHANGE_STATE_INCONSISTENT,
+                        "CORS 超过结果窗口后更新兑换批次失败");
+            }
+            return null;
+        }
         if (operationMapper.claim(current.getId(), current.getStatus(), current.getVersion(), now) != 1) {
             return null;
         }
@@ -54,7 +66,7 @@ public class CorsOperationClaimService {
             throw new BusinessException(ErrorCode.EXCHANGE_STATE_INCONSISTENT,
                     "CORS 操作抢占后状态异常");
         }
-        return new ClaimedCorsOperation(claimed, queryFirst);
+        return new ClaimedCorsOperation(claimed);
     }
 
     public List<Long> findDueOperationIds(int limit) {
@@ -69,16 +81,20 @@ public class CorsOperationClaimService {
         int recovered = 0;
         for (CorsOperation operation : stale) {
             int retryCount = (operation.getRetryCount() == null ? 0 : operation.getRetryCount()) + 1;
-            boolean exhausted = retryCount > properties.getMaxRetries();
+            boolean windowExpired = isOutsideResultWindow(operation, now);
+            boolean exhausted = windowExpired || retryCount > properties.getMaxRetries();
+            String errorCode = windowExpired ? "CORS_RESULT_WINDOW_EXPIRED" : "CLAIM_TIMEOUT";
+            String errorMessage = windowExpired
+                    ? "CORS Redis 回传窗口已超过 2 分钟，停止自动重试，需要人工复核"
+                    : "CORS 操作执行超时，后续将在结果窗口内复用原 requestId 重试";
             if (exhausted && batchMapper.markManualReview(operation.getBizId(),
-                    "CLAIM_TIMEOUT_EXHAUSTED", "CORS 操作执行超时，已达到自动重试上限", now) != 1) {
+                    errorCode, errorMessage, now) != 1) {
                 throw new BusinessException(ErrorCode.EXCHANGE_STATE_INCONSISTENT,
                         "超时操作转人工复核时批次状态不一致");
             }
             int changed = operationMapper.recoverClaimed(operation.getId(), operation.getVersion(),
                     exhausted ? "MANUAL_REVIEW" : "RETRY_WAIT", retryCount,
-                    exhausted ? null : now, "CLAIM_TIMEOUT",
-                    "CORS 操作执行超时，后续将先查询远端 requestId", now);
+                    exhausted ? null : now, errorCode, errorMessage, now);
             if (changed != 1) {
                 throw new BusinessException(ErrorCode.EXCHANGE_STATE_INCONSISTENT,
                         "超时操作恢复时发生并发状态变化");
@@ -86,5 +102,19 @@ public class CorsOperationClaimService {
             recovered++;
         }
         return recovered;
+    }
+
+    private boolean isOutsideResultWindow(CorsOperation operation, LocalDateTime now) {
+        LocalDateTime windowStart = operation.getFirstAttemptAt();
+        if (windowStart == null && ("RETRY_WAIT".equals(operation.getStatus())
+                || "CLAIMED".equals(operation.getStatus()))) {
+            windowStart = operation.getCreatedAt();
+        }
+        if (windowStart == null) return false;
+        try {
+            return !now.isBefore(windowStart.plus(properties.getResultWindow()));
+        } catch (ArithmeticException exception) {
+            return true;
+        }
     }
 }

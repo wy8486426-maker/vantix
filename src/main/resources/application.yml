@@ -103,6 +103,7 @@ vantix:
     max-retries: ${VANTIX_CORS_OPERATION_MAX_RETRIES:10}
     retry-base-delay: ${VANTIX_CORS_OPERATION_RETRY_BASE_DELAY:30s}
     claim-timeout: ${VANTIX_CORS_OPERATION_CLAIM_TIMEOUT:2m}
+    result-window: ${VANTIX_CORS_OPERATION_RESULT_WINDOW:2m}
     worker-batch-size: ${VANTIX_CORS_OPERATION_WORKER_BATCH_SIZE:20}
 
 server:

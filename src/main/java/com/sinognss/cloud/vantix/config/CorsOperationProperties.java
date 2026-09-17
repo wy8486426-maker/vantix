@@ -9,6 +9,7 @@ public class CorsOperationProperties {
     private int maxRetries = 10;
     private Duration retryBaseDelay = Duration.ofSeconds(30);
     private Duration claimTimeout = Duration.ofMinutes(2);
+    private Duration resultWindow = Duration.ofMinutes(2);
     private int workerBatchSize = 20;
 
     public int getMaxRetries() { return maxRetries; }
@@ -25,6 +26,11 @@ public class CorsOperationProperties {
     public Duration getClaimTimeout() { return claimTimeout; }
     public void setClaimTimeout(Duration claimTimeout) {
         this.claimTimeout = requirePositive(claimTimeout, "claimTimeout");
+    }
+
+    public Duration getResultWindow() { return resultWindow; }
+    public void setResultWindow(Duration resultWindow) {
+        this.resultWindow = requirePositive(resultWindow, "resultWindow");
     }
 
     public int getWorkerBatchSize() { return workerBatchSize; }

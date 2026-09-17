@@ -12,8 +12,8 @@ import com.sinognss.cloud.vantix.infrastructure.mapper.ExchangeBatchMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ExchangeDetailMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceAccountMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceCodeMapper;
+import com.sinognss.cloud.vantix.integration.cors.CorsAddAccountData;
 import com.sinognss.cloud.vantix.integration.cors.CorsBatchResult;
-import com.sinognss.cloud.vantix.integration.cors.CorsCreatedAccount;
 import com.sinognss.cloud.vantix.integration.cors.CorsOutcome;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,16 +22,22 @@ import org.mockito.ArgumentCaptor;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 class ServiceCodeExchangeFinalizeServiceTest {
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 4, 1, 8, 0);
+    private static final String CORS_REQUEST_ID = "EXCHANGE-cors-1";
     private final ExchangeBatchMapper batchMapper = mock(ExchangeBatchMapper.class);
     private final ExchangeDetailMapper detailMapper = mock(ExchangeDetailMapper.class);
     private final ServiceAccountMapper accountMapper = mock(ServiceAccountMapper.class);
@@ -61,58 +67,46 @@ class ServiceCodeExchangeFinalizeServiceTest {
                 new ExchangeCodeSnapshot(102L, "CODE-102", 7L, 55L, "PRO", "STANDARD", 30, 360,
                         LocalDateTime.of(2027, 1, 1, 0, 0)));
         when(operationMapper.selectById(41L)).thenReturn(operation);
-        when(batchMapper.selectByRequestIdForUpdate("request-1")).thenReturn(batch);
+        when(batchMapper.selectByIdForUpdate(9L)).thenReturn(batch);
         when(detailMapper.selectByBatchId(9L)).thenReturn(List.of(firstDetail, secondDetail));
         when(accountMapper.insertBatch(anyList())).thenAnswer(invocation ->
                 ((List<?>) invocation.getArgument(0)).size());
         when(detailMapper.completeBatchDetails(eq(9L), anyList(), eq(NOW))).thenAnswer(invocation ->
                 ((List<?>) invocation.getArgument(1)).size());
-        when(serviceCodeMapper.consumeForExchange(anyList(), eq("request-1"), eq(NOW))).thenReturn(2);
+        when(serviceCodeMapper.consumeForExchange(anyList(), eq("external-exchange-request"), eq(NOW)))
+                .thenReturn(2);
         when(batchMapper.complete(9L, NOW)).thenReturn(1);
         when(operationMapper.markSucceeded(41L, 3L, NOW)).thenReturn(1);
     }
 
     @Test
-    void responseIndexMapsAccountsToMatchingDetailsEvenWhenCorsReturnsReverseOrder() {
-        CorsBatchResult response = success(
-                corsAccount(2, "cors-102", "account-102", "ACTIVE", "ACTIVE",
-                        "2026-04-02T00:00:00Z", "2026-04-01T01:00:00Z"),
-                corsAccount(1, "cors-101", "account-101", "ACTIVE", "WAITING_ACTIVATION",
-                        null, "2026-04-01T00:00:00Z"));
+    void persistsTheCompleteCorsNameListAndConsumesTheExchangeOnce() {
+        CorsBatchResult response = success("AB12000002", "AB12000001");
 
         assertTrue(service.finalizeSuccess(41L, 3L, response));
 
         ArgumentCaptor<List<ServiceAccount>> accountCaptor = ArgumentCaptor.forClass((Class) List.class);
         verify(accountMapper).insertBatch(accountCaptor.capture());
         List<ServiceAccount> accounts = accountCaptor.getValue();
-        assertEquals(2, accounts.size());
-        assertEquals("cors-101", accounts.get(0).getCorsAccountId());
-        assertEquals("account-101", accounts.get(0).getAccount());
-        assertEquals(101L, accounts.get(0).getSourceServiceCodeId());
-        assertEquals(1001L, accounts.get(0).getExchangeDetailId());
-        assertEquals(55L, accounts.get(0).getAssignedUserId());
-        assertEquals("cors-102", accounts.get(1).getCorsAccountId());
-        assertEquals(102L, accounts.get(1).getSourceServiceCodeId());
-        assertEquals(LocalDateTime.of(2026, 4, 2, 8, 0), accounts.get(1).getActivatedAt());
-        assertEquals(LocalDateTime.of(2026, 4, 1, 9, 0), accounts.get(1).getExpireAt());
+        assertEquals(List.of("AB12000002", "AB12000001"),
+                accounts.stream().map(ServiceAccount::getAccount).toList());
+        assertEquals(null, accounts.get(0).getCorsAccountId());
 
         ArgumentCaptor<List<ExchangeDetailMapper.CompletedAccountRow>> detailCaptor =
                 ArgumentCaptor.forClass((Class) List.class);
         verify(detailMapper).completeBatchDetails(eq(9L), detailCaptor.capture(), eq(NOW));
-        assertEquals("cors-101", detailCaptor.getValue().get(0).getAccountId());
-        assertEquals("cors-102", detailCaptor.getValue().get(1).getAccountId());
-        verify(serviceCodeMapper).consumeForExchange(List.of(101L, 102L), "request-1", NOW);
+        assertEquals("AB12000002", detailCaptor.getValue().get(0).getAccount());
+        assertEquals("AB12000001", detailCaptor.getValue().get(1).getAccount());
+        verify(serviceCodeMapper).consumeForExchange(List.of(101L, 102L),
+                "external-exchange-request", NOW);
         verify(batchMapper).complete(9L, NOW);
         verify(operationMapper).markSucceeded(41L, 3L, NOW);
     }
 
     @Test
-    void invalidCorsIndexIsRejectedBeforeAnyLocalAccountOrCodeMutation() throws Exception {
-        CorsCreatedAccount duplicateFirst = corsAccount(1, "cors-1", "account-1",
-                "ACTIVE", "ACTIVE", null, "2026-04-01T00:00:00Z");
-        CorsCreatedAccount duplicateIndex = corsAccount(1, "cors-2", "account-2",
-                "ACTIVE", "ACTIVE", null, "2026-04-01T00:00:00Z");
-        CorsBatchResult response = success(duplicateFirst, duplicateIndex);
+    void responseWithWrongNameCountIsRejectedBeforeLocalMutation() {
+        CorsBatchResult response = CorsBatchResult.success(CORS_REQUEST_ID,
+                new CorsAddAccountData("corsAdd", List.of("AB12000001")));
 
         assertThrows(RuntimeException.class, () -> service.finalizeSuccess(41L, 3L, response));
 
@@ -123,18 +117,20 @@ class ServiceCodeExchangeFinalizeServiceTest {
         verify(operationMapper, never()).markSucceeded(anyLong(), anyLong(), any());
     }
 
-    private CorsBatchResult success(CorsCreatedAccount... accounts) {
-        return new CorsBatchResult(CorsOutcome.SUCCESS, "request-1", List.of(accounts), null, null);
+    @Test
+    void responseWithBlankNameIsRejectedBeforeLocalMutation() {
+        CorsBatchResult response = CorsBatchResult.success(CORS_REQUEST_ID,
+                new CorsAddAccountData("corsAdd", List.of("AB12000001", " ")));
+
+        assertThrows(RuntimeException.class, () -> service.finalizeSuccess(41L, 3L, response));
+
+        verify(detailMapper, never()).selectByBatchId(anyLong());
+        verify(accountMapper, never()).insertBatch(anyList());
+        verify(serviceCodeMapper, never()).consumeForExchange(anyList(), anyString(), any());
     }
 
-    private static CorsCreatedAccount corsAccount(int index, String id, String account,
-                                                   String status, String activationStatus,
-                                                   String activatedAt, String expireAt) {
-        return new CorsCreatedAccount(index, id, account, status, activationStatus,
-                activatedAt == null ? null : OffsetDateTime.parse(activatedAt),
-                expireAt == null ? null : OffsetDateTime.parse(expireAt),
-                OffsetDateTime.parse("2026-03-30T12:00:00Z"),
-                OffsetDateTime.parse("2026-03-31T12:00:00Z"));
+    private CorsBatchResult success(String... names) {
+        return CorsBatchResult.success(CORS_REQUEST_ID, new CorsAddAccountData("corsAdd", List.of(names)));
     }
 
     private ExchangeDetail detail(Long serviceCodeId, Long detailId, int index,
@@ -152,7 +148,7 @@ class ServiceCodeExchangeFinalizeServiceTest {
     private static CorsOperation operation() {
         CorsOperation operation = new CorsOperation();
         operation.setId(41L);
-        operation.setRequestId("request-1");
+        operation.setRequestId(CORS_REQUEST_ID);
         operation.setBizType("EXCHANGE_BATCH");
         operation.setBizId(9L);
         operation.setStatus("CLAIMED");
@@ -163,7 +159,7 @@ class ServiceCodeExchangeFinalizeServiceTest {
     private static ExchangeBatch batch() {
         ExchangeBatch batch = new ExchangeBatch();
         batch.setId(9L);
-        batch.setRequestId("request-1");
+        batch.setRequestId("external-exchange-request");
         batch.setOwnerCompanyId(7L);
         batch.setAssignedUserId(55L);
         batch.setQuantity(2);

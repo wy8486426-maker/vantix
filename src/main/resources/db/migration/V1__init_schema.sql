@@ -316,6 +316,7 @@ CREATE TABLE cors_operation (
     retry_count INT NOT NULL DEFAULT 0,
     next_retry_at DATETIME(3) NULL,
     claimed_at DATETIME(3) NULL,
+    first_attempt_at DATETIME(3) NULL,
     last_error_code VARCHAR(64) NULL,
     last_error_message VARCHAR(1024) NULL,
     version BIGINT NOT NULL DEFAULT 0,

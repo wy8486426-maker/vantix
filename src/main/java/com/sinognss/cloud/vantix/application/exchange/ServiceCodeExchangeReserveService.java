@@ -164,7 +164,9 @@ public class ServiceCodeExchangeReserveService {
         }
 
         CorsOperation operation = new CorsOperation();
-        operation.setRequestId(command.requestId());
+        // The external exchange requestId identifies the Vantix request. This separate
+        // value identifies exactly one CORS side effect and is persisted before commit.
+        operation.setRequestId("EXCHANGE_" + UUID.randomUUID());
         operation.setOperationType(OPERATION_TYPE);
         operation.setBizType(BIZ_TYPE);
         operation.setBizId(batch.getId());

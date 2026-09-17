@@ -69,6 +69,7 @@ public interface CorsOperationMapper extends BaseMapper<CorsOperation> {
                                                          @Param("limit") int limit);
 
     @Update("UPDATE cors_operation SET status = 'CLAIMED', claimed_at = #{now}, "
+            + "first_attempt_at = COALESCE(first_attempt_at, #{now}), "
             + "version = version + 1, updated_at = #{now} "
             + "WHERE id = #{id} AND status = #{expectedStatus} AND version = #{expectedVersion}")
     int claim(@Param("id") Long id, @Param("expectedStatus") String expectedStatus,
@@ -104,6 +105,14 @@ public interface CorsOperationMapper extends BaseMapper<CorsOperation> {
     int markManualReview(@Param("id") Long id, @Param("expectedVersion") Long expectedVersion,
                          @Param("errorCode") String errorCode, @Param("errorMessage") String errorMessage,
                          @Param("now") LocalDateTime now);
+
+    @Update("UPDATE cors_operation SET status = 'MANUAL_REVIEW', next_retry_at = NULL, claimed_at = NULL, "
+            + "last_error_code = #{errorCode}, last_error_message = #{errorMessage}, "
+            + "version = version + 1, updated_at = #{now} "
+            + "WHERE id = #{id} AND status IN ('PENDING', 'RETRY_WAIT') AND version = #{expectedVersion}")
+    int markPendingManualReview(@Param("id") Long id, @Param("expectedVersion") Long expectedVersion,
+                                @Param("errorCode") String errorCode, @Param("errorMessage") String errorMessage,
+                                @Param("now") LocalDateTime now);
 
     @Update("UPDATE cors_operation SET status = #{newStatus}, retry_count = #{retryCount}, "
             + "next_retry_at = #{nextRetryAt}, claimed_at = NULL, last_error_code = #{errorCode}, "

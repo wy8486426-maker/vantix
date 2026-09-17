@@ -17,6 +17,9 @@ public interface ExchangeBatchMapper extends BaseMapper<ExchangeBatch> {
     @Select("SELECT * FROM exchange_batch WHERE request_id = #{requestId} LIMIT 1 FOR UPDATE")
     ExchangeBatch selectByRequestIdForUpdate(@Param("requestId") String requestId);
 
+    @Select("SELECT * FROM exchange_batch WHERE id = #{id} LIMIT 1 FOR UPDATE")
+    ExchangeBatch selectByIdForUpdate(@Param("id") Long id);
+
     @Update("UPDATE exchange_batch SET status = 'COMPLETED', completed_at = #{completedAt}, "
             + "last_error_code = NULL, last_error_message = NULL, updated_at = #{completedAt} "
             + "WHERE id = #{id} AND status = 'PROCESSING'")

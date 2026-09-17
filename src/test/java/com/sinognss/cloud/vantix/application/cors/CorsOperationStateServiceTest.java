@@ -75,7 +75,7 @@ class CorsOperationStateServiceTest {
         batch.setQuantity(2);
         ExchangeDetail first = detail(101L, 1);
         ExchangeDetail second = detail(102L, 2);
-        when(batchMapper.selectByRequestIdForUpdate("request-1")).thenReturn(batch);
+        when(batchMapper.selectByIdForUpdate(9L)).thenReturn(batch);
         when(detailMapper.selectByBatchId(9L)).thenReturn(List.of(first, second));
         when(serviceCodeMapper.releaseExchangeCodes(List.of(101L, 102L), "request-1", NOW)).thenReturn(2);
         when(detailMapper.failByBatchId(9L, "INVALID_ARGUMENT", "no side effect", NOW)).thenReturn(2);
@@ -89,6 +89,29 @@ class CorsOperationStateServiceTest {
         verify(detailMapper).failByBatchId(9L, "INVALID_ARGUMENT", "no side effect", NOW);
         verify(batchMapper).fail(9L, "INVALID_ARGUMENT", "no side effect", NOW);
         verify(operationMapper).markFailed(41L, 3L, "INVALID_ARGUMENT", "no side effect", NOW);
+    }
+
+    @Test
+    void retryDoesNotExtendTheFixedTwoMinuteResultWindow() {
+        claimed.setFirstAttemptAt(NOW.minusSeconds(110));
+        ExchangeBatch batch = new ExchangeBatch();
+        batch.setId(9L);
+        batch.setStatus(ExchangeStatus.PROCESSING);
+        batch.setQuantity(2);
+        when(batchMapper.selectByIdForUpdate(9L)).thenReturn(batch);
+        when(batchMapper.markManualReview(9L, "CORS_RESULT_WINDOW_EXPIRED",
+                "CORS Redis 回传窗口已超过 2 分钟，停止自动重试，需要人工复核", NOW)).thenReturn(1);
+        when(operationMapper.markManualReview(41L, 3L, "CORS_RESULT_WINDOW_EXPIRED",
+                "CORS Redis 回传窗口已超过 2 分钟，停止自动重试，需要人工复核", NOW)).thenReturn(1);
+
+        assertEquals(true, service.retryOrMarkManualReview(claimed, "CORS_TIMEOUT", "unknown"));
+
+        verify(operationMapper).markManualReview(41L, 3L, "CORS_RESULT_WINDOW_EXPIRED",
+                "CORS Redis 回传窗口已超过 2 分钟，停止自动重试，需要人工复核", NOW);
+        verify(operationMapper, never()).scheduleRetry(anyLong(), anyLong(), anyInt(),
+                any(LocalDateTime.class), anyString(), anyString(), any(LocalDateTime.class));
+        verify(batchMapper).markManualReview(9L, "CORS_RESULT_WINDOW_EXPIRED",
+                "CORS Redis 回传窗口已超过 2 分钟，停止自动重试，需要人工复核", NOW);
     }
 
     private static CorsOperation operation() {

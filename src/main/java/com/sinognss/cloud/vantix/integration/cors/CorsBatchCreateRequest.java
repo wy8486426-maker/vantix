@@ -1,25 +1,37 @@
 package com.sinognss.cloud.vantix.integration.cors;
 
-/** Day-based CORS batch-create request built from the frozen exchange snapshot. */
-public record CorsBatchCreateRequest(String requestId, int durationDays, int silenceDays,
-                                     int quantity, String accountPrefix) {
+/** CORS /userInfo/add request built from the frozen exchange batch snapshot. */
+public record CorsBatchCreateRequest(String requestId, int addNum, int accountType,
+                                     int durationType, String accountName, int nameType,
+                                     int silenceType, int activeType, String remark,
+                                     Long dealerId, int normalType) {
     public CorsBatchCreateRequest {
         if (requestId == null || requestId.isBlank() || requestId.length() > 128
                 || requestId.codePoints().anyMatch(Character::isISOControl)) {
             throw new IllegalArgumentException("requestId must be non-blank and at most 128 characters");
         }
-        if (durationDays <= 0) {
-            throw new IllegalArgumentException("durationDays must be positive");
+        if (addNum <= 0) {
+            throw new IllegalArgumentException("addNum must be positive");
         }
-        if (silenceDays < 0) {
-            throw new IllegalArgumentException("silenceDays must not be negative");
+        if (accountType != 0 || nameType != 0 || activeType != 1 || normalType != 0) {
+            throw new IllegalArgumentException("unsupported CORS account creation type");
         }
-        if (quantity <= 0) {
-            throw new IllegalArgumentException("quantity must be positive");
+        if (durationType <= 0) {
+            throw new IllegalArgumentException("durationType must be positive");
         }
-        if (accountPrefix != null && (accountPrefix.length() > 64
-                || accountPrefix.codePoints().anyMatch(Character::isISOControl))) {
-            throw new IllegalArgumentException("accountPrefix is invalid");
+        if (silenceType < 0) {
+            throw new IllegalArgumentException("silenceType must not be negative");
+        }
+        if (accountName == null || accountName.isBlank() || accountName.length() > 64
+                || accountName.codePoints().anyMatch(Character::isISOControl)) {
+            throw new IllegalArgumentException("accountName is invalid");
+        }
+        if (dealerId == null || dealerId <= 0) {
+            throw new IllegalArgumentException("dealerId must be positive");
+        }
+        if (remark != null && (remark.length() > 1024
+                || remark.codePoints().anyMatch(Character::isISOControl))) {
+            throw new IllegalArgumentException("remark is invalid");
         }
     }
 

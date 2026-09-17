@@ -23,6 +23,7 @@ public class CorsOperation {
     private Integer retryCount;
     private LocalDateTime nextRetryAt;
     private LocalDateTime claimedAt;
+    private LocalDateTime firstAttemptAt;
     private String lastErrorCode;
     private String lastErrorMessage;
     private Long version;
@@ -49,6 +50,8 @@ public class CorsOperation {
     public void setNextRetryAt(LocalDateTime nextRetryAt) { this.nextRetryAt = nextRetryAt; }
     public LocalDateTime getClaimedAt() { return claimedAt; }
     public void setClaimedAt(LocalDateTime claimedAt) { this.claimedAt = claimedAt; }
+    public LocalDateTime getFirstAttemptAt() { return firstAttemptAt; }
+    public void setFirstAttemptAt(LocalDateTime firstAttemptAt) { this.firstAttemptAt = firstAttemptAt; }
     public String getLastErrorCode() { return lastErrorCode; }
     public void setLastErrorCode(String lastErrorCode) { this.lastErrorCode = lastErrorCode; }
     public String getLastErrorMessage() { return lastErrorMessage; }
