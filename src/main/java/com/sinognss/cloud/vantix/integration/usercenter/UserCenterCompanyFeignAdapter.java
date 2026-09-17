@@ -55,9 +55,21 @@ public class UserCenterCompanyFeignAdapter implements UserCenterCompanyGateway {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "公司同步分页参数非法");
         }
         try {
-            PageUtil<CompanySelectVO> page = feignService.choicePage(pageSize, currPage);
-            if (page == null || page.currPage() == null || page.totalPage() == null || page.list() == null
-                    || page.currPage() != currPage || page.currPage() < 1 || page.totalPage() < 0
+            CommonResult<PageUtil<CompanySelectVO>> result =
+                    feignService.choicePage(pageSize, currPage);
+
+            if (result == null || !result.success() || result.getData() == null) {
+                throw syncFailure("用户中心公司分页查询失败");
+            }
+
+            PageUtil<CompanySelectVO> page = result.getData();
+
+            if (page.currPage() == null
+                    || page.totalPage() == null
+                    || page.list() == null
+                    || page.currPage() != currPage
+                    || page.currPage() < 1
+                    || page.totalPage() < 0
                     || (page.totalPage() > 0 && page.currPage() > page.totalPage())
                     || (page.totalPage() == 0 && !page.list().isEmpty())) {
                 throw syncFailure("用户中心公司分页返回无效");

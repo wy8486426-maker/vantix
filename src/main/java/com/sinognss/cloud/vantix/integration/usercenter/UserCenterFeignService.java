@@ -15,6 +15,6 @@ public interface UserCenterFeignService {
             @RequestParam("companyIdList") List<Long> companyIdList);
 
     @RequestMapping(value = "/company/choicePage", method = RequestMethod.GET)
-    PageUtil<CompanySelectVO> choicePage(@RequestParam("pageSize") long pageSize,
+    CommonResult<PageUtil<CompanySelectVO>> choicePage(@RequestParam("pageSize") long pageSize,
                                          @RequestParam("currPage") long currPage);
 }
