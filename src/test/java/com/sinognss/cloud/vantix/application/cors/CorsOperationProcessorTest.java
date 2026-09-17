@@ -9,6 +9,7 @@ import com.sinognss.cloud.vantix.integration.cors.CorsAccountGateway;
 import com.sinognss.cloud.vantix.integration.cors.CorsAddAccountData;
 import com.sinognss.cloud.vantix.integration.cors.CorsBatchCreateRequest;
 import com.sinognss.cloud.vantix.integration.cors.CorsBatchResult;
+import com.sinognss.cloud.vantix.integration.cors.CorsCreatedAccount;
 import com.sinognss.cloud.vantix.integration.cors.CorsOutcome;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -68,9 +69,11 @@ class CorsOperationProcessorTest {
     }
 
     @Test
-    void completeCorsNamesFinalizeTheExchange() {
+    void completeCorsAccountsFinalizeTheExchange() {
         CorsBatchResult success = CorsBatchResult.success(CORS_REQUEST_ID,
-                new CorsAddAccountData("corsAdd", List.of("AB12000001", "AB12000002")));
+                new CorsAddAccountData(List.of(
+                        new CorsCreatedAccount(10001L, "AB12000001"),
+                        new CorsCreatedAccount(10002L, "AB12000002"))));
         when(gateway.createBatch(any(CorsBatchCreateRequest.class))).thenReturn(success);
 
         processor.process(41L);
@@ -93,15 +96,17 @@ class CorsOperationProcessorTest {
     }
 
     @Test
-    void incompleteOrBlankCorsNamesStayRetryableAndCannotFinalize() {
+    void incompleteOrBlankCorsAccountsStayRetryableAndCannotFinalize() {
         when(gateway.createBatch(any(CorsBatchCreateRequest.class))).thenReturn(
                 CorsBatchResult.success(CORS_REQUEST_ID,
-                        new CorsAddAccountData("corsAdd", List.of("AB12000001", " "))));
+                        new CorsAddAccountData(List.of(
+                                new CorsCreatedAccount(10001L, "AB12000001"),
+                                new CorsCreatedAccount(10002L, " ")))));
 
         processor.process(41L);
 
         verify(stateService).retryOrMarkManualReview(operation, "CORS_RESULT_INCOMPLETE",
-                "CORS 返回的 corsNameList 不完整或包含空账号名");
+                "CORS 返回的 accounts 不完整或包含无效账号");
         verify(finalizeService, never()).finalizeSuccess(any(), any(), any());
     }
 
@@ -120,7 +125,9 @@ class CorsOperationProcessorTest {
     @Test
     void retryReusesThePersistedCorsRequestIdAndCompletesOnlyOnce() {
         CorsBatchResult success = CorsBatchResult.success(CORS_REQUEST_ID,
-                new CorsAddAccountData("corsAdd", List.of("AB12000001", "AB12000002")));
+                new CorsAddAccountData(List.of(
+                        new CorsCreatedAccount(10001L, "AB12000001"),
+                        new CorsCreatedAccount(10002L, "AB12000002"))));
         when(claimService.claim(41L)).thenReturn(
                 new ClaimedCorsOperation(operation), new ClaimedCorsOperation(operation));
         when(gateway.createBatch(any(CorsBatchCreateRequest.class))).thenReturn(
@@ -140,7 +147,9 @@ class CorsOperationProcessorTest {
     @Test
     void localFinalizeFailureMovesClaimedOperationToManualReview() {
         CorsBatchResult success = CorsBatchResult.success(CORS_REQUEST_ID,
-                new CorsAddAccountData("corsAdd", List.of("AB12000001", "AB12000002")));
+                new CorsAddAccountData(List.of(
+                        new CorsCreatedAccount(10001L, "AB12000001"),
+                        new CorsCreatedAccount(10002L, "AB12000002"))));
         when(gateway.createBatch(any(CorsBatchCreateRequest.class))).thenReturn(success);
         when(finalizeService.finalizeSuccess(41L, operation.getVersion(), success))
                 .thenThrow(new IllegalStateException("database unavailable"));

@@ -44,16 +44,20 @@ class RestCorsAccountGatewayTest {
                         """))
                 .andRespond(withSuccess("""
                         {"code":0,"message":"操作成功","data":{
-                          "interface_name":"corsAdd",
-                          "corsNameList":["AB12000001","AB12000002"]
+                          "accounts":[
+                            {"id":10001,"name":"AB12000001"},
+                            {"id":10002,"name":"AB12000002"}
+                          ]
                         }}
                         """, MediaType.APPLICATION_JSON));
 
         CorsBatchResult result = fixture.gateway.createBatch(request());
 
         assertEquals(CorsOutcome.SUCCESS, result.outcome());
-        assertEquals("corsAdd", result.data().interfaceName());
-        assertEquals(java.util.List.of("AB12000001", "AB12000002"), result.data().corsNameList());
+        assertEquals(java.util.List.of(10001L, 10002L),
+                result.data().accounts().stream().map(account -> account.id()).toList());
+        assertEquals(java.util.List.of("AB12000001", "AB12000002"),
+                result.data().accounts().stream().map(account -> account.name()).toList());
         fixture.server.verify();
     }
 

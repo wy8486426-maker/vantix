@@ -14,6 +14,7 @@ import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceAccountMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceCodeMapper;
 import com.sinognss.cloud.vantix.integration.cors.CorsAddAccountData;
 import com.sinognss.cloud.vantix.integration.cors.CorsBatchResult;
+import com.sinognss.cloud.vantix.integration.cors.CorsCreatedAccount;
 import com.sinognss.cloud.vantix.integration.cors.CorsOutcome;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -80,7 +81,7 @@ class ServiceCodeExchangeFinalizeServiceTest {
     }
 
     @Test
-    void persistsTheCompleteCorsNameListAndConsumesTheExchangeOnce() {
+    void persistsTheCompleteCorsAccountsAndConsumesTheExchangeOnce() {
         CorsBatchResult response = success("AB12000002", "AB12000001");
 
         assertTrue(service.finalizeSuccess(41L, 3L, response));
@@ -90,11 +91,14 @@ class ServiceCodeExchangeFinalizeServiceTest {
         List<ServiceAccount> accounts = accountCaptor.getValue();
         assertEquals(List.of("AB12000002", "AB12000001"),
                 accounts.stream().map(ServiceAccount::getAccount).toList());
-        assertEquals(null, accounts.get(0).getCorsAccountId());
+        assertEquals(List.of("10001", "10002"),
+                accounts.stream().map(ServiceAccount::getCorsAccountId).toList());
 
         ArgumentCaptor<List<ExchangeDetailMapper.CompletedAccountRow>> detailCaptor =
                 ArgumentCaptor.forClass((Class) List.class);
         verify(detailMapper).completeBatchDetails(eq(9L), detailCaptor.capture(), eq(NOW));
+        assertEquals("10001", detailCaptor.getValue().get(0).getAccountId());
+        assertEquals("10002", detailCaptor.getValue().get(1).getAccountId());
         assertEquals("AB12000002", detailCaptor.getValue().get(0).getAccount());
         assertEquals("AB12000001", detailCaptor.getValue().get(1).getAccount());
         verify(serviceCodeMapper).consumeForExchange(List.of(101L, 102L),
@@ -104,9 +108,10 @@ class ServiceCodeExchangeFinalizeServiceTest {
     }
 
     @Test
-    void responseWithWrongNameCountIsRejectedBeforeLocalMutation() {
+    void responseWithWrongAccountCountIsRejectedBeforeLocalMutation() {
         CorsBatchResult response = CorsBatchResult.success(CORS_REQUEST_ID,
-                new CorsAddAccountData("corsAdd", List.of("AB12000001")));
+                new CorsAddAccountData(List.of(
+                        new CorsCreatedAccount(10001L, "AB12000001"))));
 
         assertThrows(RuntimeException.class, () -> service.finalizeSuccess(41L, 3L, response));
 
@@ -118,9 +123,11 @@ class ServiceCodeExchangeFinalizeServiceTest {
     }
 
     @Test
-    void responseWithBlankNameIsRejectedBeforeLocalMutation() {
+    void responseWithBlankAccountNameIsRejectedBeforeLocalMutation() {
         CorsBatchResult response = CorsBatchResult.success(CORS_REQUEST_ID,
-                new CorsAddAccountData("corsAdd", List.of("AB12000001", " ")));
+                new CorsAddAccountData(List.of(
+                        new CorsCreatedAccount(10001L, "AB12000001"),
+                        new CorsCreatedAccount(10002L, " "))));
 
         assertThrows(RuntimeException.class, () -> service.finalizeSuccess(41L, 3L, response));
 
@@ -130,7 +137,11 @@ class ServiceCodeExchangeFinalizeServiceTest {
     }
 
     private CorsBatchResult success(String... names) {
-        return CorsBatchResult.success(CORS_REQUEST_ID, new CorsAddAccountData("corsAdd", List.of(names)));
+        List<CorsCreatedAccount> accounts = new java.util.ArrayList<>();
+        for (int i = 0; i < names.length; i++) {
+            accounts.add(new CorsCreatedAccount(10001L + i, names[i]));
+        }
+        return CorsBatchResult.success(CORS_REQUEST_ID, new CorsAddAccountData(accounts));
     }
 
     private ExchangeDetail detail(Long serviceCodeId, Long detailId, int index,

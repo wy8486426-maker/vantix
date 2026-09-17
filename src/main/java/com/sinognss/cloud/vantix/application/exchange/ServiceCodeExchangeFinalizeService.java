@@ -9,8 +9,8 @@ import com.sinognss.cloud.vantix.domain.cors.CorsOperation;
 import com.sinognss.cloud.vantix.domain.exchange.ExchangeBatch;
 import com.sinognss.cloud.vantix.domain.exchange.ExchangeDetail;
 import com.sinognss.cloud.vantix.domain.exchange.ExchangeStatus;
-import com.sinognss.cloud.vantix.domain.servicecode.ServiceCode;
 import com.sinognss.cloud.vantix.integration.cors.CorsBatchResult;
+import com.sinognss.cloud.vantix.integration.cors.CorsCreatedAccount;
 import com.sinognss.cloud.vantix.integration.cors.CorsOutcome;
 import com.sinognss.cloud.vantix.infrastructure.mapper.CorsOperationMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ExchangeBatchMapper;
@@ -70,7 +70,7 @@ public class ServiceCodeExchangeFinalizeService {
                     "兑换批次当前不能 finalize");
         }
 
-        List<String> corsNames = validateResponse(operation, batch, result);
+        List<CorsCreatedAccount> corsAccounts = validateResponse(operation, batch, result);
         List<ExchangeDetail> details = detailMapper.selectByBatchId(batch.getId());
         validateDetails(batch, details);
         LocalDateTime now = LocalDateTime.now(clock);
@@ -78,7 +78,7 @@ public class ServiceCodeExchangeFinalizeService {
         List<ExchangeDetailMapper.CompletedAccountRow> completedRows = new ArrayList<>(batch.getQuantity());
         for (int i = 0; i < batch.getQuantity(); i++) {
             ExchangeDetail detail = details.get(i);
-            String corsName = corsNames.get(i);
+            CorsCreatedAccount corsAccount = corsAccounts.get(i);
             ExchangeCodeSnapshot snapshot = deserialize(detail.getServiceCodeSnapshot());
             if (!detail.getServiceCodeId().equals(snapshot.serviceCodeId())
                     || !batch.getOwnerCompanyId().equals(snapshot.ownerCompanyId())
@@ -88,9 +88,9 @@ public class ServiceCodeExchangeFinalizeService {
                 throw new BusinessException(ErrorCode.EXCHANGE_STATE_INCONSISTENT,
                         "兑换明细快照与批次不匹配");
             }
-            accounts.add(toServiceAccount(batch, detail, snapshot, corsName, now));
+            accounts.add(toServiceAccount(batch, detail, snapshot, corsAccount, now));
             completedRows.add(new ExchangeDetailMapper.CompletedAccountRow(
-                    detail.getDetailIndex(), null, corsName));
+                    detail.getDetailIndex(), String.valueOf(corsAccount.id()), corsAccount.name()));
         }
 
         for (int from = 0; from < accounts.size(); from += INSERT_CHUNK_SIZE) {
@@ -126,15 +126,16 @@ public class ServiceCodeExchangeFinalizeService {
         return true;
     }
 
-    private List<String> validateResponse(CorsOperation operation, ExchangeBatch batch, CorsBatchResult result) {
+    private List<CorsCreatedAccount> validateResponse(CorsOperation operation, ExchangeBatch batch,
+                                                       CorsBatchResult result) {
         if (result == null || result.outcome() != CorsOutcome.SUCCESS
                 || !operation.getRequestId().equals(result.requestId())
                 || result.data() == null
-                || !result.data().hasValidCorsNameList(batch.getQuantity())) {
+                || !result.data().hasValidAccounts(batch.getQuantity())) {
             throw new BusinessException(ErrorCode.EXCHANGE_STATE_INCONSISTENT,
-                    "CORS 成功响应的 requestId 或 corsNameList 无效");
+                    "CORS 成功响应的 requestId 或 accounts 无效");
         }
-        return result.data().corsNameList();
+        return result.data().accounts();
     }
 
     private void validateDetails(ExchangeBatch batch, List<ExchangeDetail> details) {
@@ -162,7 +163,7 @@ public class ServiceCodeExchangeFinalizeService {
     }
 
     private ServiceAccount toServiceAccount(ExchangeBatch batch, ExchangeDetail detail,
-                                            ExchangeCodeSnapshot snapshot, String corsName,
+                                            ExchangeCodeSnapshot snapshot, CorsCreatedAccount corsAccount,
                                             LocalDateTime now) {
         if (snapshot.serviceType() == null || snapshot.durationDays() == null
                 || snapshot.durationDays() <= 0 || snapshot.codeSilenceDays() == null
@@ -172,9 +173,8 @@ public class ServiceCodeExchangeFinalizeService {
                     "兑换服务码快照内容无效");
         }
         ServiceAccount account = new ServiceAccount();
-        // /userInfo/add returns the account names only. Status/remote id snapshots
-        // remain unset until the existing status-sync flow can resolve them.
-        account.setAccount(corsName);
+        account.setCorsAccountId(String.valueOf(corsAccount.id()));
+        account.setAccount(corsAccount.name());
         account.setOwnerCompanyId(snapshot.ownerCompanyId());
         account.setAssignedUserId(batch.getAssignedUserId());
         account.setSourceServiceCodeId(detail.getServiceCodeId());

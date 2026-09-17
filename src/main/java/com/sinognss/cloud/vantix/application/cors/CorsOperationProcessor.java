@@ -95,9 +95,9 @@ public class CorsOperationProcessor {
                     "CORS 创建请求已成功接受，但结果详情暂未获取到");
             return;
         }
-        if (!data.hasValidCorsNameList(batch.getQuantity())) {
+        if (!data.hasValidAccounts(batch.getQuantity())) {
             stateService.retryOrMarkManualReview(operation, "CORS_RESULT_INCOMPLETE",
-                    "CORS 返回的 corsNameList 不完整或包含空账号名");
+                    "CORS 返回的 accounts 不完整或包含无效账号");
             return;
         }
         finalizeOrReview(operation, result);

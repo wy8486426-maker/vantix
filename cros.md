@@ -52,15 +52,18 @@ Accept: application/json
   "code": 0,
   "message": "操作成功",
   "data": {
-    "interface_name": "corsAdd",
-    "corsNameList": ["AB12000001", "AB12000002"]
+    "accounts": [
+      {"id": 10001, "name": "AB12000001"},
+      {"id": 10002, "name": "AB12000002"}
+    ]
   }
 }
 ```
 
 `code = 0` 表示 CORS 请求成功接受，`data` 可以暂时为 `null`。当 `data` 有值时，
-Vantix 只使用 `corsNameList` 入账；列表必须非 null、数量恰好等于 `addNum`、每个元素
-非 blank 且批内不重复。校验不通过时不会标记 COMPLETE，也不会伪造账号名。
+Vantix 使用 `accounts` 入账；列表必须非 null、数量恰好等于 `addNum`，每个 `id` 为正数且
+批内不重复，每个 `name` 非 blank、长度不超过本地字段限制且批内不重复。校验不通过时
+不会标记 COMPLETE，也不会伪造账号。
 
 `code != 0` 表示业务失败。例如：
 
@@ -85,8 +88,8 @@ CORS Redis 回传结果窗口从 operation 的第一次调用时间
 允许短期重试，窗口到期后停止自动重试并将现有 operation 与 exchange batch 转为
 `MANUAL_REVIEW`。当前不新增查询协议、Redis 直查或自动换 requestId 重建。
 
-只有拿到完整有效的 `corsNameList` 并完成 Vantix 本地账号、兑换明细、服务码消费和批次
-状态持久化后，才会将 operation/batch 标记完成。
+只有拿到完整有效的 `accounts` 并完成 Vantix 本地账号、兑换明细、服务码消费和批次状态
+持久化后，才会将 operation/batch 标记完成。
 
 ## Vantix 配置
 
