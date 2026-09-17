@@ -9,7 +9,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-/** Data returned by CORS CommonResult for /userInfo/add. */
+/** Data returned by CORS CommonResult for /BaseUser/userInfo/add. */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record CorsAddAccountData(
         List<CorsCreatedAccount> accounts) {

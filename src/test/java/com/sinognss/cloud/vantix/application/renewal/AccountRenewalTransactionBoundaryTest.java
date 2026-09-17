@@ -47,6 +47,7 @@ class AccountRenewalTransactionBoundaryTest {
         CorsOperation operation = operation();
         ServiceAccount account = account();
         when(claimService.claim(41L)).thenReturn(new ClaimedAccountRenewal(operation, operationRenewal));
+        when(claimService.initializeFirstAttempt(operation)).thenReturn(true);
         when(accountMapper.selectById(61L)).thenReturn(account);
         when(statusGateway.getAccount("61")).thenAnswer(invocation -> {
             assertFalse(TransactionSynchronizationManager.isActualTransactionActive());

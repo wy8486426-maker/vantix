@@ -33,7 +33,6 @@ public class RestCorsAccountGateway implements CorsAccountGateway, CorsAccountRe
     private static final String SUCCESS_CODE = "0";
     private static final String IDEMPOTENCY_CONFLICT_CODE = "IDEMPOTENCY_CONFLICT";
     private static final Set<String> DEFINITIVE_REJECT_CODES = Set.of("5301", "5302");
-    private static final Set<String> RENEWAL_DEFINITIVE_CODES = Set.of("5314", "5345", "5316");
 
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
@@ -181,17 +180,18 @@ public class RestCorsAccountGateway implements CorsAccountGateway, CorsAccountRe
         String code = text(envelope.get("code"));
         String message = safeMessage(text(envelope.get("message")),
                 "CORS returned an unclassified renewal response");
-        if (RENEWAL_DEFINITIVE_CODES.contains(code)) {
-            return CorsAccountRenewalResult.definitiveReject(expectedRequestId,
-                    renewalFailureCode(code), message);
-        }
         if (!response.getStatusCode().is2xxSuccessful()) {
+            if (code != null && !SUCCESS_CODE.equals(code)) {
+                return CorsAccountRenewalResult.definitiveReject(expectedRequestId, code, message);
+            }
             return CorsAccountRenewalResult.unknown(expectedRequestId,
                     code == null ? "HTTP_" + statusCode : code, message);
         }
         if (!SUCCESS_CODE.equals(code)) {
-            return CorsAccountRenewalResult.unknown(expectedRequestId,
-                    code == null ? "MISSING_CODE" : code, message);
+            if (code == null) {
+                return CorsAccountRenewalResult.unknown(expectedRequestId, "MISSING_CODE", message);
+            }
+            return CorsAccountRenewalResult.definitiveReject(expectedRequestId, code, message);
         }
 
         JsonNode dataNode = envelope.get("data");
@@ -241,15 +241,6 @@ public class RestCorsAccountGateway implements CorsAccountGateway, CorsAccountRe
             return CorsPasswordResult.businessFailure(code, message);
         }
         return CorsPasswordResult.unknown(code == null ? "MISSING_CODE" : code, message);
-    }
-
-    private static String renewalFailureCode(String corsCode) {
-        return switch (corsCode) {
-            case "5314" -> "CORS_RENEWAL_INVALID_ARGUMENT";
-            case "5345" -> "CORS_RENEWAL_ACCOUNT_NOT_ACTIVE";
-            case "5316" -> "CORS_RENEWAL_FAILED";
-            default -> "CORS_RENEWAL_FAILED";
-        };
     }
 
     private static String text(JsonNode node) {

@@ -19,6 +19,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -51,7 +52,7 @@ class AccountRenewalClaimServiceTest {
         CorsOperation claimed = operation("CLAIMED", null, 3L, 0);
         AccountRenewal renewal = renewal(8L);
         when(operationMapper.selectById(OPERATION_ID)).thenReturn(pending);
-        when(operationMapper.claim(OPERATION_ID, "PENDING", 2L, NOW)).thenReturn(1);
+        when(operationMapper.claimRenewal(OPERATION_ID, "PENDING", 2L, NOW)).thenReturn(1);
         when(operationMapper.selectByIdForUpdate(OPERATION_ID)).thenReturn(claimed);
         when(renewalMapper.selectByIdForUpdate(RENEWAL_ID)).thenReturn(renewal);
 
@@ -59,7 +60,8 @@ class AccountRenewalClaimServiceTest {
 
         assertEquals("CLAIMED", result.operation().getStatus());
         assertEquals(renewal, result.renewal());
-        verify(operationMapper).claim(OPERATION_ID, "PENDING", 2L, NOW);
+        verify(operationMapper).claimRenewal(OPERATION_ID, "PENDING", 2L, NOW);
+        assertNull(result.operation().getFirstAttemptAt());
     }
 
     @Test
@@ -67,7 +69,7 @@ class AccountRenewalClaimServiceTest {
         CorsOperation retry = operation("RETRY_WAIT", NOW.minusSeconds(1), 4L, 2);
         CorsOperation claimed = operation("CLAIMED", NOW.minusSeconds(1), 5L, 2);
         when(operationMapper.selectById(OPERATION_ID)).thenReturn(retry);
-        when(operationMapper.claim(OPERATION_ID, "RETRY_WAIT", 4L, NOW)).thenReturn(1);
+        when(operationMapper.claimRenewal(OPERATION_ID, "RETRY_WAIT", 4L, NOW)).thenReturn(1);
         when(operationMapper.selectByIdForUpdate(OPERATION_ID)).thenReturn(claimed);
         when(renewalMapper.selectByIdForUpdate(RENEWAL_ID)).thenReturn(renewal(9L));
 
@@ -83,7 +85,7 @@ class AccountRenewalClaimServiceTest {
 
         assertNull(claimService.claim(OPERATION_ID));
 
-        verify(operationMapper, never()).claim(org.mockito.ArgumentMatchers.anyLong(),
+        verify(operationMapper, never()).claimRenewal(org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.any());
     }
@@ -92,7 +94,7 @@ class AccountRenewalClaimServiceTest {
     void failedCasDoesNotReturnClaim() {
         when(operationMapper.selectById(OPERATION_ID))
                 .thenReturn(operation("PENDING", null, 2L, 0));
-        when(operationMapper.claim(OPERATION_ID, "PENDING", 2L, NOW)).thenReturn(0);
+        when(operationMapper.claimRenewal(OPERATION_ID, "PENDING", 2L, NOW)).thenReturn(0);
 
         assertNull(claimService.claim(OPERATION_ID));
         verify(renewalMapper, never()).selectByIdForUpdate(RENEWAL_ID);
@@ -106,8 +108,31 @@ class AccountRenewalClaimServiceTest {
 
         assertNull(claimService.claim(OPERATION_ID));
 
-        verify(operationMapper, never()).claim(org.mockito.ArgumentMatchers.anyLong(),
+        verify(operationMapper, never()).claimRenewal(org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void firstAttemptIsInitializedSeparatelyWithoutChangingClaimedVersion() {
+        CorsOperation operation = operation("CLAIMED", null, 3L, 0);
+        when(operationMapper.initializeRenewalFirstAttempt(OPERATION_ID, 3L, NOW)).thenReturn(1);
+
+        assertTrue(claimService.initializeFirstAttempt(operation));
+
+        assertEquals(NOW, operation.getFirstAttemptAt());
+        verify(operationMapper).initializeRenewalFirstAttempt(OPERATION_ID, 3L, NOW);
+    }
+
+    @Test
+    void retryKeepsExistingFirstAttemptWithoutUpdatingMapper() {
+        CorsOperation operation = operation("CLAIMED", NOW.minusSeconds(30), 3L, 1);
+        operation.setFirstAttemptAt(NOW.minusSeconds(30));
+
+        assertTrue(claimService.initializeFirstAttempt(operation));
+
+        verify(operationMapper, never()).initializeRenewalFirstAttempt(
+                org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.any());
     }
 

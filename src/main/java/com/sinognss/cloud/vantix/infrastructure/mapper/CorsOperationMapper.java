@@ -91,6 +91,18 @@ public interface CorsOperationMapper extends BaseMapper<CorsOperation> {
     int claim(@Param("id") Long id, @Param("expectedStatus") String expectedStatus,
               @Param("expectedVersion") Long expectedVersion, @Param("now") LocalDateTime now);
 
+    @Update("UPDATE cors_operation SET status = 'CLAIMED', claimed_at = #{now}, "
+            + "version = version + 1, updated_at = #{now} "
+            + "WHERE id = #{id} AND status = #{expectedStatus} AND version = #{expectedVersion}")
+    int claimRenewal(@Param("id") Long id, @Param("expectedStatus") String expectedStatus,
+                     @Param("expectedVersion") Long expectedVersion, @Param("now") LocalDateTime now);
+
+    @Update("UPDATE cors_operation SET first_attempt_at = #{now}, updated_at = #{now} "
+            + "WHERE id = #{id} AND status = 'CLAIMED' AND version = #{expectedVersion} "
+            + "AND first_attempt_at IS NULL")
+    int initializeRenewalFirstAttempt(@Param("id") Long id, @Param("expectedVersion") Long expectedVersion,
+                                      @Param("now") LocalDateTime now);
+
     @Update("UPDATE cors_operation SET status = 'RETRY_WAIT', retry_count = #{retryCount}, "
             + "next_retry_at = #{nextRetryAt}, claimed_at = NULL, last_error_code = #{errorCode}, "
             + "last_error_message = #{errorMessage}, version = version + 1, updated_at = #{now} "

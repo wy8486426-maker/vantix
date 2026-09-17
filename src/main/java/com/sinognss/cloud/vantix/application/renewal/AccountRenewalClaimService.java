@@ -51,7 +51,7 @@ public class AccountRenewalClaimService {
                 && current.getNextRetryAt() != null && current.getNextRetryAt().isAfter(now)) {
             return null;
         }
-        if (operationMapper.claim(current.getId(), current.getStatus(), current.getVersion(), now) != 1) {
+        if (operationMapper.claimRenewal(current.getId(), current.getStatus(), current.getVersion(), now) != 1) {
             return null;
         }
 
@@ -62,6 +62,26 @@ public class AccountRenewalClaimService {
         AccountRenewal renewal = claimed.getBizId() == null ? null
                 : renewalMapper.selectByIdForUpdate(claimed.getBizId());
         return new ClaimedAccountRenewal(claimed, renewal);
+    }
+
+    /**
+     * Starts the renewal result window immediately before the first real CORS
+     * renewal POST. This update does not change the claimed version so the
+     * existing finalize/retry CAS contract remains valid.
+     */
+    public boolean initializeFirstAttempt(CorsOperation operation) {
+        if (operation == null || operation.getId() == null || operation.getVersion() == null) {
+            return false;
+        }
+        if (operation.getFirstAttemptAt() != null) {
+            return true;
+        }
+        LocalDateTime now = LocalDateTime.now(clock).truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
+        if (operationMapper.initializeRenewalFirstAttempt(operation.getId(), operation.getVersion(), now) != 1) {
+            return false;
+        }
+        operation.setFirstAttemptAt(now);
+        return true;
     }
 
     public List<Long> findDueOperationIds(int limit) {

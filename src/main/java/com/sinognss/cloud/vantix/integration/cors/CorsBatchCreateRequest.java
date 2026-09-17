@@ -1,6 +1,6 @@
 package com.sinognss.cloud.vantix.integration.cors;
 
-/** CORS /userInfo/add request built from the frozen exchange batch snapshot. */
+/** CORS /BaseUser/userInfo/add request built from the frozen exchange batch snapshot. */
 public record CorsBatchCreateRequest(String requestId, int addNum, int accountType,
                                      int durationType, String accountName, int nameType,
                                      int silenceType, int activeType, String remark,

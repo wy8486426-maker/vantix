@@ -144,6 +144,11 @@ public class AccountRenewalProcessor {
                     "Stored renewal request snapshot is invalid");
             return false;
         }
+        if (!claimService.initializeFirstAttempt(operation)) {
+            stateService.markManualReview(operation, renewal, "RENEWAL_ATTEMPT_INITIALIZATION_FAILED",
+                    "续期首次 CORS 调用时间初始化失败，未发送远程请求");
+            return false;
+        }
         sendRenewal(operation, renewal, account, request);
         return true;
     }
@@ -184,7 +189,8 @@ public class AccountRenewalProcessor {
                 } else {
                     stateService.definitiveFail(operation, renewal,
                             errorCode(result.errorCode(), "CORS_RENEWAL_REJECTED"),
-                            "CORS definitively rejected the renewal without side effects");
+                            errorMessage(result.errorMessage(),
+                                    "CORS definitively rejected the renewal without side effects"));
                 }
             }
         }
@@ -295,6 +301,10 @@ public class AccountRenewalProcessor {
     }
 
     private static String errorCode(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
+    }
+
+    private static String errorMessage(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value;
     }
 

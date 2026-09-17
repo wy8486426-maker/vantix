@@ -1272,8 +1272,8 @@ ownerCompanyId, createdFrom, createdTo
 }
 ```
 
-一次请求为“一个账号 + 一个服务码”。网络超时要复用相同 requestId。当前没有批量续期写接口。
-底层 CORS 使用 `POST /BaseUser/userInfo/batch/renewal`，`ids` 来自
+Vantix 前端一次请求仍是“一个账号 + 一个服务码”，当前没有独立的批量续期写接口；网络超时要复用相同 requestId。
+底层 CORS 使用批量接口 `POST /BaseUser/userInfo/batch/renewal`，`ids` 来自
 `service_account.cors_account_id`，`dayType` 使用冻结的 `durationDays`；TEST/HISTORY_IMPORT
 仍不允许服务码续期。
 

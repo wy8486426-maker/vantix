@@ -140,15 +140,16 @@ Accept: application/json
 `MANUAL_REVIEW`，不换 requestId 无限重放。拿到 `interface_name=corsRenewal` 且
 `corsNameList` 非 null、数量/名称合法并与本地账号集合一致后，才允许本地 finalize。
 
-续期确定性失败码：
+续期确定性失败码（以及任何其他可解析、可信的非 0 code）：
 
-| CORS code | Vantix 错误码 | 处理 |
+| CORS code | Vantix 处理 | 处理 |
 |---|---|---|
-| `5314` | `CORS_RENEWAL_INVALID_ARGUMENT` | 明确失败，释放本地服务码预留。 |
-| `5345` | `CORS_RENEWAL_ACCOUNT_NOT_ACTIVE` | 明确失败，释放本地服务码预留。 |
-| `5316` | `CORS_RENEWAL_FAILED` | 明确失败，释放本地服务码预留。 |
+| `5314` | 保留 CORS code/message | 明确失败，释放本地服务码预留，不重试。 |
+| `5345` | 保留 CORS code/message | 明确失败，释放本地服务码预留，不重试。 |
+| `5316` | 保留 CORS code/message | 明确失败，释放本地服务码预留，不重试。 |
+| 其他非 `0` code | 保留 CORS code/message | 同样视为明确失败，不按 UNKNOWN 无限重试。 |
 
-5xx、超时、连接异常、非 JSON、格式错误和未知 code 仍按 UNKNOWN/retry/
+5xx、超时、连接异常、非 JSON、格式错误和缺失 code 仍按 UNKNOWN/retry/
 `MANUAL_REVIEW` 处理；CORS 已成功但本地 finalize 失败时继续使用原 requestId 恢复，
 不创建第二次续期语义。
 

@@ -131,6 +131,7 @@ class AccountRenewalStateServiceTest {
         order.verify(codeMapper).releaseRenewalCode(CODE_ID, REQUEST_ID, CODE_VERSION, NOW);
         order.verify(renewalMapper).fail(RENEWAL_ID, RENEWAL_VERSION,
                 "CORS_RENEWAL_REJECTED", "CORS rejected", NOW);
+        verify(codeMapper, never()).consumeRenewalCode(any(), anyString(), any(), any());
         order.verify(operationMapper).markFailed(OPERATION_ID, OP_VERSION,
                 "CORS_RENEWAL_REJECTED", "CORS rejected", NOW);
     }

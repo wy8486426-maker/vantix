@@ -170,22 +170,41 @@ class RestCorsAccountGatewayTest {
     }
 
     @Test
-    void mapsConfirmedRenewalFailureCodesToDefinitiveBusinessFailures() {
-        for (String code : java.util.List.of("5314", "5345", "5316")) {
+    void renewalServerErrorMalformedResponseAndTransportRemainUnknown() {
+        Fixture serverError = fixture();
+        serverError.server.expect(requestTo(RENEWAL_URL))
+                .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators.withServerError());
+        assertEquals(CorsOutcome.UNKNOWN, serverError.gateway.renew(renewalRequest()).outcome());
+        serverError.server.verify();
+
+        Fixture malformed = fixture();
+        malformed.server.expect(requestTo(RENEWAL_URL))
+                .andRespond(withSuccess("not-json", MediaType.APPLICATION_JSON));
+        assertEquals(CorsOutcome.UNKNOWN, malformed.gateway.renew(renewalRequest()).outcome());
+        malformed.server.verify();
+
+        Fixture transport = fixture();
+        transport.server.expect(requestTo(RENEWAL_URL))
+                .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators
+                        .withException(new java.io.IOException("connection reset")));
+        assertEquals(CorsOutcome.UNKNOWN, transport.gateway.renew(renewalRequest()).outcome());
+        transport.server.verify();
+    }
+
+    @Test
+    void mapsEveryTrustedNonzeroRenewalCodeToDefinitiveBusinessFailure() {
+        for (String code : java.util.List.of("5314", "5345", "5316", "5999")) {
             Fixture fixture = fixture();
             fixture.server.expect(requestTo(RENEWAL_URL))
                     .andRespond(withSuccess("{\"code\":" + code
-                            + ",\"message\":\"failure\",\"data\":2}",
+                            + ",\"message\":\"failure-" + code + "\",\"data\":2}",
                             MediaType.APPLICATION_JSON));
 
             CorsAccountRenewalResult result = fixture.gateway.renew(renewalRequest());
 
             assertEquals(CorsOutcome.DEFINITIVE_REJECT, result.outcome());
-            assertEquals("CORS_RENEWAL_" + switch (code) {
-                case "5314" -> "INVALID_ARGUMENT";
-                case "5345" -> "ACCOUNT_NOT_ACTIVE";
-                default -> "FAILED";
-            }, result.errorCode());
+            assertEquals(code, result.errorCode());
+            assertEquals("failure-" + code, result.errorMessage());
             fixture.server.verify();
         }
     }

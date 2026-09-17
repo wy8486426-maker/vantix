@@ -30,6 +30,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -65,6 +66,7 @@ class AccountRenewalProcessorTest {
         renewal = renewal();
         account = account();
         when(claimService.claim(OPERATION_ID)).thenReturn(new ClaimedAccountRenewal(operation, renewal));
+        lenient().when(claimService.initializeFirstAttempt(operation)).thenReturn(true);
         when(accountMapper.selectById(ACCOUNT_ID)).thenReturn(account);
     }
 
@@ -75,8 +77,10 @@ class AccountRenewalProcessorTest {
 
         processor.process(OPERATION_ID);
 
-        InOrder order = inOrder(statusGateway, renewalGateway);
+        InOrder order = inOrder(statusGateway, claimService, renewalGateway);
+        order.verify(claimService).claim(OPERATION_ID);
         order.verify(statusGateway).getAccount(String.valueOf(CORS_ACCOUNT_ID));
+        order.verify(claimService).initializeFirstAttempt(operation);
         ArgumentCaptor<CorsAccountRenewalRequest> captor = ArgumentCaptor.forClass(CorsAccountRenewalRequest.class);
         order.verify(renewalGateway).renew(captor.capture());
         assertEquals(List.of(CORS_ACCOUNT_ID), captor.getValue().ids());
@@ -97,6 +101,17 @@ class AccountRenewalProcessorTest {
         verify(stateService).retryOrMarkManualReview(operation, renewal, "CORS_RESULT_PENDING",
                 "CORS 续期请求已接受，但 Redis 结果暂不可用");
         verify(finalizeService, never()).finalizeSuccess(any(), any(), any());
+    }
+
+    @Test
+    void preflightUnknownDoesNotStartTheRenewalResultWindowOrPost() {
+        when(statusGateway.getAccount(String.valueOf(CORS_ACCOUNT_ID)))
+                .thenReturn(CorsAccountStatusResult.unknown("PREFLIGHT_UNKNOWN", "unavailable"));
+
+        processor.process(OPERATION_ID);
+
+        verify(claimService, never()).initializeFirstAttempt(operation);
+        verify(renewalGateway, never()).renew(any());
     }
 
     @Test
@@ -167,10 +182,11 @@ class AccountRenewalProcessorTest {
     }
 
     @Test
-    void definitiveRenewalCodesReleaseTheReservedCodeWithoutRetry() {
-        assertDefinitiveFailure("CORS_RENEWAL_INVALID_ARGUMENT", "5314");
-        assertDefinitiveFailure("CORS_RENEWAL_ACCOUNT_NOT_ACTIVE", "5345");
-        assertDefinitiveFailure("CORS_RENEWAL_FAILED", "5316");
+    void everyTrustedNonzeroRenewalCodeFailsWithoutRetry() {
+        assertDefinitiveFailure("5314");
+        assertDefinitiveFailure("5345");
+        assertDefinitiveFailure("5316");
+        assertDefinitiveFailure("5999");
     }
 
     @Test
@@ -184,16 +200,16 @@ class AccountRenewalProcessorTest {
         verify(renewalGateway).renew(request());
     }
 
-    private void assertDefinitiveFailure(String errorCode, String corsCode) {
+    private void assertDefinitiveFailure(String corsCode) {
         org.mockito.Mockito.reset(statusGateway, renewalGateway, stateService);
         when(statusGateway.getAccount(String.valueOf(CORS_ACCOUNT_ID))).thenReturn(statusSuccess(snapshot()));
+        String message = "failure-" + corsCode;
         when(renewalGateway.renew(request())).thenReturn(
-                CorsAccountRenewalResult.definitiveReject(REQUEST_ID, errorCode, corsCode));
+                CorsAccountRenewalResult.definitiveReject(REQUEST_ID, corsCode, message));
 
         processor.process(OPERATION_ID);
 
-        verify(stateService).definitiveFail(operation, renewal, errorCode,
-                "CORS definitively rejected the renewal without side effects");
+        verify(stateService).definitiveFail(operation, renewal, corsCode, message);
         verify(stateService, never()).retryOrMarkManualReview(any(), any(), anyString(), anyString());
     }
 
