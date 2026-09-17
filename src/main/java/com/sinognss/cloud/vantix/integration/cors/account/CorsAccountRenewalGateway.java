@@ -7,5 +7,4 @@ package com.sinognss.cloud.vantix.integration.cors.account;
 public interface CorsAccountRenewalGateway {
     CorsAccountRenewalResult renew(CorsAccountRenewalRequest request);
 
-    CorsAccountRenewalResult queryRenewal(String requestId);
 }

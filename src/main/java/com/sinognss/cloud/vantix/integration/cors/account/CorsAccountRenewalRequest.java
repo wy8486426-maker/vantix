@@ -1,18 +1,19 @@
 package com.sinognss.cloud.vantix.integration.cors.account;
 
-/** The renewal input sent to CORS; duration is taken from the immutable code snapshot. */
-public record CorsAccountRenewalRequest(String requestId, String accountId, int durationDays) {
+/** Request body for POST /BaseUser/userInfo/batch/renewal. */
+public record CorsAccountRenewalRequest(java.util.List<Long> ids, int dayType, String requestId) {
     public CorsAccountRenewalRequest {
+        if (ids == null || ids.isEmpty() || ids.stream().anyMatch(id -> id == null || id <= 0)
+                || ids.stream().distinct().count() != ids.size()) {
+            throw new IllegalArgumentException("ids must contain unique positive account IDs");
+        }
+        ids = java.util.List.copyOf(ids);
+        if (dayType <= 0) {
+            throw new IllegalArgumentException("dayType must be positive");
+        }
         requireText(requestId, "requestId");
-        requireText(accountId, "accountId");
-        if (requestId.length() > 128) {
+        if (requestId.length() > 128 || hasControl(requestId)) {
             throw new IllegalArgumentException("requestId must be at most 128 characters");
-        }
-        if (hasControl(requestId) || hasControl(accountId)) {
-            throw new IllegalArgumentException("requestId and accountId must not contain control characters");
-        }
-        if (durationDays <= 0) {
-            throw new IllegalArgumentException("durationDays must be positive");
         }
     }
 

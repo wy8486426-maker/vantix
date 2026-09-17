@@ -16,6 +16,7 @@ public class CorsAccountRenewalProperties {
     private Duration retryBaseDelay = Duration.ofSeconds(30);
     private Duration retryMaxDelay = Duration.ofHours(1);
     private Duration claimTimeout = Duration.ofMinutes(2);
+    private Duration resultWindow = Duration.ofMinutes(2);
 
     public boolean isEnabled() { return enabled; }
     public void setEnabled(boolean enabled) { this.enabled = enabled; }
@@ -38,6 +39,8 @@ public class CorsAccountRenewalProperties {
     }
     public Duration getClaimTimeout() { return claimTimeout; }
     public void setClaimTimeout(Duration claimTimeout) { this.claimTimeout = requirePositive(claimTimeout, "claimTimeout"); }
+    public Duration getResultWindow() { return resultWindow; }
+    public void setResultWindow(Duration resultWindow) { this.resultWindow = requirePositive(resultWindow, "resultWindow"); }
 
     @AssertTrue(message = "retryMaxDelay must be greater than or equal to retryBaseDelay")
     public boolean isRetryDelayRangeValid() {

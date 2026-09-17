@@ -6,6 +6,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
@@ -14,6 +15,7 @@ import java.util.Map;
 import java.util.TreeMap;
 
 import com.sinognss.cloud.vantix.integration.cors.account.CorsAccountPasswordGateway;
+import com.sinognss.cloud.vantix.integration.cors.account.CorsPasswordGateway;
 import com.sinognss.cloud.vantix.integration.cors.account.CorsAccountRenewalGateway;
 import com.sinognss.cloud.vantix.integration.cors.account.CorsAccountStatusGateway;
 
@@ -43,8 +45,15 @@ class ControllerMappingContractTest {
     @TestConfiguration(proxyBeanMethods = false)
     static class GatewayMocks {
         @Bean
+        @Primary
         CorsAccountPasswordGateway passwordGateway() {
             return mock(CorsAccountPasswordGateway.class);
+        }
+
+        @Bean
+        @Primary
+        CorsPasswordGateway passwordOperationsGateway() {
+            return mock(CorsPasswordGateway.class);
         }
 
         @Bean

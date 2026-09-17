@@ -22,6 +22,7 @@ class CorsAccountRenewalPropertiesTest {
         assertEquals(Duration.ofSeconds(30), properties.getRetryBaseDelay());
         assertEquals(Duration.ofHours(1), properties.getRetryMaxDelay());
         assertEquals(Duration.ofMinutes(2), properties.getClaimTimeout());
+        assertEquals(Duration.ofMinutes(2), properties.getResultWindow());
     }
 
     @Test

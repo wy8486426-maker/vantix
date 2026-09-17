@@ -17,6 +17,7 @@ import com.sinognss.cloud.vantix.infrastructure.mapper.AccountRenewalMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.CorsOperationMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceAccountMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceCodeMapper;
+import com.sinognss.cloud.vantix.integration.cors.account.CorsAccountId;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -148,7 +149,16 @@ public class AccountRenewalReserveTransaction {
 
     private static boolean hasIdentity(ServiceAccount account) {
         return account.getOwnerCompanyId() != null && nonblank(account.getCorsAccountId())
-                && nonblank(account.getAccount());
+                && nonblank(account.getAccount()) && isValidCorsAccountId(account.getCorsAccountId());
+    }
+
+    private static boolean isValidCorsAccountId(String value) {
+        try {
+            CorsAccountId.parse(value);
+            return true;
+        } catch (IllegalArgumentException exception) {
+            return false;
+        }
     }
 
     private static void assertRenewableSource(ServiceAccount account) {

@@ -85,6 +85,7 @@ Vantix 不新增登录接口或 Token Header，继续使用现有 `sino-cloud-ba
 | 续期详情 | GET | `/api/account-renewals/{requestId}` | `/api/account-renewals/detail` | `requestId` 从 Path 改为 Query |
 | 密码重置 | POST | `/api/service-accounts/{serviceAccountId}/password/reset` | `/api/service-accounts/password/reset` | `serviceAccountId` 从 Path 改为 Query |
 | 密码重置结果 | GET | `/api/account-password-resets/{requestId}` | `/api/account-password-resets/result` | `requestId` 从 Path 改为 Query |
+| 自定义密码 | POST | `/api/service-accounts/{serviceAccountId}/password` | `/api/service-accounts/password/custom` | `serviceAccountId` 从 Path 改为 Query，Body 只含 password |
 | 临时查看密码 | POST | `/api/service-accounts/{serviceAccountId}/password/reveal` | `/api/service-accounts/password/reveal` | `serviceAccountId` 从 Path 改为 Query |
 
 ---
@@ -1272,6 +1273,9 @@ ownerCompanyId, createdFrom, createdTo
 ```
 
 一次请求为“一个账号 + 一个服务码”。网络超时要复用相同 requestId。当前没有批量续期写接口。
+底层 CORS 使用 `POST /BaseUser/userInfo/batch/renewal`，`ids` 来自
+`service_account.cors_account_id`，`dayType` 使用冻结的 `durationDays`；TEST/HISTORY_IMPORT
+仍不允许服务码续期。
 
 ---
 
@@ -1299,15 +1303,21 @@ ownerCompanyId, createdFrom, createdTo
 }
 ```
 
+这里的 requestId 仅用于 Vantix 本地结果查询和保持既有前端契约，不会发送给 CORS。
+底层 CORS 固定调用 `POST /BaseUser/userInfo/resetPass`，Body 为 `{"id":10001}`，其中
+`id` 来自 `service_account.cors_account_id`。
+
 **响应 data**：
 
 ```json
 {
   "requestId": "PWD_RESET_202609160001",
   "serviceAccountId": 1001,
-  "status": "PROCESSING"
+  "status": "SUCCEEDED"
 }
 ```
+
+不返回密码、token 或未确认的 CORS response data。
 
 ## 13.2 GET `/api/account-password-resets/result`
 
@@ -1368,6 +1378,24 @@ ownerCompanyId, createdFrom, createdTo
 ```
 
 该接口带 `no-store/no-cache` 响应头。前端只能临时展示，不得写 localStorage/sessionStorage/IndexedDB、不得 console、不得埋点上传、不得长期放全局 store。
+
+## 13.4 POST `/api/service-accounts/password/custom`
+
+**Query**：`serviceAccountId`，必填。
+
+**Body**：
+
+```json
+{
+  "password": "***"
+}
+```
+
+底层 CORS 固定调用 `POST /BaseUser/userInfo/customPass`，Body 为
+`{"id":10001,"password":"***"}`；`id` 来自 `service_account.cors_account_id`。
+TEST/HISTORY_IMPORT 只禁止服务码续期；具备当前账号访问权限且 CORS ID 合法时，不因来源
+被额外禁止密码操作。密码不进入数据库、日志、audit detail、MDC 或 operation payload，
+timeout/连接未知不自动重试。
 
 ---
 
@@ -1470,6 +1498,7 @@ GET  /api/account-renewals/detail?requestId={requestId}
 | 续期 | POST | `/api/account-renewals/create` | 发起续期（CORS 条件） |
 | 密码 | POST | `/api/service-accounts/password/reset`（`serviceAccountId` Query） | 重置（CORS 条件） |
 | 密码 | GET | `/api/account-password-resets/result`（`requestId` Query） | 重置结果（CORS 条件） |
+| 密码 | POST | `/api/service-accounts/password/custom`（`serviceAccountId` Query） | 自定义密码（CORS 条件） |
 | 密码 | POST | `/api/service-accounts/password/reveal`（`serviceAccountId` Query） | 临时查看（CORS 条件） |
 
 ---

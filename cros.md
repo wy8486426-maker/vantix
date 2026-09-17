@@ -1,12 +1,13 @@
 # Vantix 对接 CORS 账号服务接口说明
 
-本文记录 Vantix 服务码兑换流程当前调用的 CORS 新增账号契约。所有路径相对于
-`vantix.cors.base-url`，请求不附加密码、secret 或其他认证头。
+本文记录 Vantix 当前调用的 CORS 账号协议。`vantix.cors.base-url` 只配置
+scheme + host + port，以下路径由适配器统一拼接；除 `customPass` 的正式 body 外，
+请求不附加密码、secret 或其他认证头。
 
 ## 新增账号
 
 ```http
-POST /userInfo/add
+POST /BaseUser/userInfo/add
 Content-Type: application/json
 Accept: application/json
 ```
@@ -90,6 +91,110 @@ CORS Redis 回传结果窗口从 operation 的第一次调用时间
 
 只有拿到完整有效的 `accounts` 并完成 Vantix 本地账号、兑换明细、服务码消费和批次状态
 持久化后，才会将 operation/batch 标记完成。
+
+## 批量续期
+
+```http
+POST /BaseUser/userInfo/batch/renewal
+Content-Type: application/json
+Accept: application/json
+```
+
+请求体：
+
+```json
+{
+  "ids": [101, 102, 103],
+  "dayType": 365,
+  "requestId": "req-20260916-0003"
+}
+```
+
+| 字段 | 规则 |
+|---|---|
+| `ids` | 必填 `integer[]`；来自 Vantix `service_account.cors_account_id`，校验为大于 0 的 Long，不使用本地账号、兑换明细、服务码或续期记录 ID。 |
+| `dayType` | 必填整数；按 CORS 正式定义表示续期天数，取 Vantix 已冻结的 `durationDays`。不传规格码、单位或前端 label。 |
+| `requestId` | CORS Redis 结果关联键。Vantix 在本地 `account_renewal.request_id` 和 `cors_operation.request_id` 稳定保存，重试复用，不重新生成。 |
+
+当前 Vantix 本地续期仍是“一个账号 + 一个服务码”事务边界，因此单个本地 operation
+发送一个 singleton `ids`；若未来本地请求出现不同 `durationDays`，必须按天数拆成独立
+请求和独立 requestId，不能混用一个 `dayType`。只有 `account_source=EXCHANGE` 可以
+使用服务码续期，`TEST` 与 `HISTORY_IMPORT` 仍在调用 CORS 前拒绝。
+
+成功响应示例：
+
+```json
+{
+  "code": 0,
+  "message": "操作成功",
+  "data": {
+    "interface_name": "corsRenewal",
+    "corsNameList": ["AB12000001", "AB12000002"]
+  }
+}
+```
+
+`code=0,data=null` 表示请求成功接受但 Redis 结果暂不可用，不是完成或失败；在约 120
+秒窗口内使用原 requestId 重试。窗口起点只取第一次真实 CORS 尝试写入的
+`cors_operation.first_attempt_at`，不以 `created_at` 回退；窗口结束后转为
+`MANUAL_REVIEW`，不换 requestId 无限重放。拿到 `interface_name=corsRenewal` 且
+`corsNameList` 非 null、数量/名称合法并与本地账号集合一致后，才允许本地 finalize。
+
+续期确定性失败码：
+
+| CORS code | Vantix 错误码 | 处理 |
+|---|---|---|
+| `5314` | `CORS_RENEWAL_INVALID_ARGUMENT` | 明确失败，释放本地服务码预留。 |
+| `5345` | `CORS_RENEWAL_ACCOUNT_NOT_ACTIVE` | 明确失败，释放本地服务码预留。 |
+| `5316` | `CORS_RENEWAL_FAILED` | 明确失败，释放本地服务码预留。 |
+
+5xx、超时、连接异常、非 JSON、格式错误和未知 code 仍按 UNKNOWN/retry/
+`MANUAL_REVIEW` 处理；CORS 已成功但本地 finalize 失败时继续使用原 requestId 恢复，
+不创建第二次续期语义。
+
+## 重置密码
+
+```http
+POST /BaseUser/userInfo/resetPass
+Content-Type: application/json
+Accept: application/json
+```
+
+请求体：
+
+```json
+{
+  "id": 10001
+}
+```
+
+`id` 是从 Vantix `service_account.cors_account_id` 严格解析得到的 CORS 真实账号主键，
+不是 Vantix `service_account.id`。当前未确认 CORS 的 password 返回 data 契约，Vantix
+只按通用 `code/message/data` 做兼容：`code=0` 成功，非 0 为业务失败，5xx/超时/格式错误
+为结果未知；不臆造密码、token 或其他返回字段，也不进入 CORS operation retry。
+
+## 自定义密码
+
+```http
+POST /BaseUser/userInfo/customPass
+Content-Type: application/json
+Accept: application/json
+```
+
+请求体示例（文档不展示真实密码）：
+
+```json
+{
+  "id": 10001,
+  "password": "***"
+}
+```
+
+`password` 只在本次请求内存中用于调用 CORS，不写数据库、日志、audit detail、MDC、
+`cors_operation` payload/result 或异常消息；请求对象和 HTTP 日志均不打印完整 body。
+TEST/HISTORY_IMPORT 只禁止服务码续期，不因来源被额外禁止密码操作；仍须通过现有
+GLOBAL/COMPANY/PERSONAL 账号访问权限和合法 CORS ID 校验。密码调用没有已确认的
+requestId/Redis 契约，因此 timeout/连接未知只进入人工确认，不自动重放明文密码。
 
 ## Vantix 配置
 

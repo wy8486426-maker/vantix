@@ -18,9 +18,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -48,7 +46,7 @@ class AccountRenewalClaimServiceTest {
     }
 
     @Test
-    void pendingClaimsWithoutQueryFirst() {
+    void pendingClaimsReturnTheOriginalRenewalIdentity() {
         CorsOperation pending = operation("PENDING", null, 2L, 0);
         CorsOperation claimed = operation("CLAIMED", null, 3L, 0);
         AccountRenewal renewal = renewal(8L);
@@ -59,14 +57,13 @@ class AccountRenewalClaimServiceTest {
 
         ClaimedAccountRenewal result = claimService.claim(OPERATION_ID);
 
-        assertFalse(result.queryFirst());
         assertEquals("CLAIMED", result.operation().getStatus());
         assertEquals(renewal, result.renewal());
         verify(operationMapper).claim(OPERATION_ID, "PENDING", 2L, NOW);
     }
 
     @Test
-    void retryWaitClaimsQueryFirst() {
+    void retryWaitClaimsReturnTheOriginalRenewalIdentity() {
         CorsOperation retry = operation("RETRY_WAIT", NOW.minusSeconds(1), 4L, 2);
         CorsOperation claimed = operation("CLAIMED", NOW.minusSeconds(1), 5L, 2);
         when(operationMapper.selectById(OPERATION_ID)).thenReturn(retry);
@@ -76,7 +73,6 @@ class AccountRenewalClaimServiceTest {
 
         ClaimedAccountRenewal result = claimService.claim(OPERATION_ID);
 
-        assertTrue(result.queryFirst());
         assertEquals("CLAIMED", result.operation().getStatus());
     }
 

@@ -6,12 +6,14 @@ import com.sinognss.cloud.vantix.domain.renewal.AccountRenewal;
 import com.sinognss.cloud.vantix.domain.renewal.AccountRenewalStatus;
 import com.sinognss.cloud.vantix.integration.cors.CorsOutcome;
 import com.sinognss.cloud.vantix.integration.cors.account.CorsAccountQueryOutcome;
+import com.sinognss.cloud.vantix.integration.cors.account.CorsAccountId;
 import com.sinognss.cloud.vantix.integration.cors.account.CorsAccountRenewalGateway;
 import com.sinognss.cloud.vantix.integration.cors.account.CorsAccountRenewalRequest;
 import com.sinognss.cloud.vantix.integration.cors.account.CorsAccountRenewalResult;
 import com.sinognss.cloud.vantix.integration.cors.account.CorsAccountSnapshot;
 import com.sinognss.cloud.vantix.integration.cors.account.CorsAccountStatusGateway;
 import com.sinognss.cloud.vantix.integration.cors.account.CorsAccountStatusResult;
+import com.sinognss.cloud.vantix.integration.cors.account.CorsRenewalData;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceAccountMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,67 +65,19 @@ public class AccountRenewalProcessor {
             return;
         }
 
-        if (claim.queryFirst() && queryRenewalFirst(operation, renewal, account)) {
-            return;
-        }
         if (!preflightAndRenew(operation, renewal, account)) {
             return;
         }
     }
 
-    /** Returns true when this retry has been completely handled by its query result. */
-    private boolean queryRenewalFirst(CorsOperation operation, AccountRenewal renewal, ServiceAccount account) {
-        CorsAccountRenewalResult result;
-        try {
-            result = renewalGateway.queryRenewal(operation.getRequestId());
-        } catch (RuntimeException exception) {
-            logUnknown("renewal-query", operation, exception);
-            stateService.retryOrMarkManualReview(operation, renewal, "QUERY_UNKNOWN",
-                    "CORS renewal query result is unknown");
-            return true;
-        }
-        if (result == null || result.outcome() == null) {
-            stateService.retryOrMarkManualReview(operation, renewal, "QUERY_MALFORMED",
-                    "CORS renewal query returned no valid result");
-            return true;
-        }
-        if (result.requestId() != null && !operation.getRequestId().equals(result.requestId())) {
-            stateService.markManualReview(operation, renewal, "QUERY_REQUEST_ID_MISMATCH",
-                    "CORS renewal query response requestId does not match the original request");
-            return true;
-        }
-        return switch (result.outcome()) {
-            case SUCCESS -> {
-                finalizeOrReview(operation, renewal, account, result);
-                yield true;
-            }
-            case NOT_FOUND -> false;
-            case UNKNOWN -> {
-                stateService.retryOrMarkManualReview(operation, renewal,
-                        errorCode(result.errorCode(), "QUERY_UNKNOWN"),
-                        "CORS renewal query result is unknown");
-                yield true;
-            }
-            case IDEMPOTENCY_CONFLICT -> {
-                stateService.markManualReview(operation, renewal, "IDEMPOTENCY_CONFLICT",
-                        "CORS renewal requestId conflicts with a different remote request");
-                yield true;
-            }
-            case DEFINITIVE_REJECT -> {
-                if (!operation.getRequestId().equals(result.requestId())) {
-                    stateService.markManualReview(operation, renewal, "REJECT_REQUEST_ID_MISMATCH",
-                            "CORS definitive rejection is not correlated to the original request");
-                    yield true;
-                }
-                stateService.definitiveFail(operation, renewal,
-                        errorCode(result.errorCode(), "CORS_RENEWAL_REJECTED"),
-                        "CORS definitively rejected the renewal without side effects");
-                yield true;
-            }
-        };
-    }
-
     private boolean preflightAndRenew(CorsOperation operation, AccountRenewal renewal, ServiceAccount account) {
+        try {
+            CorsAccountId.parse(account.getCorsAccountId());
+        } catch (IllegalArgumentException exception) {
+            stateService.markManualReview(operation, renewal, "CORS_ACCOUNT_ID_INVALID",
+                    "服务账号缺少可解析的 CORS 账号标识");
+            return false;
+        }
         CorsAccountStatusResult result;
         try {
             result = statusGateway.getAccount(account.getCorsAccountId());
@@ -182,8 +136,9 @@ public class AccountRenewalProcessor {
 
         CorsAccountRenewalRequest request;
         try {
-            request = new CorsAccountRenewalRequest(operation.getRequestId(), account.getCorsAccountId(),
-                    renewal.getDurationDays());
+            request = new CorsAccountRenewalRequest(
+                    java.util.List.of(CorsAccountId.parse(account.getCorsAccountId())),
+                    renewal.getDurationDays(), operation.getRequestId());
         } catch (RuntimeException exception) {
             stateService.markManualReview(operation, renewal, "RENEWAL_SNAPSHOT_INVALID",
                     "Stored renewal request snapshot is invalid");
@@ -237,6 +192,39 @@ public class AccountRenewalProcessor {
 
     private void finalizeOrReview(CorsOperation operation, AccountRenewal renewal,
                                   ServiceAccount account, CorsAccountRenewalResult result) {
+        if (result.data() == null) {
+            stateService.retryOrMarkManualReview(operation, renewal, "CORS_RESULT_PENDING",
+                    "CORS 续期请求已接受，但 Redis 结果暂不可用");
+            return;
+        }
+        if (!hasValidRenewalData(result.data(), account.getAccount(), 1)) {
+            stateService.markManualReview(operation, renewal, "CORS_RESULT_INVALID",
+                    "CORS 续期返回的账号集合无效");
+            return;
+        }
+
+        if (result.account() == null) {
+            CorsAccountStatusResult status;
+            try {
+                status = statusGateway.getAccount(account.getCorsAccountId());
+            } catch (RuntimeException exception) {
+                logUnknown("renewal-success-status", operation, exception);
+                stateService.retryOrMarkManualReview(operation, renewal, "POST_SUCCESS_STATUS_UNKNOWN",
+                        "CORS 续期已返回成功，但账号最新状态暂不可确认");
+                return;
+            }
+            if (status == null || status.outcome() == null || status.outcome() == CorsAccountQueryOutcome.UNKNOWN) {
+                stateService.retryOrMarkManualReview(operation, renewal, "POST_SUCCESS_STATUS_UNKNOWN",
+                        "CORS 续期已返回成功，但账号最新状态暂不可确认");
+                return;
+            }
+            if (status.outcome() != CorsAccountQueryOutcome.SUCCESS || status.snapshot() == null) {
+                stateService.markManualReview(operation, renewal, "POST_SUCCESS_STATUS_INVALID",
+                        "CORS 续期已返回成功，但账号最新状态无效");
+                return;
+            }
+            result = result.withAccount(status.snapshot());
+        }
         if (!isValidSuccess(operation, renewal, account, result)) {
             stateService.markManualReview(operation, renewal, "SUCCESS_RESPONSE_MISMATCH",
                     "CORS reported renewal success with an inconsistent response");
@@ -270,6 +258,17 @@ public class AccountRenewalProcessor {
                 && snapshot.activatedAt() != null && snapshot.expireAt() != null
                 && snapshot.updatedAt() != null
                 && !snapshot.activatedAt().isAfter(snapshot.expireAt());
+    }
+
+    private static boolean hasValidRenewalData(CorsRenewalData data, String expectedAccount, int expectedCount) {
+        if (data == null || !"corsRenewal".equals(data.interfaceName())
+                || data.corsNameList() == null || data.corsNameList().size() != expectedCount
+                || data.corsNameList().stream().anyMatch(name -> name == null || name.isBlank()
+                || name.length() > 128 || name.codePoints().anyMatch(Character::isISOControl))
+                || data.corsNameList().stream().distinct().count() != data.corsNameList().size()) {
+            return false;
+        }
+        return data.corsNameList().contains(expectedAccount);
     }
 
     private static boolean hasRenewalIdentity(CorsOperation operation, AccountRenewal renewal) {

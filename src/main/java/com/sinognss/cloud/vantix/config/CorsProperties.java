@@ -2,6 +2,7 @@ package com.sinognss.cloud.vantix.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.net.URI;
 import java.time.Duration;
 
 @ConfigurationProperties(prefix = "vantix.cors")
@@ -15,7 +16,18 @@ public class CorsProperties {
         if (baseUrl == null || baseUrl.isBlank()) {
             throw new IllegalArgumentException("CORS baseUrl must not be blank");
         }
-        this.baseUrl = baseUrl.trim();
+        String normalized = baseUrl.trim();
+        try {
+            URI uri = URI.create(normalized);
+            if (uri.getScheme() == null || uri.getHost() == null
+                    || uri.getUserInfo() != null || uri.getQuery() != null || uri.getFragment() != null
+                    || uri.getPath() != null && !uri.getPath().isEmpty() && !"/".equals(uri.getPath())) {
+                throw new IllegalArgumentException("CORS baseUrl must contain only scheme, host, and port");
+            }
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalArgumentException("CORS baseUrl must be a valid scheme/host/port URL", exception);
+        }
+        this.baseUrl = normalized.endsWith("/") ? normalized.substring(0, normalized.length() - 1) : normalized;
     }
 
     public Duration getConnectTimeout() { return connectTimeout; }

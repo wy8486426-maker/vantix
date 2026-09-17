@@ -4,6 +4,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sinognss.cloud.vantix.integration.cors.CorsBatchCreateRequest;
 import com.sinognss.cloud.vantix.integration.cors.CorsBatchResult;
 import com.sinognss.cloud.vantix.integration.cors.CorsOutcome;
+import com.sinognss.cloud.vantix.integration.cors.account.CorsAccountRenewalRequest;
+import com.sinognss.cloud.vantix.integration.cors.account.CorsAccountRenewalResult;
+import com.sinognss.cloud.vantix.integration.cors.account.CorsCustomPasswordRequest;
+import com.sinognss.cloud.vantix.integration.cors.account.CorsPasswordResult;
+import com.sinognss.cloud.vantix.integration.cors.account.CorsResetPasswordRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
@@ -20,6 +25,9 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 class RestCorsAccountGatewayTest {
     private static final String BASE_URL = "http://cors.test";
     private static final String CREATE_URL = BASE_URL + "/BaseUser/userInfo/add";
+    private static final String RENEWAL_URL = BASE_URL + "/BaseUser/userInfo/batch/renewal";
+    private static final String RESET_PASSWORD_URL = BASE_URL + "/BaseUser/userInfo/resetPass";
+    private static final String CUSTOM_PASSWORD_URL = BASE_URL + "/BaseUser/userInfo/customPass";
     private static final String REQUEST_ID = "EXCHANGE-cors-1";
 
     @Test
@@ -117,9 +125,125 @@ class RestCorsAccountGatewayTest {
         fixture.server.verify();
     }
 
+    @Test
+    void postsTheConfirmedBatchRenewalContract() {
+        Fixture fixture = fixture();
+        fixture.server.expect(requestTo(RENEWAL_URL))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(content().json("""
+                        {
+                          "ids":[101,102],
+                          "dayType":365,
+                          "requestId":"RN-20260916-0003"
+                        }
+                        """))
+                .andRespond(withSuccess("""
+                        {"code":0,"message":"操作成功","data":{
+                          "interface_name":"corsRenewal",
+                          "corsNameList":["account-101","account-102"]
+                        }}
+                        """, MediaType.APPLICATION_JSON));
+
+        CorsAccountRenewalResult result = fixture.gateway.renew(
+                new CorsAccountRenewalRequest(java.util.List.of(101L, 102L), 365,
+                        "RN-20260916-0003"));
+
+        assertEquals(CorsOutcome.SUCCESS, result.outcome());
+        assertEquals("RN-20260916-0003", result.requestId());
+        assertEquals("corsRenewal", result.data().interfaceName());
+        assertEquals(java.util.List.of("account-101", "account-102"), result.data().corsNameList());
+        fixture.server.verify();
+    }
+
+    @Test
+    void codeZeroWithNullRenewalDataRemainsSuccessButDataIsPending() {
+        Fixture fixture = fixture();
+        fixture.server.expect(requestTo(RENEWAL_URL))
+                .andRespond(withSuccess("{\"code\":0,\"message\":\"操作成功\",\"data\":null}",
+                        MediaType.APPLICATION_JSON));
+
+        CorsAccountRenewalResult result = fixture.gateway.renew(renewalRequest());
+
+        assertEquals(CorsOutcome.SUCCESS, result.outcome());
+        assertNull(result.data());
+        fixture.server.verify();
+    }
+
+    @Test
+    void mapsConfirmedRenewalFailureCodesToDefinitiveBusinessFailures() {
+        for (String code : java.util.List.of("5314", "5345", "5316")) {
+            Fixture fixture = fixture();
+            fixture.server.expect(requestTo(RENEWAL_URL))
+                    .andRespond(withSuccess("{\"code\":" + code
+                            + ",\"message\":\"failure\",\"data\":2}",
+                            MediaType.APPLICATION_JSON));
+
+            CorsAccountRenewalResult result = fixture.gateway.renew(renewalRequest());
+
+            assertEquals(CorsOutcome.DEFINITIVE_REJECT, result.outcome());
+            assertEquals("CORS_RENEWAL_" + switch (code) {
+                case "5314" -> "INVALID_ARGUMENT";
+                case "5345" -> "ACCOUNT_NOT_ACTIVE";
+                default -> "FAILED";
+            }, result.errorCode());
+            fixture.server.verify();
+        }
+    }
+
+    @Test
+    void postsResetAndCustomPasswordContractsWithoutInventingResponseData() {
+        Fixture fixture = fixture();
+        fixture.server.expect(requestTo(RESET_PASSWORD_URL))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(content().json("{\"id\":10001}"))
+                .andRespond(withSuccess("{\"code\":0,\"message\":\"操作成功\",\"data\":null}",
+                        MediaType.APPLICATION_JSON));
+        CorsPasswordResult reset = fixture.gateway.resetPassword(new CorsResetPasswordRequest(10001L));
+        assertEquals(CorsOutcome.SUCCESS, reset.outcome());
+        assertEquals("0", reset.code());
+        fixture.server.verify();
+
+        fixture = fixture();
+        fixture.server.expect(requestTo(CUSTOM_PASSWORD_URL))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(content().json("{\"id\":10001,\"password\":\"NewPassword123\"}"))
+                .andRespond(withSuccess("{\"code\":0,\"message\":\"操作成功\",\"data\":null}",
+                        MediaType.APPLICATION_JSON));
+        CorsPasswordResult custom = fixture.gateway.customPassword(
+                new CorsCustomPasswordRequest(10001L, "NewPassword123"));
+        assertEquals(CorsOutcome.SUCCESS, custom.outcome());
+        assertEquals("0", custom.code());
+        assertNull(custom.message());
+        fixture.server.verify();
+    }
+
+    @Test
+    void passwordNonzeroResponseIsBusinessFailureAndTransportIsUnknown() {
+        Fixture fixture = fixture();
+        fixture.server.expect(requestTo(RESET_PASSWORD_URL))
+                .andRespond(withSuccess("{\"code\":5401,\"message\":\"rejected\",\"data\":2}",
+                        MediaType.APPLICATION_JSON));
+        CorsPasswordResult failure = fixture.gateway.resetPassword(new CorsResetPasswordRequest(10001L));
+        assertEquals(CorsOutcome.DEFINITIVE_REJECT, failure.outcome());
+        assertEquals("5401", failure.code());
+
+        Fixture timeoutFixture = fixture();
+        timeoutFixture.server.expect(requestTo(CUSTOM_PASSWORD_URL))
+                .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators
+                        .withException(new java.io.IOException("timeout")));
+        CorsPasswordResult unknown = timeoutFixture.gateway.customPassword(
+                new CorsCustomPasswordRequest(10001L, "NewPassword123"));
+        assertEquals(CorsOutcome.UNKNOWN, unknown.outcome());
+        timeoutFixture.server.verify();
+    }
+
     private static CorsBatchCreateRequest request() {
         return new CorsBatchCreateRequest(REQUEST_ID, 2, 0, 365, "AB12", 0,
                 30, 1, "", 123L, 0);
+    }
+
+    private static CorsAccountRenewalRequest renewalRequest() {
+        return new CorsAccountRenewalRequest(java.util.List.of(101L), 365, "RN-20260916-0003");
     }
 
     private static Fixture fixture() {

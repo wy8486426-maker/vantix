@@ -172,15 +172,15 @@ class AccountRenewalStateServiceTest {
         operation.setRetryCount(0);
         stubClaimedState();
         when(renewalMapper.updateRetryError(RENEWAL_ID, RENEWAL_VERSION, "CLAIM_TIMEOUT",
-                "Stale account renewal claim recovered; next attempt will query requestId", NOW)).thenReturn(1);
+                "Stale account renewal claim recovered; next attempt will resend the original requestId", NOW)).thenReturn(1);
         when(operationMapper.recoverClaimed(eq(OPERATION_ID), eq(OP_VERSION), eq("RETRY_WAIT"), eq(1),
                 eq(NOW), eq("CLAIM_TIMEOUT"), anyString(), eq(NOW))).thenReturn(1);
 
         assertTrue(stateService.recoverStaleClaim(stale));
         verify(operationMapper).recoverClaimed(OPERATION_ID, OP_VERSION, "RETRY_WAIT", 1,
-                NOW, "CLAIM_TIMEOUT", "Stale account renewal claim recovered; next attempt will query requestId", NOW);
+                NOW, "CLAIM_TIMEOUT", "Stale account renewal claim recovered; next attempt will resend the original requestId", NOW);
         verify(renewalMapper).updateRetryError(RENEWAL_ID, RENEWAL_VERSION, "CLAIM_TIMEOUT",
-                "Stale account renewal claim recovered; next attempt will query requestId", NOW);
+                "Stale account renewal claim recovered; next attempt will resend the original requestId", NOW);
         verify(codeMapper, never()).selectByIdForUpdate(CODE_ID);
 
         properties.setMaxRetries(0);
@@ -194,6 +194,35 @@ class AccountRenewalStateServiceTest {
 
         assertTrue(stateService.recoverStaleClaim(exhausted));
         verify(codeMapper, never()).releaseRenewalCode(any(), anyString(), any(), any());
+    }
+
+    @Test
+    void resultWindowUsesFirstAttemptAtAndDoesNotFallBackToCreatedAt() {
+        operation.setCreatedAt(NOW.minusHours(3));
+        operation.setFirstAttemptAt(null);
+        stubClaimedState();
+        when(renewalMapper.updateRetryError(any(), any(), eq("REMOTE_UNKNOWN"), anyString(), eq(NOW))).thenReturn(1);
+        when(operationMapper.scheduleRetry(eq(OPERATION_ID), eq(OP_VERSION), eq(3), any(),
+                eq("REMOTE_UNKNOWN"), anyString(), eq(NOW))).thenReturn(1);
+
+        assertTrue(stateService.retryOrMarkManualReview(operation, renewal,
+                "REMOTE_UNKNOWN", "remote result unknown"));
+        verify(operationMapper).scheduleRetry(eq(OPERATION_ID), eq(OP_VERSION), eq(3),
+                eq(NOW.plusMinutes(2)), eq("REMOTE_UNKNOWN"), eq("remote result unknown"), eq(NOW));
+    }
+
+    @Test
+    void resultWindowExpiryMovesRenewalToManualReview() {
+        operation.setFirstAttemptAt(NOW.minusMinutes(2));
+        stubClaimedState();
+        when(renewalMapper.markManualReview(eq(RENEWAL_ID), eq(RENEWAL_VERSION),
+                eq("CORS_RENEWAL_RESULT_WINDOW_EXPIRED"), anyString(), eq(NOW))).thenReturn(1);
+        when(operationMapper.markManualReview(eq(OPERATION_ID), eq(OP_VERSION),
+                eq("CORS_RENEWAL_RESULT_WINDOW_EXPIRED"), anyString(), eq(NOW))).thenReturn(1);
+
+        assertTrue(stateService.retryOrMarkManualReview(operation, renewal,
+                "POST_UNKNOWN", "remote result unknown"));
+        verify(operationMapper, never()).scheduleRetry(any(), any(), anyInt(), any(), anyString(), anyString(), any());
     }
 
     private void stubClaimedState() {

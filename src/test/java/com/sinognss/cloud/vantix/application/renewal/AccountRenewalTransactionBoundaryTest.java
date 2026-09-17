@@ -32,7 +32,7 @@ import static org.mockito.Mockito.when;
 
 class AccountRenewalTransactionBoundaryTest {
     @Test
-    void preflightQueryAndRenewCallsRunOutsideAnActiveDatabaseTransaction() {
+    void preflightAndRenewCallsRunOutsideAnActiveDatabaseTransaction() {
         DriverManagerDataSource dataSource = new DriverManagerDataSource(
                 "jdbc:h2:mem:accountRenewalTxBoundary;DB_CLOSE_DELAY=-1", "sa", "");
         PlatformTransactionManager transactionManager = new DataSourceTransactionManager(dataSource);
@@ -46,13 +46,9 @@ class AccountRenewalTransactionBoundaryTest {
         AccountRenewal operationRenewal = renewal();
         CorsOperation operation = operation();
         ServiceAccount account = account();
-        when(claimService.claim(41L)).thenReturn(new ClaimedAccountRenewal(operation, operationRenewal, true));
+        when(claimService.claim(41L)).thenReturn(new ClaimedAccountRenewal(operation, operationRenewal));
         when(accountMapper.selectById(61L)).thenReturn(account);
-        when(renewalGateway.queryRenewal("RN-41")).thenAnswer(invocation -> {
-            assertFalse(TransactionSynchronizationManager.isActualTransactionActive());
-            return CorsAccountRenewalResult.notFound("RN-41", "NOT_FOUND", "not found");
-        });
-        when(statusGateway.getAccount("cors-61")).thenAnswer(invocation -> {
+        when(statusGateway.getAccount("61")).thenAnswer(invocation -> {
             assertFalse(TransactionSynchronizationManager.isActualTransactionActive());
             return CorsAccountStatusResult.success(snapshot());
         });
@@ -79,14 +75,13 @@ class AccountRenewalTransactionBoundaryTest {
             return null;
         });
 
-        verify(renewalGateway).queryRenewal("RN-41");
-        verify(statusGateway).getAccount("cors-61");
+        verify(statusGateway).getAccount("61");
         verify(renewalGateway).renew(any());
         verify(stateService).definitiveFail(any(), any(), any(), any());
     }
 
     private static CorsAccountSnapshot snapshot() {
-        return new CorsAccountSnapshot("cors-61", "account-61", "ACTIVE", "ACTIVE",
+        return new CorsAccountSnapshot("61", "account-61", "ACTIVE", "ACTIVE",
                 OffsetDateTime.of(2026, 8, 1, 0, 0, 0, 0, ZoneOffset.ofHours(8)),
                 OffsetDateTime.of(2027, 8, 1, 0, 0, 0, 0, ZoneOffset.ofHours(8)),
                 OffsetDateTime.of(2026, 7, 1, 0, 0, 0, 0, ZoneOffset.ofHours(8)),
@@ -124,7 +119,7 @@ class AccountRenewalTransactionBoundaryTest {
     private static ServiceAccount account() {
         ServiceAccount account = new ServiceAccount();
         account.setId(61L);
-        account.setCorsAccountId("cors-61");
+        account.setCorsAccountId("61");
         account.setAccount("account-61");
         account.setServiceType("CORS");
         account.setVersion(4L);

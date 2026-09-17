@@ -225,7 +225,7 @@ class AccountRenewalReserveTransactionTest {
     private static ServiceAccount account() {
         ServiceAccount account = new ServiceAccount();
         account.setId(11L);
-        account.setCorsAccountId("cors-11");
+        account.setCorsAccountId("11");
         account.setAccount("account-11");
         account.setOwnerCompanyId(7L);
         account.setAssignedUserId(23L);

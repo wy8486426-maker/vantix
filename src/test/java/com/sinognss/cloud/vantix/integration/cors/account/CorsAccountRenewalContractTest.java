@@ -3,65 +3,57 @@ package com.sinognss.cloud.vantix.integration.cors.account;
 import com.sinognss.cloud.vantix.integration.cors.CorsOutcome;
 import org.junit.jupiter.api.Test;
 
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class CorsAccountRenewalContractTest {
-    private static final CorsAccountSnapshot ACCOUNT = new CorsAccountSnapshot(
-            "cors-1", "account-1", "ACTIVE", "ACTIVE",
-            OffsetDateTime.of(2026, 9, 14, 10, 0, 0, 0, ZoneOffset.ofHours(8)),
-            OffsetDateTime.of(2027, 1, 1, 0, 0, 0, 0, ZoneOffset.ofHours(8)),
-            OffsetDateTime.of(2026, 9, 1, 0, 0, 0, 0, ZoneOffset.ofHours(8)),
-            OffsetDateTime.of(2026, 9, 14, 10, 0, 0, 0, ZoneOffset.ofHours(8)));
-
     @Test
-    void requestCarriesStableRequestIdCorsAccountIdentityAndCodeDuration() {
+    void requestCarriesBatchIdsStableRequestIdAndFrozenDurationAsDayType() {
         CorsAccountRenewalRequest request = new CorsAccountRenewalRequest(
-                "RN-20260914-000001", "cors-1", 90);
+                List.of(101L, 102L), 365, "RN-20260914-000001");
 
         assertEquals("RN-20260914-000001", request.requestId());
-        assertEquals("cors-1", request.accountId());
-        assertEquals(90, request.durationDays());
+        assertEquals(List.of(101L, 102L), request.ids());
+        assertEquals(365, request.dayType());
     }
 
     @Test
     void requestRejectsInvalidIdAccountAndDuration() {
         assertThrows(IllegalArgumentException.class,
-                () -> new CorsAccountRenewalRequest(" ", "cors-1", 1));
+                () -> new CorsAccountRenewalRequest(List.of(101L), 1, " "));
         assertThrows(IllegalArgumentException.class,
-                () -> new CorsAccountRenewalRequest("x".repeat(129), "cors-1", 1));
+                () -> new CorsAccountRenewalRequest(List.of(101L), 1, "x".repeat(129)));
         assertThrows(IllegalArgumentException.class,
-                () -> new CorsAccountRenewalRequest("RN\n1", "cors-1", 1));
+                () -> new CorsAccountRenewalRequest(List.of(101L), 1, "RN\n1"));
         assertThrows(IllegalArgumentException.class,
-                () -> new CorsAccountRenewalRequest("RN-1", " ", 1));
+                () -> new CorsAccountRenewalRequest(List.of(), 1, "RN-1"));
         assertThrows(IllegalArgumentException.class,
-                () -> new CorsAccountRenewalRequest("RN-1", "cors-1", 0));
+                () -> new CorsAccountRenewalRequest(List.of(101L, 101L), 1, "RN-1"));
+        assertThrows(IllegalArgumentException.class,
+                () -> new CorsAccountRenewalRequest(List.of(101L), 0, "RN-1"));
     }
 
     @Test
-    void resultKeepsAllProtocolOutcomesDistinctAndDefinitiveRejectIsExplicit() {
+    void resultModelsRedisPendingAndDefinitiveFailureSeparately() {
         assertEquals(CorsOutcome.SUCCESS,
-                CorsAccountRenewalResult.success("RN-1", ACCOUNT).outcome());
+                CorsAccountRenewalResult.successWithData("RN-1", null).outcome());
+        assertEquals(null, CorsAccountRenewalResult.successWithData("RN-1", null).data());
         assertEquals(CorsOutcome.NOT_FOUND,
                 CorsAccountRenewalResult.notFound("RN-1", "NOT_FOUND", "missing").outcome());
         assertEquals(CorsOutcome.DEFINITIVE_REJECT,
-                CorsAccountRenewalResult.definitiveReject("RN-1", "INACTIVE", "not active").outcome());
+                CorsAccountRenewalResult.definitiveReject("RN-1", "5314", "not active").outcome());
         assertEquals(CorsOutcome.UNKNOWN,
                 CorsAccountRenewalResult.unknown("RN-1", "TIMEOUT", "timed out").outcome());
-        assertEquals(CorsOutcome.IDEMPOTENCY_CONFLICT,
-                CorsAccountRenewalResult.idempotencyConflict("RN-1", "CONFLICT", "key conflict").outcome());
     }
 
     @Test
-    void successRequiresRequestIdAndAccountAndNonSuccessCannotCarryAccount() {
+    void resultRequiresCorrelationAndNeverCarriesDataForFailures() {
         assertThrows(IllegalArgumentException.class,
-                () -> CorsAccountRenewalResult.success(" ", ACCOUNT));
-        assertThrows(NullPointerException.class,
-                () -> CorsAccountRenewalResult.success("RN-1", null));
+                () -> CorsAccountRenewalResult.successWithData(" ", null));
         assertThrows(IllegalArgumentException.class,
-                () -> new CorsAccountRenewalResult(CorsOutcome.UNKNOWN, "RN-1", ACCOUNT, null, null));
+                () -> new CorsAccountRenewalResult(CorsOutcome.UNKNOWN, "RN-1", null,
+                        new CorsRenewalData("corsRenewal", List.of("account-1")), "5314", "invalid"));
     }
 }

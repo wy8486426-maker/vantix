@@ -53,7 +53,13 @@ public class AccountRenewalStateService {
         int retryCount = increment(current.operation().getRetryCount());
         String code = safeCode(errorCode, "ACCOUNT_RENEWAL_UNKNOWN");
         String safeMessage = safeMessage(message, "Account renewal result is unknown");
-        if (retryCount > properties.getMaxRetries()) {
+        if (retryCount > properties.getMaxRetries() || isOutsideResultWindow(current.operation(), now)
+                || isAtOrAfterResultDeadline(current.operation(), now.plus(retryDelay(retryCount)))) {
+            if (isOutsideResultWindow(current.operation(), now)
+                    || isAtOrAfterResultDeadline(current.operation(), now.plus(retryDelay(retryCount)))) {
+                code = "CORS_RENEWAL_RESULT_WINDOW_EXPIRED";
+                safeMessage = "CORS Redis 结果窗口已超过 120 秒，停止自动重试，需要人工复核";
+            }
             requireOne(renewalMapper.markManualReview(current.renewal().getId(),
                     current.renewal().getVersion(), code, safeMessage, now),
                     "Account renewal could not be moved to manual review");
@@ -160,11 +166,15 @@ public class AccountRenewalStateService {
 
         LocalDateTime now = now();
         int retryCount = increment(operation.getRetryCount());
-        boolean exhausted = retryCount > properties.getMaxRetries();
-        String error = exhausted ? "CLAIM_TIMEOUT_EXHAUSTED" : "CLAIM_TIMEOUT";
-        String message = exhausted
+        boolean windowExpired = isOutsideResultWindow(operation, now);
+        boolean exhausted = retryCount > properties.getMaxRetries() || windowExpired;
+        String error = windowExpired ? "CORS_RENEWAL_RESULT_WINDOW_EXPIRED"
+                : exhausted ? "CLAIM_TIMEOUT_EXHAUSTED" : "CLAIM_TIMEOUT";
+        String message = windowExpired
+                ? "CORS Redis 结果窗口已超过 120 秒，停止自动重试，需要人工复核"
+                : exhausted
                 ? "Account renewal requires manual review after claim timeout"
-                : "Stale account renewal claim recovered; next attempt will query requestId";
+                : "Stale account renewal claim recovered; next attempt will resend the original requestId";
         if (exhausted) {
             requireOne(renewalMapper.markManualReview(renewal.getId(), renewal.getVersion(),
                     error, message, now), "Account renewal could not be moved to manual review");
@@ -229,6 +239,30 @@ public class AccountRenewalStateService {
 
     private LocalDateTime now() {
         return LocalDateTime.now(clock).truncatedTo(ChronoUnit.MILLIS);
+    }
+
+    private boolean isOutsideResultWindow(CorsOperation operation, LocalDateTime now) {
+        LocalDateTime firstAttemptAt = operation.getFirstAttemptAt();
+        if (firstAttemptAt == null) {
+            return false;
+        }
+        try {
+            return !now.isBefore(firstAttemptAt.plus(properties.getResultWindow()));
+        } catch (ArithmeticException exception) {
+            return true;
+        }
+    }
+
+    private boolean isAtOrAfterResultDeadline(CorsOperation operation, LocalDateTime retryAt) {
+        LocalDateTime firstAttemptAt = operation.getFirstAttemptAt();
+        if (firstAttemptAt == null) {
+            return false;
+        }
+        try {
+            return !retryAt.isBefore(firstAttemptAt.plus(properties.getResultWindow()));
+        } catch (ArithmeticException exception) {
+            return true;
+        }
     }
 
     private static boolean sameClaim(CorsOperation current, CorsOperation claimed) {

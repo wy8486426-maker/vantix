@@ -14,6 +14,9 @@
 | Account management | IMPLEMENTED | `GET /api/service-accounts`、`/statistics`、`/detail?id=...` |
 | Exchange logs | IMPLEMENTED | `GET /api/service-code-exchanges`、`/result?requestId=...`、`/detail?requestId=...` |
 | Renewal logs | IMPLEMENTED | `GET /api/account-renewals`、`/detail?requestId=...` |
+| CORS renewal | IMPLEMENTED | `POST /api/account-renewals/create`；后端调用 `/BaseUser/userInfo/batch/renewal`，`ids=cors_account_id`、`dayType=durationDays`、复用本地 requestId |
+| CORS password reset | IMPLEMENTED | `POST /api/service-accounts/password/reset?serviceAccountId=...`；后端调用 `/BaseUser/userInfo/resetPass`，不返回密码 |
+| CORS custom password | IMPLEMENTED | `POST /api/service-accounts/password/custom?serviceAccountId=...`；Body 只含 `password`，后端调用 `/BaseUser/userInfo/customPass` |
 | SDK | DEFERRED | 本轮不实现 SDK 中心 |
 | Free trial | DEFERRED | 本轮不实现免费试用 |
 | Device | BLOCKED_EXTERNAL | 依赖外部设备能力 |

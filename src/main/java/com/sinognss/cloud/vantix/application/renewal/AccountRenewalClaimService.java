@@ -51,7 +51,6 @@ public class AccountRenewalClaimService {
                 && current.getNextRetryAt() != null && current.getNextRetryAt().isAfter(now)) {
             return null;
         }
-        boolean queryFirst = AccountRenewalConstants.RETRY_WAIT.equals(current.getStatus());
         if (operationMapper.claim(current.getId(), current.getStatus(), current.getVersion(), now) != 1) {
             return null;
         }
@@ -62,7 +61,7 @@ public class AccountRenewalClaimService {
         }
         AccountRenewal renewal = claimed.getBizId() == null ? null
                 : renewalMapper.selectByIdForUpdate(claimed.getBizId());
-        return new ClaimedAccountRenewal(claimed, renewal, queryFirst);
+        return new ClaimedAccountRenewal(claimed, renewal);
     }
 
     public List<Long> findDueOperationIds(int limit) {
