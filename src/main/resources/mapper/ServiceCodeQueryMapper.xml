@@ -117,4 +117,34 @@
             <include refid="commonFilters"/>
         </where>
     </select>
+
+    <select id="specStatistics"
+            resultType="com.sinognss.cloud.vantix.application.servicecode.ServiceCodeSpecStatisticsRow">
+        SELECT
+            sc.spec_code AS spec_code,
+            MAX(batch.display_name) AS display_name,
+            MAX(sc.duration_days) AS duration_days,
+            COUNT(sc.id) AS total,
+            COALESCE(SUM(CASE WHEN sc.status = 'PENDING' AND sc.expire_at &gt; #{upcomingAt}
+                              THEN 1 ELSE 0 END), 0) AS waiting,
+            COALESCE(SUM(CASE WHEN sc.status = 'PENDING'
+                              AND sc.expire_at &gt; #{now}
+                              AND sc.expire_at &lt;= #{upcomingAt}
+                              THEN 1 ELSE 0 END), 0) AS expiring,
+            COALESCE(SUM(CASE WHEN sc.status = 'PROCESSING' THEN 1 ELSE 0 END), 0) AS processing,
+            COALESCE(SUM(CASE WHEN sc.status = 'CONSUMED' THEN 1 ELSE 0 END), 0) AS consumed,
+            COALESCE(SUM(CASE WHEN sc.status = 'PENDING' AND sc.expire_at &lt;= #{now}
+                              THEN 1 ELSE 0 END), 0) AS expired
+        <include refid="frontendJoins"/>
+        <where>
+            <if test="scopeCompanyId != null">
+                AND sc.owner_company_id = #{scopeCompanyId}
+            </if>
+            <if test="ownerCompanyId != null">
+                AND sc.owner_company_id = #{ownerCompanyId}
+            </if>
+        </where>
+        GROUP BY sc.spec_code
+        ORDER BY duration_days ASC, display_name ASC
+    </select>
 </mapper>

@@ -49,6 +49,22 @@ class ServiceCodeQueryMapperSqlTest {
         assertTrue(sql.contains("sc.expire_at <= ?"), sql);
     }
 
+    @Test
+    void specStatisticsGroupsBySpecCodeAndOrdersByDurationAndDisplayName() throws Exception {
+        MappedStatement statement = mapperStatement("specStatistics");
+        BoundSql boundSql = statement.getBoundSql(statisticsParameters());
+
+        String sql = boundSql.getSql().replaceAll("\\s+", " ").trim();
+        assertTrue(sql.contains("GROUP BY sc.spec_code"), sql);
+        assertFalse(sql.contains("GROUP BY sc.spec_code, sc.duration_days"), sql);
+        assertTrue(sql.contains("ORDER BY duration_days ASC, display_name ASC"), sql);
+        assertTrue(sql.contains("MAX(batch.display_name)"), sql);
+        assertTrue(sql.contains("sc.owner_company_id = ?"), sql);
+        assertFalse(boundSql.getParameterMappings().stream()
+                .anyMatch(mapping -> mapping.getProperty().equals("status")
+                        || mapping.getProperty().equals("displayStatus")), sql);
+    }
+
     private MappedStatement mapperStatement(String id) throws Exception {
         Configuration configuration = new Configuration();
         try (InputStream mapperXml = getClass().getResourceAsStream("/mapper/ServiceCodeQueryMapper.xml")) {

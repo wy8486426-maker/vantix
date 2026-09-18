@@ -2,11 +2,13 @@ package com.sinognss.cloud.vantix.infrastructure.mapper;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.sinognss.cloud.vantix.application.servicecode.ServiceCodeQueryRow;
+import com.sinognss.cloud.vantix.application.servicecode.ServiceCodeSpecStatisticsRow;
 import com.sinognss.cloud.vantix.application.servicecode.ServiceCodeStatisticsRow;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Mapper
 public interface ServiceCodeQueryMapper {
@@ -30,6 +32,12 @@ public interface ServiceCodeQueryMapper {
             @Param("specCode") String specCode,
             @Param("durationDays") Integer durationDays,
             @Param("sourceOrderNo") String sourceOrderNo,
+            @Param("ownerCompanyId") Long ownerCompanyId,
+            @Param("scopeCompanyId") Long scopeCompanyId,
+            @Param("now") LocalDateTime now,
+            @Param("upcomingAt") LocalDateTime upcomingAt);
+
+    List<ServiceCodeSpecStatisticsRow> specStatistics(
             @Param("ownerCompanyId") Long ownerCompanyId,
             @Param("scopeCompanyId") Long scopeCompanyId,
             @Param("now") LocalDateTime now,

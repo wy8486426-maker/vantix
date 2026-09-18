@@ -65,6 +65,11 @@ public class ServiceCodeController {
                 keyword, specCode, durationDays, sourceOrderNo, ownerCompanyId)));
     }
 
+    @GetMapping("/spec-statistics")
+    public Object specStatistics(@RequestParam(required = false) Long ownerCompanyId) {
+        return CommonResultAdapter.success(serviceCodeService.specStatistics(ownerCompanyId));
+    }
+
     @GetMapping("/detail")
     public Object detail(@RequestParam Long id) {
         return CommonResultAdapter.success(serviceCodeService.get(id));

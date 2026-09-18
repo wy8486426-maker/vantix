@@ -18,6 +18,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -116,9 +117,12 @@ class ServiceCodeServiceTest {
                         null, null, null, null)));
         BusinessException statisticsException = assertThrows(BusinessException.class,
                 () -> service.statistics(new ServiceCodeStatisticsQuery(null, null, null, null, null)));
+        BusinessException specStatisticsException = assertThrows(BusinessException.class,
+                () -> service.specStatistics(null));
 
         assertEquals(ErrorCode.UNSUPPORTED_USER_SCOPE, listException.getVantixErrorCode());
         assertEquals(ErrorCode.UNSUPPORTED_USER_SCOPE, statisticsException.getVantixErrorCode());
+        assertEquals(ErrorCode.UNSUPPORTED_USER_SCOPE, specStatisticsException.getVantixErrorCode());
     }
 
     @Test
@@ -140,6 +144,43 @@ class ServiceCodeServiceTest {
                 + statistics.processing() + statistics.consumed());
         verify(queryMapper).statistics(eq("code"), eq("SC001"), eq(90), eq("ORDER-1"),
                 eq(null), eq(null), any(), any());
+    }
+
+    @Test
+    void specStatisticsMapsGroupedRowsAndUsesTheCurrentScope() {
+        ServiceCodeSpecStatisticsRow row = new ServiceCodeSpecStatisticsRow();
+        row.setSpecCode("SC001");
+        row.setDisplayName("1个月");
+        row.setDurationDays(30);
+        row.setTotal(5L);
+        row.setWaiting(1L);
+        row.setExpiring(1L);
+        row.setProcessing(1L);
+        row.setConsumed(1L);
+        row.setExpired(1L);
+        when(queryMapper.specStatistics(any(), any(), any(), any())).thenReturn(List.of(row));
+
+        ServiceCodeSpecStatistics statistics = service.specStatistics(null);
+
+        assertEquals(5, statistics.total());
+        assertEquals(1, statistics.items().size());
+        assertEquals("SC001", statistics.items().get(0).specCode());
+        assertEquals(30, statistics.items().get(0).durationDays());
+        assertEquals(5, statistics.items().get(0).total());
+        assertEquals(5, statistics.items().get(0).waiting() + statistics.items().get(0).expiring()
+                + statistics.items().get(0).processing() + statistics.items().get(0).consumed()
+                + statistics.items().get(0).expired());
+        verify(queryMapper).specStatistics(eq(null), eq(null), any(), any());
+    }
+
+    @Test
+    void specStatisticsRejectsCrossCompanyQueriesForCompanyScope() {
+        when(userHolder.getUserScope()).thenReturn(new UserScope(null, 10L));
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> service.specStatistics(20L));
+
+        assertEquals(ErrorCode.SERVICE_CODE_NOT_OWNED, exception.getVantixErrorCode());
     }
 
     @Test

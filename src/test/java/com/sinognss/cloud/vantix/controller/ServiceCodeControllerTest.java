@@ -4,6 +4,7 @@ import com.sinognss.cloud.vantix.application.servicecode.DisplayStatus;
 import com.sinognss.cloud.vantix.application.servicecode.PageResponse;
 import com.sinognss.cloud.vantix.application.servicecode.ServiceCodePageQuery;
 import com.sinognss.cloud.vantix.application.servicecode.ServiceCodeService;
+import com.sinognss.cloud.vantix.application.servicecode.ServiceCodeSpecStatistics;
 import com.sinognss.cloud.vantix.application.servicecode.ServiceCodeStatistics;
 import com.sinognss.cloud.vantix.application.servicecode.ServiceCodeStatisticsQuery;
 import com.sinognss.cloud.vantix.application.servicecode.ServiceCodeTransferService;
@@ -61,6 +62,15 @@ class ServiceCodeControllerTest {
         assertEquals(90, captor.getValue().durationDays());
         assertEquals("ORDER-1", captor.getValue().sourceOrderNo());
         assertEquals(10L, captor.getValue().ownerCompanyId());
+    }
+
+    @Test
+    void specStatisticsAcceptsOptionalOwnerCompanyId() {
+        when(service.specStatistics(10L)).thenReturn(new ServiceCodeSpecStatistics(0, java.util.List.of()));
+
+        controller.specStatistics(10L);
+
+        verify(service).specStatistics(10L);
     }
 
     @Test

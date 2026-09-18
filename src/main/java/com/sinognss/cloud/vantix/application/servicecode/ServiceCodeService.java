@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Objects;
 
 @Service
@@ -78,6 +79,26 @@ public class ServiceCodeService {
         }
         return new ServiceCodeStatistics(value(row.getTotal()), value(row.getWaiting()), value(row.getExpiring()),
                 value(row.getExpired()), value(row.getProcessing()), value(row.getConsumed()));
+    }
+
+    public ServiceCodeSpecStatistics specStatistics(Long requestedOwnerCompanyId) {
+        Long ownerCompanyId = validateCompanyId(requestedOwnerCompanyId);
+        UserScope scope = resolveScope(ownerCompanyId);
+        LocalDateTime now = LocalDateTime.now(clock);
+        LocalDateTime upcomingAt = now.plusDays(properties.getUpcomingDays());
+        List<ServiceCodeSpecStatisticsRow> rows = queryMapper.specStatistics(
+                ownerCompanyId, scopedCompanyId(scope), now, upcomingAt);
+        if (rows == null || rows.isEmpty()) {
+            return new ServiceCodeSpecStatistics(0, List.of());
+        }
+        List<ServiceCodeSpecStatisticsItem> items = rows.stream()
+                .map(row -> new ServiceCodeSpecStatisticsItem(
+                        row.getSpecCode(), row.getDisplayName(), row.getDurationDays(),
+                        value(row.getTotal()), value(row.getWaiting()), value(row.getExpiring()),
+                        value(row.getProcessing()), value(row.getConsumed()), value(row.getExpired())))
+                .toList();
+        long total = items.stream().mapToLong(ServiceCodeSpecStatisticsItem::total).sum();
+        return new ServiceCodeSpecStatistics(total, items);
     }
 
     public ServiceCodeView get(Long id) {
