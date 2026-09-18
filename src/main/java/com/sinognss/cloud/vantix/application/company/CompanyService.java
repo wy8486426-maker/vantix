@@ -45,24 +45,24 @@ public class CompanyService {
     }
 
     public List<CompanyView> list(String name, CompanyStatus status) {
-        UserScope scope = userHolder.getUserScope();
+       // UserScope scope = userHolder.getUserScope();
         var query = Wrappers.<DealerCompany>lambdaQuery()
                 .like(StringUtils.hasText(name), DealerCompany::getCompanyName, name)
                 .eq(status != null, DealerCompany::getCompanyStatus, status)
                 .orderByAsc(DealerCompany::getCompanyId);
-        if (!scope.isGlobal()) {
-            query.eq(DealerCompany::getCompanyId, scope.companyId());
-        }
+//        if (!scope.isGlobal()) {
+//            query.eq(DealerCompany::getCompanyId, scope.companyId());
+//        }
         return companyMapper.selectList(query).stream().map(CompanyView::from).toList();
     }
 
     public CompanyView get(Long companyId) {
-        assertCompanyAccess(companyId);
+        //assertCompanyAccess(companyId);
         return CompanyView.from(getRequired(companyId));
     }
 
     public List<CompanyView> directChildren(Long companyId) {
-        assertCompanyAccess(companyId);
+       // assertCompanyAccess(companyId);
         return companyMapper.selectList(Wrappers.<DealerCompany>lambdaQuery()
                         .eq(DealerCompany::getParentCompanyId, companyId)
                         .orderByAsc(DealerCompany::getCompanyId))
@@ -72,7 +72,7 @@ public class CompanyService {
     @Transactional
     public CompanyView updateParent(UpdateCompanyParentCommand command) {
         Long companyId = command.companyId();
-        assertCompanyAccess(companyId);
+      //  assertCompanyAccess(companyId);
         Long parentId = command.parentCompanyId();
         if (companyId.equals(parentId)) {
             throw new BusinessException(ErrorCode.COMPANY_RELATION_INVALID, "公司不能设置自己为直接上级");

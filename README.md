@@ -17,9 +17,17 @@
 - `GET /api/companies/page`、`GET /api/companies/partners`
 - `GET /api/service-code-transfers`、`GET /api/service-code-transfers/detail?transferNo=...`
 
+## Controller URL 权限规则
+
+用户中心按 URL path 分配权限，忽略 HTTP Method，因此所有 Controller 接口的归一化 path 必须全局唯一。同一路径不能因为 GET、POST、PUT 等方法不同而重复注册。
+
+Controller 禁止使用 `@PathVariable` 或 `/{id}`、`/{orderNo}` 等动态路径段；业务标识统一作为 Query 参数传递。例如：`GET /api/service-accounts/detail?id=...`。Query 参数不参与权限 URL 唯一性判断。
+
+接口地址调整后只保留新的静态 path，不保留旧动态地址兼容映射。详细迁移清单见 [`docs/Vantix-Frontend-API.md`](docs/Vantix-Frontend-API.md)。
+
 服务码转赠在一个 MySQL 本地事务内按服务码 ID 升序 `SELECT ... FOR UPDATE`，完成全部校验后使用 `version` CAS 更新并记录流水；任意一张失败都会回滚批次。批量转赠要求所有服务码的 `service_type`、`spec_code`、`duration_days` 完全一致。服务码过期和即将到期是 DTO 展示状态，不是数据库状态。
 
-公司真实性由 user-center 提供，Vantix 通过 `UserCenterFeignService` 同步公司 ID/名称到本地 `dealer_company`；公司上下级关系和状态仍由 Vantix 维护。CORS 的 `CorsAccountClient` 未猜测远程 URL。密码重置和自定义密码统一通过已落地的 `CorsPasswordGateway`，并由 `RestCorsAccountGateway` 调用 CORS；默认 `vantix.cors.password.enabled=false`，缺少 Gateway 时密码路由不会注册。
+公司真实性由 user-center 提供，Vantix 通过 `UserCenterFeignService` 同步公司 ID/名称到本地 `dealer_company`；公司上下级关系和状态仍由 Vantix 维护。CORS 的 `CorsAccountClient` 未猜测远程 URL。密码重置和自定义密码统一通过已落地的 `CorsPasswordGateway`，并由 `RestCorsAccountGateway` 调用 CORS；默认 `vantix.cors.password.enabled=true`，缺少 Gateway 时密码路由不会注册。
 
 密码路由为 `POST /api/service-accounts/password/reset?serviceAccountId=...`、`POST /api/service-accounts/password/custom?serviceAccountId=...` 和本地状态查询 `GET /api/account-password-resets/result?requestId=...`。当前不注册密码查看或 CORS 远程 query-reset 路由；若后续确认 CORS 提供对应接口，再扩展 `CorsPasswordGateway`。
 

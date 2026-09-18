@@ -41,25 +41,25 @@ public class CompanyFrontendQueryService {
     }
 
     public java.util.List<CompanyPartnerView> partners(Long requestedCompanyId) {
-        UserScope scope = userHolder.getUserScope();
-        if (!scope.isSupported()) {
-            throw new BusinessException(ErrorCode.UNSUPPORTED_USER_SCOPE, "当前用户数据范围不受支持");
-        }
+//        UserScope scope = userHolder.getUserScope();
+//        if (!scope.isSupported()) {
+//            throw new BusinessException(ErrorCode.UNSUPPORTED_USER_SCOPE, "当前用户数据范围不受支持");
+//        }
         Long companyId = requestedCompanyId;
-        if (scope.isGlobal()) {
-            if (companyId == null || companyId <= 0) {
-                throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "GLOBAL 查询合作伙伴必须传 companyId");
-            }
-        } else {
-            if (requestedCompanyId != null && !Objects.equals(requestedCompanyId, scope.companyId())) {
-                throw new BusinessException(ErrorCode.SERVICE_CODE_NOT_OWNED, "无权查询指定公司的合作伙伴");
-            }
-            companyId = scope.companyId();
-        }
-        if (companyId == null || companyMapper.selectCount(Wrappers.<DealerCompany>lambdaQuery()
-                .eq(DealerCompany::getCompanyId, companyId)) == 0) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "公司不存在: " + companyId);
-        }
+//        if (scope.isGlobal()) {
+//            if (companyId == null || companyId <= 0) {
+//                throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "GLOBAL 查询合作伙伴必须传 companyId");
+//            }
+//        } else {
+//            if (requestedCompanyId != null && !Objects.equals(requestedCompanyId, scope.companyId())) {
+//                throw new BusinessException(ErrorCode.SERVICE_CODE_NOT_OWNED, "无权查询指定公司的合作伙伴");
+//            }
+//            companyId = scope.companyId();
+//        }
+//        if (companyId == null || companyMapper.selectCount(Wrappers.<DealerCompany>lambdaQuery()
+//                .eq(DealerCompany::getCompanyId, companyId)) == 0) {
+//            throw new BusinessException(ErrorCode.NOT_FOUND, "公司不存在: " + companyId);
+//        }
         return queryMapper.partners(companyId).stream().map(CompanyPartnerView::from).toList();
     }
 
