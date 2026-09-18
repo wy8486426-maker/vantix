@@ -17,7 +17,6 @@ import com.sinognss.cloud.vantix.common.user.UserHolderBridge;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sinognss.cloud.vantix.integration.cors.account.CorsAccountRenewalGateway;
 import com.sinognss.cloud.vantix.integration.cors.account.CorsAccountStatusGateway;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -26,7 +25,6 @@ import java.time.Clock;
 
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(prefix = "vantix.cors.renewal", name = "enabled", havingValue = "true")
-@ConditionalOnBean({CorsAccountStatusGateway.class, CorsAccountRenewalGateway.class})
 public class CorsAccountRenewalConfiguration {
     @Bean
     AccountRenewalReserveTransaction accountRenewalReserveTransaction(

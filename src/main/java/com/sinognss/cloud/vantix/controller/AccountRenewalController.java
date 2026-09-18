@@ -3,15 +3,12 @@ package com.sinognss.cloud.vantix.controller;
 import com.sinognss.cloud.vantix.application.renewal.AccountRenewalReserveService;
 import com.sinognss.cloud.vantix.application.renewal.CreateAccountRenewalCommand;
 import com.sinognss.cloud.vantix.common.api.CommonResultAdapter;
-import com.sinognss.cloud.vantix.integration.cors.account.CorsAccountRenewalGateway;
-import com.sinognss.cloud.vantix.integration.cors.account.CorsAccountStatusGateway;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -20,7 +17,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/account-renewals")
 @ConditionalOnProperty(prefix = "vantix.cors.renewal", name = "enabled", havingValue = "true")
-@ConditionalOnBean({CorsAccountStatusGateway.class, CorsAccountRenewalGateway.class})
 public class AccountRenewalController {
     private final AccountRenewalReserveService reserveService;
 

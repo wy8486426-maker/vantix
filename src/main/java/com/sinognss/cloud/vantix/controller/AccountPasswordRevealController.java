@@ -3,11 +3,9 @@ package com.sinognss.cloud.vantix.controller;
 import com.sinognss.cloud.vantix.application.password.reveal.AccountPasswordRevealService;
 import com.sinognss.cloud.vantix.application.password.reveal.PasswordRevealResponse;
 import com.sinognss.cloud.vantix.common.api.CommonResultAdapter;
-import com.sinognss.cloud.vantix.integration.cors.account.CorsAccountPasswordGateway;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -21,7 +19,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/service-accounts")
 @ConditionalOnProperty(prefix = "vantix.cors.password", name = "enabled", havingValue = "true")
-@ConditionalOnBean(CorsAccountPasswordGateway.class)
 public class AccountPasswordRevealController {
     private final AccountPasswordRevealService revealService;
 

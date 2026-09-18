@@ -3,12 +3,10 @@ package com.sinognss.cloud.vantix.controller;
 import com.sinognss.cloud.vantix.application.password.AccountPasswordOperationService;
 import com.sinognss.cloud.vantix.application.password.reset.AccountPasswordResetQueryService;
 import com.sinognss.cloud.vantix.common.api.CommonResultAdapter;
-import com.sinognss.cloud.vantix.integration.cors.account.CorsPasswordGateway;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,7 +16,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @ConditionalOnProperty(prefix = "vantix.cors.password", name = "enabled", havingValue = "true")
-@ConditionalOnBean(CorsPasswordGateway.class)
 public class AccountPasswordResetController {
     private final AccountPasswordOperationService passwordService;
     private final AccountPasswordResetQueryService queryService;

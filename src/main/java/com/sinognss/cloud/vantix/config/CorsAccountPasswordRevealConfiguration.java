@@ -6,7 +6,6 @@ import com.sinognss.cloud.vantix.common.user.UserHolderBridge;
 import com.sinognss.cloud.vantix.infrastructure.mapper.AccountPasswordActionMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceAccountMapper;
 import com.sinognss.cloud.vantix.integration.cors.account.CorsAccountPasswordGateway;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -17,7 +16,6 @@ import java.time.Clock;
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(CorsAccountPasswordProperties.class)
 @ConditionalOnProperty(prefix = "vantix.cors.password", name = "enabled", havingValue = "true")
-@ConditionalOnBean(CorsAccountPasswordGateway.class)
 public class CorsAccountPasswordRevealConfiguration {
     @Bean
     AccountPasswordRevealAuditService accountPasswordRevealAuditService(
