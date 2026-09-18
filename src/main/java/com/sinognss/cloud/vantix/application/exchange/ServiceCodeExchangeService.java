@@ -28,6 +28,22 @@ public class ServiceCodeExchangeService {
             reservation = reserveService.findExisting(command);
             if (reservation == null) throw duplicate;
         }
+        return processReservation(reservation, ServiceCodeExchangeReserveService.normalize(command).requestId());
+    }
+
+    public ServiceCodeExchangeView exchangeByCodes(ServiceCodeExchangeByCodesCommand command) {
+        ExchangeReservation reservation;
+        try {
+            reservation = reserveService.reserveByCodes(command);
+        } catch (DuplicateKeyException duplicate) {
+            reservation = reserveService.findExistingByCodes(command);
+            if (reservation == null) throw duplicate;
+        }
+        return processReservation(reservation,
+                ServiceCodeExchangeReserveService.normalizeByCodes(command).requestId());
+    }
+
+    private ServiceCodeExchangeView processReservation(ExchangeReservation reservation, String requestId) {
         if (reservation.operationId() == null) {
             throw new BusinessException(ErrorCode.EXCHANGE_STATE_INCONSISTENT,
                     "兑换批次缺少 CORS 操作记录");
@@ -35,6 +51,6 @@ public class ServiceCodeExchangeService {
         if (reservation.created()) {
             processor.process(reservation.operationId());
         }
-        return queryService.get(ServiceCodeExchangeReserveService.normalize(command).requestId());
+        return queryService.get(requestId);
     }
 }

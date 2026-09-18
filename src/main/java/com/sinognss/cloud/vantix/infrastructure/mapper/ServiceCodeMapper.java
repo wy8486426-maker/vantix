@@ -32,6 +32,13 @@ public interface ServiceCodeMapper extends BaseMapper<ServiceCode> {
     @Select("SELECT * FROM service_code WHERE id = #{id} FOR UPDATE")
     ServiceCode selectByIdForUpdate(@Param("id") Long id);
 
+    @Select({"<script>",
+            "SELECT * FROM service_code WHERE id IN",
+            "<foreach collection='ids' item='id' open='(' separator=',' close=')'>#{id}</foreach>",
+            "ORDER BY id FOR UPDATE",
+            "</script>"})
+    List<ServiceCode> selectByIdsForExchange(@Param("ids") List<Long> ids);
+
     @Select("SELECT code.* FROM service_code code "
             + "JOIN service_code_generate_batch batch ON batch.id = code.generate_batch_id "
             + "WHERE code.owner_company_id = #{companyId} AND code.status = 'PENDING' "

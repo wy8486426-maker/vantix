@@ -16,6 +16,7 @@ import com.sinognss.cloud.vantix.domain.exchange.ExchangeDetail;
 import com.sinognss.cloud.vantix.domain.exchange.CompanyExchangeConfig;
 import com.sinognss.cloud.vantix.domain.servicecode.GenerationSource;
 import com.sinognss.cloud.vantix.domain.servicecode.ServiceCode;
+import com.sinognss.cloud.vantix.domain.servicecode.ServiceCodeStatus;
 import com.sinognss.cloud.vantix.infrastructure.mapper.CorsOperationMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.CompanyExchangeConfigMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.DealerCompanyMapper;
@@ -203,6 +204,131 @@ class ServiceCodeExchangeReserveServiceTest {
     }
 
     @Test
+    void exactExchangeUsesSortedIdsAndDoesNotRequireGenerationSourceOrSnapshotSpecConsistency() {
+        ServiceCode first = code(3L, LocalDateTime.of(2026, 2, 1, 0, 0));
+        first.setServiceType("TYPE-A");
+        first.setDurationDays(30);
+        ServiceCode second = code(7L, LocalDateTime.of(2026, 2, 2, 0, 0));
+        second.setServiceType("TYPE-B");
+        second.setDurationDays(60);
+        when(serviceCodeMapper.selectByIdsForExchange(List.of(3L, 7L))).thenReturn(List.of(first, second));
+
+        ExchangeReservation result = service.reserveByCodes(
+                new ServiceCodeExchangeByCodesCommand("exact-two", 1L, List.of(7L, 3L)));
+
+        assertTrue(result.created());
+        ArgumentCaptor<ExchangeBatch> batchCaptor = ArgumentCaptor.forClass(ExchangeBatch.class);
+        verify(batchMapper).insert(batchCaptor.capture());
+        assertEquals("EXACT", batchCaptor.getValue().getGenerationSource());
+        assertEquals("SPEC-1", batchCaptor.getValue().getSpecCode());
+        assertEquals(2, batchCaptor.getValue().getQuantity());
+
+        ArgumentCaptor<List<ExchangeDetail>> detailCaptor = ArgumentCaptor.forClass(List.class);
+        verify(detailMapper).insertBatch(detailCaptor.capture());
+        assertEquals(List.of(3L, 7L), detailCaptor.getValue().stream()
+                .map(ExchangeDetail::getServiceCodeId).toList());
+        verify(serviceCodeMapper).reserveForExchange(eq(List.of(3L, 7L)), eq(1L), eq("exact-two"), any());
+    }
+
+    @Test
+    void exactExchangeRejectsDuplicateIdsBeforeLockingCodes() {
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> service.reserveByCodes(new ServiceCodeExchangeByCodesCommand(
+                        "duplicate-ids", 1L, List.of(7L, 7L))));
+
+        assertEquals(ErrorCode.INVALID_ARGUMENT, exception.getVantixErrorCode());
+        verify(userHolder, never()).getUserScope();
+        verify(serviceCodeMapper, never()).selectByIdsForExchange(anyList());
+    }
+
+    @Test
+    void exactExchangeRejectsDifferentSpecCodes() {
+        ServiceCode first = code(3L, LocalDateTime.of(2026, 2, 1, 0, 0));
+        ServiceCode second = code(7L, LocalDateTime.of(2026, 2, 1, 0, 0));
+        second.setSpecCode("SPEC-2");
+        when(serviceCodeMapper.selectByIdsForExchange(List.of(3L, 7L))).thenReturn(List.of(first, second));
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> service.reserveByCodes(new ServiceCodeExchangeByCodesCommand(
+                        "different-spec", 1L, List.of(3L, 7L))));
+
+        assertEquals(ErrorCode.INVALID_ARGUMENT, exception.getVantixErrorCode());
+        verify(batchMapper, never()).insert(any(ExchangeBatch.class));
+    }
+
+    @Test
+    void exactExchangeRejectsExpiredCode() {
+        ServiceCode expired = code(3L, LocalDateTime.of(2025, 12, 31, 23, 59));
+        when(serviceCodeMapper.selectByIdsForExchange(List.of(3L))).thenReturn(List.of(expired));
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> service.reserveByCodes(exactCommand("expired-code", 3L)));
+
+        assertEquals(ErrorCode.SERVICE_CODE_EXPIRED, exception.getVantixErrorCode());
+    }
+
+    @Test
+    void exactExchangeRejectsNonPendingCode() {
+        ServiceCode processing = code(3L, LocalDateTime.of(2026, 2, 1, 0, 0));
+        processing.setStatus(ServiceCodeStatus.PROCESSING);
+        when(serviceCodeMapper.selectByIdsForExchange(List.of(3L))).thenReturn(List.of(processing));
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> service.reserveByCodes(exactCommand("processing-code", 3L)));
+
+        assertEquals(ErrorCode.SERVICE_CODE_NOT_PENDING, exception.getVantixErrorCode());
+    }
+
+    @Test
+    void exactExchangeRejectsCodeOwnedByAnotherCompany() {
+        ServiceCode otherCompany = code(3L, LocalDateTime.of(2026, 2, 1, 0, 0));
+        otherCompany.setOwnerCompanyId(2L);
+        when(serviceCodeMapper.selectByIdsForExchange(List.of(3L))).thenReturn(List.of(otherCompany));
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> service.reserveByCodes(exactCommand("other-company", 3L)));
+
+        assertEquals(ErrorCode.SERVICE_CODE_NOT_OWNED, exception.getVantixErrorCode());
+    }
+
+    @Test
+    void exactExchangeRequestIdIsIdempotentForSameSortedIds() {
+        ServiceCodeExchangeByCodesCommand command = new ServiceCodeExchangeByCodesCommand(
+                "exact-replay", 1L, List.of(7L, 3L));
+        ExchangeBatch existing = new ExchangeBatch();
+        existing.setId(41L);
+        existing.setAssignedUserId(null);
+        existing.setPayloadHash(ExchangePayloadHash.calculateByCodes(
+                new ServiceCodeExchangeByCodesCommand("ignored", 1L, List.of(3L, 7L)), null));
+        CorsOperation operation = new CorsOperation();
+        operation.setId(52L);
+        when(batchMapper.selectByRequestId("exact-replay")).thenReturn(existing);
+        when(operationMapper.selectByBusiness("EXCHANGE_BATCH", 41L)).thenReturn(operation);
+
+        ExchangeReservation result = service.reserveByCodes(command);
+
+        assertEquals(new ExchangeReservation(41L, 52L, false), result);
+        verify(serviceCodeMapper, never()).selectByIdsForExchange(anyList());
+        verify(batchMapper, never()).insert(any(ExchangeBatch.class));
+    }
+
+    @Test
+    void exactExchangeRequestIdConflictsForDifferentIds() {
+        ServiceCodeExchangeByCodesCommand original = exactCommand("exact-conflict", 3L);
+        ExchangeBatch existing = new ExchangeBatch();
+        existing.setId(41L);
+        existing.setPayloadHash(ExchangePayloadHash.calculateByCodes(original, null));
+        when(batchMapper.selectByRequestId("exact-conflict")).thenReturn(existing);
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> service.reserveByCodes(new ServiceCodeExchangeByCodesCommand(
+                        "exact-conflict", 1L, List.of(4L))));
+
+        assertEquals(ErrorCode.EXCHANGE_IDEMPOTENCY_CONFLICT, exception.getVantixErrorCode());
+        verify(serviceCodeMapper, never()).selectByIdsForExchange(anyList());
+    }
+
+    @Test
     void selectedCodesAreReservedInEarliestExpiryThenIdOrderAndDetailsUseOneBasedIndexes() {
         // The mapper's ordered result represents expiry ASC, then id ASC, including ties.
         List<ServiceCode> ordered = List.of(
@@ -282,6 +408,10 @@ class ServiceCodeExchangeReserveServiceTest {
                 GenerationSource.B2B, quantity);
     }
 
+    private ServiceCodeExchangeByCodesCommand exactCommand(String requestId, Long... ids) {
+        return new ServiceCodeExchangeByCodesCommand(requestId, 1L, List.of(ids));
+    }
+
     private CompanyExchangeConfig exchangeConfig() {
         CompanyExchangeConfig config = new CompanyExchangeConfig();
         config.setCompanyId(1L);
@@ -312,6 +442,7 @@ class ServiceCodeExchangeReserveServiceTest {
         code.setDurationDays(30);
         code.setCodeSilenceDays(0);
         code.setExpireAt(expireAt);
+        code.setStatus(ServiceCodeStatus.PENDING);
         return code;
     }
 }

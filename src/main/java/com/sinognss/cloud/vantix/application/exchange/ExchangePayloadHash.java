@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
+import java.util.List;
 
 final class ExchangePayloadHash {
     private ExchangePayloadHash() { }
@@ -16,6 +17,24 @@ final class ExchangePayloadHash {
             update(digest, command.specCode());
             update(digest, command.generationSource() == null ? null : command.generationSource().name());
             update(digest, command.quantity() == null ? null : command.quantity().toString());
+            update(digest, effectiveAssignedUserId == null ? null : effectiveAssignedUserId.toString());
+            return HexFormat.of().formatHex(digest.digest());
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is unavailable", exception);
+        }
+    }
+
+    static String calculateByCodes(ServiceCodeExchangeByCodesCommand command, Long effectiveAssignedUserId) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            update(digest, "BY_CODES");
+            update(digest, command.companyId() == null ? null : command.companyId().toString());
+            List<Long> ids = command.serviceCodeIds() == null
+                    ? List.of() : command.serviceCodeIds().stream().sorted().toList();
+            update(digest, Integer.toString(ids.size()));
+            for (Long id : ids) {
+                update(digest, id == null ? null : id.toString());
+            }
             update(digest, effectiveAssignedUserId == null ? null : effectiveAssignedUserId.toString());
             return HexFormat.of().formatHex(digest.digest());
         } catch (NoSuchAlgorithmException exception) {

@@ -5,6 +5,7 @@ import com.sinognss.cloud.base.filter.UserHolder;
 import com.sinognss.cloud.vantix.application.cors.CorsOperationRetryJob;
 import com.sinognss.cloud.vantix.application.exchange.ExchangeReservation;
 import com.sinognss.cloud.vantix.application.exchange.ExchangeQueryService;
+import com.sinognss.cloud.vantix.application.exchange.ServiceCodeExchangeByCodesCommand;
 import com.sinognss.cloud.vantix.application.exchange.ServiceCodeExchangeCommand;
 import com.sinognss.cloud.vantix.application.exchange.ServiceCodeExchangeReserveService;
 import com.sinognss.cloud.vantix.application.exchange.ServiceCodeExchangeService;
@@ -241,6 +242,70 @@ class MySqlExchangeReserveIntegrationTest {
     }
 
     @Test
+    void exactExchangeSupportsSingleAndBatchAndUsesOnlyRequestedCodes() {
+        LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Shanghai"));
+        insertGeneration("B2B", 1010L, "EXACT-ORDER", "EXACT-BATCH", 3);
+        List<Long> ids = insertCodes("EXACT-CODE-", 1010L, 3, now.plusDays(180));
+        setGlobalUser();
+
+        ExchangeReservation single = reserveService.reserveByCodes(
+                new ServiceCodeExchangeByCodesCommand("EXACT-SINGLE", COMPANY_ID, List.of(ids.get(1))));
+        assertTrue(single.created());
+        assertEquals(1, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM exchange_detail WHERE exchange_batch_id = ?", Integer.class,
+                single.batchId()));
+        assertEquals(ids.get(1), jdbc.queryForObject(
+                "SELECT service_code_id FROM exchange_detail WHERE exchange_batch_id = ?", Long.class,
+                single.batchId()));
+        assertEquals("EXACT", jdbc.queryForObject(
+                "SELECT generation_source FROM exchange_batch WHERE id = ?", String.class, single.batchId()));
+
+        ExchangeReservation batch = reserveService.reserveByCodes(
+                new ServiceCodeExchangeByCodesCommand("EXACT-BATCH", COMPANY_ID,
+                        List.of(ids.get(2), ids.get(0))));
+        assertTrue(batch.created());
+        assertEquals(List.of(ids.get(0), ids.get(2)), jdbc.queryForList(
+                "SELECT service_code_id FROM exchange_detail WHERE exchange_batch_id = ? ORDER BY detail_index",
+                Long.class, batch.batchId()));
+        assertEquals(2, jdbc.queryForObject(
+                "SELECT quantity FROM exchange_batch WHERE id = ?", Integer.class, batch.batchId()));
+        assertEquals(0, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM exchange_detail WHERE exchange_batch_id = ? AND service_code_id = ?",
+                Integer.class, batch.batchId(), ids.get(1)));
+    }
+
+    @Test
+    void concurrentExactExchangeOfTheSameCodeSucceedsOnlyOnce() throws Exception {
+        LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Shanghai"));
+        insertGeneration("B2B", 1011L, "EXACT-CONCURRENT-ORDER", "EXACT-CONCURRENT-BATCH", 1);
+        long serviceCodeId = insertCodes("EXACT-CONCURRENT-CODE-", 1011L, 1,
+                now.plusDays(180)).get(0);
+
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            List<Future<ReserveAttempt>> futures = List.of(
+                    executor.submit(() -> reserveExactInWorker(start, "EXACT-CONCURRENT-1", serviceCodeId)),
+                    executor.submit(() -> reserveExactInWorker(start, "EXACT-CONCURRENT-2", serviceCodeId)));
+            start.countDown();
+
+            List<ReserveAttempt> attempts = List.of(futures.get(0).get(), futures.get(1).get());
+            assertEquals(1, attempts.stream().filter(ReserveAttempt::success).count());
+            assertEquals(1, attempts.stream().filter(attempt -> !attempt.success()).count());
+            assertEquals(ErrorCode.SERVICE_CODE_NOT_PENDING, attempts.stream()
+                    .filter(attempt -> !attempt.success()).findFirst().orElseThrow().errorCode());
+            assertEquals(1, jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM service_code WHERE id = ? AND status = 'PROCESSING'",
+                    Integer.class, serviceCodeId));
+            assertEquals(1, jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM exchange_detail WHERE service_code_id = ?",
+                    Integer.class, serviceCodeId));
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
     void activeExchangeCodeUniqueKeyRejectsASecondProcessingDetailAndCompletedKeepsTheLock() {
         LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Shanghai"));
         insertGeneration("B2B", 1007L, "B2B-ACTIVE-UNIQUE-ORDER", "B2B-ACTIVE-UNIQUE-BATCH", 1);
@@ -440,6 +505,21 @@ class MySqlExchangeReserveIntegrationTest {
         user.setCompanyId(COMPANY_ID);
         user.setDataType(3);
         UserHolder.setUser(user);
+    }
+
+    private ReserveAttempt reserveExactInWorker(CountDownLatch start, String requestId,
+                                                long serviceCodeId) throws InterruptedException {
+        start.await();
+        setGlobalUser();
+        try {
+            ExchangeReservation reservation = reserveService.reserveByCodes(
+                    new ServiceCodeExchangeByCodesCommand(requestId, COMPANY_ID, List.of(serviceCodeId)));
+            return new ReserveAttempt(true, null, reservation);
+        } catch (BusinessException exception) {
+            return new ReserveAttempt(false, exception.getVantixErrorCode(), null);
+        } finally {
+            UserHolder.removeUser();
+        }
     }
     private record ReserveAttempt(boolean success, ErrorCode errorCode, ExchangeReservation reservation) {
     }

@@ -85,7 +85,8 @@ public class ServiceCodeExchangeFinalizeService {
             if (!detail.getServiceCodeId().equals(snapshot.serviceCodeId())
                     || !batch.getOwnerCompanyId().equals(snapshot.ownerCompanyId())
                     || (snapshot.specCode() != null && !batch.getSpecCode().equals(snapshot.specCode()))
-                    || !batch.getDurationDays().equals(snapshot.durationDays())
+                    || (!ServiceCodeExchangeReserveService.EXACT_GENERATION_SOURCE.equals(batch.getGenerationSource())
+                    && !batch.getDurationDays().equals(snapshot.durationDays()))
                     || !java.util.Objects.equals(batch.getAssignedUserId(), snapshot.assignedUserId())) {
                 throw new BusinessException(ErrorCode.EXCHANGE_STATE_INCONSISTENT,
                         "兑换明细快照与批次不匹配");

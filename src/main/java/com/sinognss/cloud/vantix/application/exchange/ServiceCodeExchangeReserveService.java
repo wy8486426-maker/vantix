@@ -31,14 +31,18 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
 public class ServiceCodeExchangeReserveService {
     private static final int INSERT_CHUNK_SIZE = 500;
+    private static final int MAX_EXACT_CODES = 500;
     private static final String OPERATION_TYPE = "BATCH_CREATE_ACCOUNT";
     private static final String BIZ_TYPE = "EXCHANGE_BATCH";
+    static final String EXACT_GENERATION_SOURCE = "EXACT";
 
     private final ExchangeBatchMapper batchMapper;
     private final ExchangeDetailMapper detailMapper;
@@ -128,8 +132,78 @@ public class ServiceCodeExchangeReserveService {
         if (codes.size() != command.quantity()) {
             throw new BusinessException(ErrorCode.INSUFFICIENT_SERVICE_CODES, "可兑换服务码数量不足");
         }
-        validateSnapshots(codes, spec);
+        return persistSelectedCodes(batch, codes, assignedUserId, spec, now, true);
+    }
 
+    @Transactional
+    public ExchangeReservation reserveByCodes(ServiceCodeExchangeByCodesCommand input) {
+        ServiceCodeExchangeByCodesCommand command = normalizeByCodes(input);
+        UserScope scope = userHolder.getUserScope();
+        assertCompanyAccess(scope, command.companyId());
+        Long assignedUserId = effectiveAssignedUserId(scope);
+
+        String payloadHash = ExchangePayloadHash.calculateByCodes(command, assignedUserId);
+        ExchangeBatch existing = batchMapper.selectByRequestId(command.requestId());
+        if (existing != null) {
+            verifyPayload(existing, payloadHash, assignedUserId);
+            CorsOperation operation = operationMapper.selectByBusiness(BIZ_TYPE, existing.getId());
+            return new ExchangeReservation(existing.getId(), operation == null ? null : operation.getId(), false);
+        }
+
+        CompanyExchangeConfig exchangeConfig = validateCompanyAndExchangeConfig(command.companyId());
+        LocalDateTime now = LocalDateTime.now(clock);
+        List<ServiceCode> codes = serviceCodeMapper.selectByIdsForExchange(command.serviceCodeIds());
+        ExchangeBatch concurrent = batchMapper.selectByRequestIdForUpdate(command.requestId());
+        if (concurrent != null) {
+            verifyPayload(concurrent, payloadHash, assignedUserId);
+            CorsOperation operation = operationMapper.selectByBusiness(BIZ_TYPE, concurrent.getId());
+            return new ExchangeReservation(concurrent.getId(), operation == null ? null : operation.getId(), false);
+        }
+        String specCode = validateExactCodes(codes, command.serviceCodeIds(), command.companyId(), now);
+        ServiceDurationConfig spec = findSpec(specCode);
+
+        ExchangeBatch batch = createBatch(command.requestId(), command.companyId(), EXACT_GENERATION_SOURCE,
+                specCode, command.serviceCodeIds().size(), spec, userHolder.getOperator(),
+                exchangeConfig.getAccountPrefix(), payloadHash, assignedUserId, now);
+        batchMapper.insert(batch);
+        return persistSelectedCodes(batch, codes, assignedUserId, spec, now, false);
+    }
+
+    public ExchangeReservation findExisting(ServiceCodeExchangeCommand input) {
+        ServiceCodeExchangeCommand command = normalize(input);
+        validateMaxQuantity(command);
+        UserScope scope = userHolder.getUserScope();
+        assertCompanyAccess(scope, command.companyId());
+        Long assignedUserId = effectiveAssignedUserId(scope);
+        ExchangeBatch batch = batchMapper.selectByRequestId(command.requestId());
+        if (batch == null) {
+            return null;
+        }
+        verifyPayload(batch, ExchangePayloadHash.calculate(command, assignedUserId), assignedUserId);
+        CorsOperation operation = operationMapper.selectByBusiness(BIZ_TYPE, batch.getId());
+        return new ExchangeReservation(batch.getId(), operation == null ? null : operation.getId(), false);
+    }
+
+    public ExchangeReservation findExistingByCodes(ServiceCodeExchangeByCodesCommand input) {
+        ServiceCodeExchangeByCodesCommand command = normalizeByCodes(input);
+        UserScope scope = userHolder.getUserScope();
+        assertCompanyAccess(scope, command.companyId());
+        Long assignedUserId = effectiveAssignedUserId(scope);
+        ExchangeBatch batch = batchMapper.selectByRequestId(command.requestId());
+        if (batch == null) {
+            return null;
+        }
+        verifyPayload(batch, ExchangePayloadHash.calculateByCodes(command, assignedUserId), assignedUserId);
+        CorsOperation operation = operationMapper.selectByBusiness(BIZ_TYPE, batch.getId());
+        return new ExchangeReservation(batch.getId(), operation == null ? null : operation.getId(), false);
+    }
+
+    private ExchangeReservation persistSelectedCodes(ExchangeBatch batch, List<ServiceCode> codes,
+                                                     Long assignedUserId, ServiceDurationConfig spec,
+                                                     LocalDateTime now, boolean validateSnapshots) {
+        if (validateSnapshots) {
+            validateSnapshots(codes, spec);
+        }
         List<ExchangeDetail> details = new ArrayList<>(codes.size());
         for (int index = 0; index < codes.size(); index++) {
             ServiceCode code = codes.get(index);
@@ -138,7 +212,7 @@ public class ServiceCodeExchangeReserveService {
             detail.setDetailIndex(index + 1);
             detail.setServiceCodeId(code.getId());
             detail.setActiveServiceCodeId(code.getId());
-            detail.setRequestId(command.requestId());
+            detail.setRequestId(batch.getRequestId());
             detail.setServiceCodeSnapshot(serialize(new ExchangeCodeSnapshot(
                     code.getId(), code.getCode(), code.getOwnerCompanyId(), assignedUserId,
                     code.getSpecCode(), code.getServiceType(), code.getDurationDays(),
@@ -157,8 +231,8 @@ public class ServiceCodeExchangeReserveService {
         }
 
         List<Long> serviceCodeIds = codes.stream().map(ServiceCode::getId).toList();
-        if (serviceCodeMapper.reserveForExchange(serviceCodeIds, command.companyId(),
-                command.requestId(), now) != command.quantity()) {
+        if (serviceCodeMapper.reserveForExchange(serviceCodeIds, batch.getOwnerCompanyId(),
+                batch.getRequestId(), now) != codes.size()) {
             throw new BusinessException(ErrorCode.EXCHANGE_STATE_INCONSISTENT,
                     "服务码预留状态发生并发变化");
         }
@@ -179,21 +253,6 @@ public class ServiceCodeExchangeReserveService {
             throw new BusinessException(ErrorCode.EXCHANGE_STATE_INCONSISTENT, "CORS 操作创建失败");
         }
         return new ExchangeReservation(batch.getId(), operation.getId(), true);
-    }
-
-    public ExchangeReservation findExisting(ServiceCodeExchangeCommand input) {
-        ServiceCodeExchangeCommand command = normalize(input);
-        validateMaxQuantity(command);
-        UserScope scope = userHolder.getUserScope();
-        assertCompanyAccess(scope, command.companyId());
-        Long assignedUserId = effectiveAssignedUserId(scope);
-        ExchangeBatch batch = batchMapper.selectByRequestId(command.requestId());
-        if (batch == null) {
-            return null;
-        }
-        verifyPayload(batch, ExchangePayloadHash.calculate(command, assignedUserId), assignedUserId);
-        CorsOperation operation = operationMapper.selectByBusiness(BIZ_TYPE, batch.getId());
-        return new ExchangeReservation(batch.getId(), operation == null ? null : operation.getId(), false);
     }
 
     private void validateMaxQuantity(ServiceCodeExchangeCommand command) {
@@ -219,21 +278,49 @@ public class ServiceCodeExchangeReserveService {
                 input.generationSource(), input.quantity());
     }
 
+    static ServiceCodeExchangeByCodesCommand normalizeByCodes(ServiceCodeExchangeByCodesCommand input) {
+        if (input == null || input.requestId() == null || input.companyId() == null
+                || input.companyId() <= 0 || input.serviceCodeIds() == null
+                || input.serviceCodeIds().isEmpty() || input.serviceCodeIds().size() > MAX_EXACT_CODES) {
+            throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "精确兑换参数不完整或数量非法");
+        }
+        String requestId = input.requestId().trim();
+        if (requestId.isBlank() || requestId.length() > 128 || hasControl(requestId)
+                || input.serviceCodeIds().stream().anyMatch(id -> id == null || id <= 0)) {
+            throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "精确兑换参数非法");
+        }
+        Set<Long> distinctIds = new HashSet<>(input.serviceCodeIds());
+        if (distinctIds.size() != input.serviceCodeIds().size()) {
+            throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "服务码 ID 列表不能包含重复值");
+        }
+        return new ServiceCodeExchangeByCodesCommand(requestId, input.companyId(),
+                input.serviceCodeIds().stream().sorted().toList());
+    }
+
     private ExchangeBatch createBatch(ServiceCodeExchangeCommand command, ServiceDurationConfig spec,
                                       OperatorIdentity operator,
                                       String accountPrefix, String payloadHash,
                                       Long assignedUserId, LocalDateTime now) {
+        return createBatch(command.requestId(), command.companyId(), command.generationSource().name(),
+                command.specCode(), command.quantity(), spec, operator, accountPrefix, payloadHash,
+                assignedUserId, now);
+    }
+
+    private ExchangeBatch createBatch(String requestId, Long companyId, String generationSource,
+                                      String specCode, Integer quantity, ServiceDurationConfig spec,
+                                      OperatorIdentity operator, String accountPrefix, String payloadHash,
+                                      Long assignedUserId, LocalDateTime now) {
         ExchangeBatch batch = new ExchangeBatch();
         batch.setExchangeBatchNo("EX-" + UUID.randomUUID().toString().replace("-", "").toUpperCase());
-        batch.setRequestId(command.requestId());
-        batch.setOwnerCompanyId(command.companyId());
+        batch.setRequestId(requestId);
+        batch.setOwnerCompanyId(companyId);
         batch.setAssignedUserId(assignedUserId);
-        batch.setGenerationSource(command.generationSource().name());
-        batch.setSpecCode(command.specCode());
+        batch.setGenerationSource(generationSource);
+        batch.setSpecCode(specCode);
         batch.setDisplayName(spec.getDisplayName());
         batch.setServiceType(spec.getServiceType());
         batch.setDurationDays(spec.getDurationDays());
-        batch.setQuantity(command.quantity());
+        batch.setQuantity(quantity);
         batch.setAccountPrefix(accountPrefix);
         batch.setPayloadHash(payloadHash);
         batch.setAccountSilenceDays(spec.getAccountSilenceDays());
@@ -243,6 +330,59 @@ public class ServiceCodeExchangeReserveService {
         batch.setCreatedAt(now);
         batch.setUpdatedAt(now);
         return batch;
+    }
+
+    private ServiceDurationConfig findSpec(String specCode) {
+        return durationMapper.selectBySpecCodes(List.of(specCode)).stream()
+                .filter(item -> specCode.equals(item.getSpecCode()))
+                .findFirst()
+                .orElseThrow(() -> new BusinessException(ErrorCode.CONFIG_INVALID,
+                        "服务码规格不存在: " + specCode));
+    }
+
+    private CompanyExchangeConfig validateCompanyAndExchangeConfig(Long companyId) {
+        if (companyMapper.selectCount(Wrappers.<DealerCompany>lambdaQuery()
+                .eq(DealerCompany::getCompanyId, companyId)) == 0) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "公司不存在: " + companyId);
+        }
+        CompanyExchangeConfig exchangeConfig = exchangeConfigMapper.selectByCompanyId(companyId);
+        if (exchangeConfig == null) {
+            throw new BusinessException(ErrorCode.EXCHANGE_CONFIG_REQUIRED,
+                    "请先配置兑换账号前缀");
+        }
+        return exchangeConfig;
+    }
+
+    private String validateExactCodes(List<ServiceCode> codes, List<Long> requestedIds,
+                                      Long companyId, LocalDateTime now) {
+        if (codes == null || codes.size() != requestedIds.size()) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "指定服务码不存在");
+        }
+        String specCode = null;
+        for (ServiceCode code : codes) {
+            if (code.getOwnerCompanyId() == null || !companyId.equals(code.getOwnerCompanyId())) {
+                throw new BusinessException(ErrorCode.SERVICE_CODE_NOT_OWNED,
+                        "指定服务码不属于当前公司");
+            }
+            if (code.getStatus() != com.sinognss.cloud.vantix.domain.servicecode.ServiceCodeStatus.PENDING) {
+                throw new BusinessException(ErrorCode.SERVICE_CODE_NOT_PENDING,
+                        "指定服务码不是待兑换状态");
+            }
+            if (code.getExpireAt() == null || !code.getExpireAt().isAfter(now)) {
+                throw new BusinessException(ErrorCode.SERVICE_CODE_EXPIRED,
+                        "指定服务码已过期");
+            }
+            if (code.getSpecCode() == null || code.getSpecCode().isBlank()) {
+                throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "指定服务码规格为空");
+            }
+            if (specCode == null) {
+                specCode = code.getSpecCode();
+            } else if (!specCode.equals(code.getSpecCode())) {
+                throw new BusinessException(ErrorCode.INVALID_ARGUMENT,
+                        "指定服务码必须属于同一 specCode");
+            }
+        }
+        return specCode;
     }
 
     private void validateSnapshots(List<ServiceCode> codes, ServiceDurationConfig spec) {
