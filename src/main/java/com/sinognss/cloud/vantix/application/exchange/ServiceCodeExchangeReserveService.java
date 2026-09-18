@@ -359,6 +359,7 @@ public class ServiceCodeExchangeReserveService {
             throw new BusinessException(ErrorCode.NOT_FOUND, "指定服务码不存在");
         }
         String specCode = null;
+        Integer durationDays = null;
         for (ServiceCode code : codes) {
             if (code.getOwnerCompanyId() == null || !companyId.equals(code.getOwnerCompanyId())) {
                 throw new BusinessException(ErrorCode.SERVICE_CODE_NOT_OWNED,
@@ -380,6 +381,16 @@ public class ServiceCodeExchangeReserveService {
             } else if (!specCode.equals(code.getSpecCode())) {
                 throw new BusinessException(ErrorCode.INVALID_ARGUMENT,
                         "指定服务码必须属于同一 specCode");
+            }
+            if (code.getDurationDays() == null || code.getDurationDays() <= 0) {
+                throw new BusinessException(ErrorCode.INVALID_ARGUMENT,
+                        "指定服务码时长非法");
+            }
+            if (durationDays == null) {
+                durationDays = code.getDurationDays();
+            } else if (!durationDays.equals(code.getDurationDays())) {
+                throw new BusinessException(ErrorCode.INVALID_ARGUMENT,
+                        "指定服务码必须属于同一 durationDays");
             }
         }
         return specCode;

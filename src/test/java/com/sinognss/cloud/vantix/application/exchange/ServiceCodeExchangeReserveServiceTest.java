@@ -204,13 +204,13 @@ class ServiceCodeExchangeReserveServiceTest {
     }
 
     @Test
-    void exactExchangeUsesSortedIdsAndDoesNotRequireGenerationSourceOrSnapshotSpecConsistency() {
+    void exactExchangeUsesSortedIdsAndDoesNotRequireServiceTypeConsistency() {
         ServiceCode first = code(3L, LocalDateTime.of(2026, 2, 1, 0, 0));
         first.setServiceType("TYPE-A");
         first.setDurationDays(30);
         ServiceCode second = code(7L, LocalDateTime.of(2026, 2, 2, 0, 0));
         second.setServiceType("TYPE-B");
-        second.setDurationDays(60);
+        second.setDurationDays(30);
         when(serviceCodeMapper.selectByIdsForExchange(List.of(3L, 7L))).thenReturn(List.of(first, second));
 
         ExchangeReservation result = service.reserveByCodes(
@@ -254,6 +254,45 @@ class ServiceCodeExchangeReserveServiceTest {
 
         assertEquals(ErrorCode.INVALID_ARGUMENT, exception.getVantixErrorCode());
         verify(batchMapper, never()).insert(any(ExchangeBatch.class));
+    }
+
+    @Test
+    void exactExchangeRejectsDifferentDurationDays() {
+        ServiceCode first = code(3L, LocalDateTime.of(2026, 2, 1, 0, 0));
+        ServiceCode second = code(7L, LocalDateTime.of(2026, 2, 1, 0, 0));
+        second.setDurationDays(60);
+        when(serviceCodeMapper.selectByIdsForExchange(List.of(3L, 7L))).thenReturn(List.of(first, second));
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> service.reserveByCodes(new ServiceCodeExchangeByCodesCommand(
+                        "different-duration", 1L, List.of(3L, 7L))));
+
+        assertEquals(ErrorCode.INVALID_ARGUMENT, exception.getVantixErrorCode());
+        verify(batchMapper, never()).insert(any(ExchangeBatch.class));
+    }
+
+    @Test
+    void exactExchangeRejectsMissingDurationDays() {
+        ServiceCode code = code(3L, LocalDateTime.of(2026, 2, 1, 0, 0));
+        code.setDurationDays(null);
+        when(serviceCodeMapper.selectByIdsForExchange(List.of(3L))).thenReturn(List.of(code));
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> service.reserveByCodes(exactCommand("missing-duration", 3L)));
+
+        assertEquals(ErrorCode.INVALID_ARGUMENT, exception.getVantixErrorCode());
+    }
+
+    @Test
+    void exactExchangeRejectsNonPositiveDurationDays() {
+        ServiceCode code = code(3L, LocalDateTime.of(2026, 2, 1, 0, 0));
+        code.setDurationDays(0);
+        when(serviceCodeMapper.selectByIdsForExchange(List.of(3L))).thenReturn(List.of(code));
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> service.reserveByCodes(exactCommand("invalid-duration", 3L)));
+
+        assertEquals(ErrorCode.INVALID_ARGUMENT, exception.getVantixErrorCode());
     }
 
     @Test
