@@ -27,6 +27,29 @@ class UserHolderBridgeTest {
     }
 
     @Test
+    void currentCompanyIdRequiresLoggedInUser() {
+        BusinessException exception = assertThrows(BusinessException.class, bridge::getCurrentCompanyId);
+
+        assertEquals(ErrorCode.AUTHENTICATION_REQUIRED, exception.getVantixErrorCode());
+    }
+
+    @Test
+    void currentCompanyIdRequiresPositiveCompanyId() {
+        UserHolder.setUser(user(88L, null, 3));
+
+        BusinessException exception = assertThrows(BusinessException.class, bridge::getCurrentCompanyId);
+
+        assertEquals(ErrorCode.UNSUPPORTED_USER_SCOPE, exception.getVantixErrorCode());
+    }
+
+    @Test
+    void currentCompanyIdDoesNotDependOnScopeType() {
+        UserHolder.setUser(user(88L, 10L, 4));
+
+        assertEquals(10L, bridge.getCurrentCompanyId());
+    }
+
+    @Test
     void scopeShapesAreClassifiedFailClosed() {
         assertEquals(UserScope.Type.GLOBAL, new UserScope(null, null).type());
         assertEquals(UserScope.Type.COMPANY, new UserScope(null, 10L).type());

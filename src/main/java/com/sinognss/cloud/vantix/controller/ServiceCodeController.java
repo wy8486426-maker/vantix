@@ -7,6 +7,9 @@ import com.sinognss.cloud.vantix.application.servicecode.ServiceCodeStatisticsQu
 import com.sinognss.cloud.vantix.application.servicecode.ServiceCodeTransferService;
 import com.sinognss.cloud.vantix.application.servicecode.TransferServiceCodeCommand;
 import com.sinognss.cloud.vantix.common.api.CommonResultAdapter;
+import com.sinognss.cloud.vantix.common.exception.BusinessException;
+import com.sinognss.cloud.vantix.common.exception.ErrorCode;
+import com.sinognss.cloud.vantix.config.ServiceCodeTransferProperties;
 import com.sinognss.cloud.vantix.domain.servicecode.ServiceCodeStatus;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
@@ -27,11 +30,14 @@ import java.util.List;
 public class ServiceCodeController {
     private final ServiceCodeService serviceCodeService;
     private final ServiceCodeTransferService transferService;
+    private final ServiceCodeTransferProperties transferProperties;
 
     public ServiceCodeController(ServiceCodeService serviceCodeService,
-                                 ServiceCodeTransferService transferService) {
+                                 ServiceCodeTransferService transferService,
+                                 ServiceCodeTransferProperties transferProperties) {
         this.serviceCodeService = serviceCodeService;
         this.transferService = transferService;
+        this.transferProperties = transferProperties;
     }
 
     @GetMapping
@@ -66,6 +72,10 @@ public class ServiceCodeController {
 
     @PostMapping("/transfers")
     public Object transfer(@Valid @RequestBody TransferRequest request) {
+        if (request.serviceCodeIds().size() > transferProperties.getMaxBatchSize()) {
+            throw new BusinessException(ErrorCode.INVALID_ARGUMENT,
+                    "单次转赠服务码数量不能超过 " + transferProperties.getMaxBatchSize());
+        }
         return CommonResultAdapter.success(transferService.transfer(new TransferServiceCodeCommand(
                 request.fromCompanyId(), request.toCompanyId(), request.serviceCodeIds(), request.reason())));
     }
@@ -77,7 +87,7 @@ public class ServiceCodeController {
 
     public record TransferRequest(@NotNull @Positive Long fromCompanyId,
                                   @NotNull @Positive Long toCompanyId,
-                                  @NotEmpty @Size(max = 500) List<@NotNull @Positive Long> serviceCodeIds,
+                                  @NotEmpty List<@NotNull @Positive Long> serviceCodeIds,
                                   @Size(max = 512) String reason) {
     }
 }

@@ -4,7 +4,6 @@ import com.sinognss.cloud.vantix.common.exception.BusinessException;
 import com.sinognss.cloud.vantix.common.exception.ErrorCode;
 import com.sinognss.cloud.vantix.common.user.OperatorIdentity;
 import com.sinognss.cloud.vantix.common.user.UserHolderBridge;
-import com.sinognss.cloud.vantix.common.user.UserScope;
 import com.sinognss.cloud.vantix.domain.exchange.CompanyExchangeConfig;
 import com.sinognss.cloud.vantix.application.company.DealerCompanySyncService;
 import com.sinognss.cloud.vantix.infrastructure.mapper.CompanyExchangeConfigMapper;
@@ -34,14 +33,14 @@ public class ServiceCodeExchangeConfigService {
     }
 
     public ServiceCodeExchangeConfigView getCurrent() {
-        Long companyId = currentCompanyId();
+        Long companyId = userHolder.getCurrentCompanyId();
         CompanyExchangeConfig config = mapper.selectByCompanyId(companyId);
         return config == null ? ServiceCodeExchangeConfigView.unconfigured(companyId)
                 : ServiceCodeExchangeConfigView.from(config);
     }
 
     public ServiceCodeExchangeConfigView configure(String inputPrefix) {
-        Long companyId = currentCompanyId();
+        Long companyId = userHolder.getCurrentCompanyId();
         String accountPrefix = normalizePrefix(inputPrefix);
 
         CompanyExchangeConfig existing = mapper.selectByCompanyId(companyId);
@@ -79,18 +78,6 @@ public class ServiceCodeExchangeConfigService {
                     "accountPrefix 必须是 4 位数字或英文字母");
         }
         return prefix;
-    }
-
-    private Long currentCompanyId() {
-        UserScope scope = userHolder.getUserScope();
-        if (scope.type() != UserScope.Type.COMPANY && scope.type() != UserScope.Type.PERSONAL) {
-            throw new BusinessException(ErrorCode.GLOBAL_SCOPE_REQUIRED,
-                    "兑换配置需要 COMPANY 或 PERSONAL 数据范围");
-        }
-        if (scope.companyId() == null || scope.companyId() <= 0) {
-            throw new BusinessException(ErrorCode.UNSUPPORTED_USER_SCOPE, "当前用户缺少公司范围");
-        }
-        return scope.companyId();
     }
 
     private ServiceCodeExchangeConfigView resolveExisting(CompanyExchangeConfig existing, String requestedPrefix) {

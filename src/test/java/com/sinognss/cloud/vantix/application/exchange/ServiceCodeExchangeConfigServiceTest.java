@@ -5,7 +5,6 @@ import com.sinognss.cloud.vantix.common.exception.BusinessException;
 import com.sinognss.cloud.vantix.common.exception.ErrorCode;
 import com.sinognss.cloud.vantix.common.user.OperatorIdentity;
 import com.sinognss.cloud.vantix.common.user.UserHolderBridge;
-import com.sinognss.cloud.vantix.common.user.UserScope;
 import com.sinognss.cloud.vantix.domain.exchange.CompanyExchangeConfig;
 import com.sinognss.cloud.vantix.infrastructure.mapper.CompanyExchangeConfigMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,7 +36,7 @@ class ServiceCodeExchangeConfigServiceTest {
     @BeforeEach
     void setUp() {
         service = new ServiceCodeExchangeConfigService(mapper, dealerCompanySyncService, userHolder, clock);
-        when(userHolder.getUserScope()).thenReturn(new UserScope(7L, 100L));
+        when(userHolder.getCurrentCompanyId()).thenReturn(100L);
         when(userHolder.getOperatorOrNull()).thenReturn(new OperatorIdentity(7L, "operator"));
     }
 
@@ -50,6 +49,18 @@ class ServiceCodeExchangeConfigServiceTest {
         assertFalse(result.configured());
         assertEquals(100L, result.companyId());
         assertEquals(null, result.accountPrefix());
+    }
+
+    @Test
+    void configuredReadReturnsCurrentCompanyPrefix() {
+        when(mapper.selectByCompanyId(100L)).thenReturn(config("AB12"));
+
+        ServiceCodeExchangeConfigView result = service.getCurrent();
+
+        assertTrue(result.configured());
+        assertEquals(100L, result.companyId());
+        assertEquals("AB12", result.accountPrefix());
+        verify(userHolder, never()).getUserScope();
     }
 
     @Test
@@ -93,6 +104,7 @@ class ServiceCodeExchangeConfigServiceTest {
         assertEquals(7L, result.configuredByUserId());
         verify(dealerCompanySyncService).ensurePresent(100L);
         verify(mapper).insert(any(CompanyExchangeConfig.class));
+        verify(userHolder, never()).getUserScope();
     }
 
     @Test
@@ -120,13 +132,21 @@ class ServiceCodeExchangeConfigServiceTest {
     }
 
     @Test
-    void invalidPrefixAndGlobalScopeAreRejected() {
+    void invalidPrefixIsRejected() {
         BusinessException invalid = assertThrows(BusinessException.class, () -> service.configure("中文"));
         assertEquals(ErrorCode.EXCHANGE_PREFIX_INVALID, invalid.getVantixErrorCode());
+    }
 
-        when(userHolder.getUserScope()).thenReturn(new UserScope(null, null));
-        BusinessException global = assertThrows(BusinessException.class, service::getCurrent);
-        assertEquals(ErrorCode.GLOBAL_SCOPE_REQUIRED, global.getVantixErrorCode());
+    @Test
+    void readDoesNotCheckScopeType() {
+        when(mapper.selectByCompanyId(100L)).thenReturn(null);
+
+        ServiceCodeExchangeConfigView result = service.getCurrent();
+
+        assertFalse(result.configured());
+        assertEquals(100L, result.companyId());
+        assertEquals(null, result.accountPrefix());
+        verify(userHolder, never()).getUserScope();
     }
 
     private CompanyExchangeConfig config(String prefix) {

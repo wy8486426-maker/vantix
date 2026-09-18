@@ -7,20 +7,25 @@ import com.sinognss.cloud.vantix.application.servicecode.ServiceCodeService;
 import com.sinognss.cloud.vantix.application.servicecode.ServiceCodeStatistics;
 import com.sinognss.cloud.vantix.application.servicecode.ServiceCodeStatisticsQuery;
 import com.sinognss.cloud.vantix.application.servicecode.ServiceCodeTransferService;
+import com.sinognss.cloud.vantix.config.ServiceCodeTransferProperties;
 import com.sinognss.cloud.vantix.domain.servicecode.ServiceCodeStatus;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class ServiceCodeControllerTest {
     private final ServiceCodeService service = mock(ServiceCodeService.class);
     private final ServiceCodeTransferService transferService = mock(ServiceCodeTransferService.class);
-    private final ServiceCodeController controller = new ServiceCodeController(service, transferService);
+    private final ServiceCodeTransferProperties transferProperties = new ServiceCodeTransferProperties();
+    private final ServiceCodeController controller = new ServiceCodeController(service, transferService,
+            transferProperties);
 
     @Test
     void pageAcceptsFrontendFilters() {
@@ -56,5 +61,15 @@ class ServiceCodeControllerTest {
         assertEquals(90, captor.getValue().durationDays());
         assertEquals("ORDER-1", captor.getValue().sourceOrderNo());
         assertEquals(10L, captor.getValue().ownerCompanyId());
+    }
+
+    @Test
+    void transferRejectsBatchAboveConfiguredMaximum() {
+        ServiceCodeController.TransferRequest request = new ServiceCodeController.TransferRequest(
+                1L, 2L, java.util.stream.LongStream.rangeClosed(1, 501).boxed().toList(), null);
+
+        assertThrows(com.sinognss.cloud.vantix.common.exception.BusinessException.class,
+                () -> controller.transfer(request));
+        verify(transferService, never()).transfer(any());
     }
 }

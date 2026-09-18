@@ -3,6 +3,9 @@ spring:
     name: vantix-service
 
 vantix:
+  service-code:
+    transfer:
+      max-batch-size: 500
   cors:
     password:
       enabled: ${VANTIX_CORS_PASSWORD_ENABLED:true}

@@ -7,6 +7,7 @@ import com.sinognss.cloud.vantix.common.exception.BusinessException;
 import com.sinognss.cloud.vantix.common.exception.ErrorCode;
 import com.sinognss.cloud.vantix.common.user.OperatorIdentity;
 import com.sinognss.cloud.vantix.common.user.UserHolderBridge;
+import com.sinognss.cloud.vantix.config.ServiceCodeTransferProperties;
 import com.sinognss.cloud.vantix.domain.company.DealerCompany;
 import com.sinognss.cloud.vantix.domain.servicecode.ServiceCode;
 import com.sinognss.cloud.vantix.domain.servicecode.ServiceCodeStatus;
@@ -23,7 +24,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -37,6 +37,7 @@ public class ServiceCodeTransferService {
     private final SystemCompanyResolver systemCompanyResolver;
     private final UserHolderBridge userHolder;
     private final Clock clock;
+    private final ServiceCodeTransferProperties properties;
 
     public ServiceCodeTransferService(ServiceCodeMapper serviceCodeMapper,
                                       ServiceCodeTransferMapper transferMapper,
@@ -44,7 +45,8 @@ public class ServiceCodeTransferService {
                                       CompanyService companyService,
                                       SystemCompanyResolver systemCompanyResolver,
                                       UserHolderBridge userHolder,
-                                      Clock clock) {
+                                      Clock clock,
+                                      ServiceCodeTransferProperties properties) {
         this.serviceCodeMapper = serviceCodeMapper;
         this.transferMapper = transferMapper;
         this.companyMapper = companyMapper;
@@ -52,6 +54,7 @@ public class ServiceCodeTransferService {
         this.systemCompanyResolver = systemCompanyResolver;
         this.userHolder = userHolder;
         this.clock = clock;
+        this.properties = properties;
     }
 
     @Transactional
@@ -83,7 +86,6 @@ public class ServiceCodeTransferService {
         for (ServiceCode code : lockedCodes) {
             validateTransferable(code, from, now);
         }
-        validateBatchDuration(lockedCodes);
 
         OperatorIdentity operator = userHolder.getOperator();
         TransferType transferType = transferType(from, to, systemCompanyId);
@@ -179,17 +181,9 @@ public class ServiceCodeTransferService {
         if (command.serviceCodeIds().stream().anyMatch(id -> id == null || id <= 0)) {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "服务码 ID 非法");
         }
-    }
-
-    private void validateBatchDuration(List<ServiceCode> codes) {
-        ServiceCode first = codes.get(0);
-        boolean sameDuration = codes.stream().allMatch(code ->
-                Objects.equals(first.getSpecCode(), code.getSpecCode())
-                        && Objects.equals(first.getServiceType(), code.getServiceType())
-                        && Objects.equals(first.getDurationDays(), code.getDurationDays()));
-        if (!sameDuration) {
-            throw new BusinessException(ErrorCode.BATCH_STATUS_INCONSISTENT,
-                    "同一批次服务码必须具有相同的服务时长");
+        if (command.serviceCodeIds().size() > properties.getMaxBatchSize()) {
+            throw new BusinessException(ErrorCode.INVALID_ARGUMENT,
+                    "单次转赠服务码数量不能超过 " + properties.getMaxBatchSize());
         }
     }
 }

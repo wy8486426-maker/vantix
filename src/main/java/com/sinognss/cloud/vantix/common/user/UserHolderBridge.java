@@ -14,6 +14,15 @@ import org.apache.commons.lang3.tuple.Pair;
  */
 @Component
 public class UserHolderBridge {
+    public Long getCurrentCompanyId() {
+        UserCacheDTO user = requireUser();
+        Long companyId = user.getCompanyId();
+        if (companyId == null || companyId <= 0) {
+            throw new BusinessException(ErrorCode.UNSUPPORTED_USER_SCOPE, "当前用户缺少公司范围");
+        }
+        return companyId;
+    }
+
     public UserScope getUserScope() {
         UserCacheDTO user = requireUser();
         Pair<Long, Long> pair = UserHolder.getUserAndCompanyId();

@@ -6,6 +6,7 @@ import com.sinognss.cloud.vantix.common.exception.BusinessException;
 import com.sinognss.cloud.vantix.common.user.OperatorIdentity;
 import com.sinognss.cloud.vantix.common.user.UserHolderBridge;
 import com.sinognss.cloud.vantix.common.user.UserScope;
+import com.sinognss.cloud.vantix.config.ServiceCodeTransferProperties;
 import com.sinognss.cloud.vantix.domain.company.DealerCompany;
 import com.sinognss.cloud.vantix.domain.servicecode.ServiceCode;
 import com.sinognss.cloud.vantix.domain.servicecode.ServiceCodeStatus;
@@ -55,7 +56,7 @@ class ServiceCodeTransferServiceTest {
         when(companyService.getRequired(2L)).thenReturn(company(2L, 1L));
         when(codeMapper.transferWithCas(anyLong(), anyLong(), anyLong(), anyLong(), any(), any())).thenReturn(1);
         service = new ServiceCodeTransferService(codeMapper, transferMapper, companyMapper,
-                companyService, systemResolver, userHolder, clock);
+                companyService, systemResolver, userHolder, clock, new ServiceCodeTransferProperties());
     }
 
     @Test
@@ -114,17 +115,32 @@ class ServiceCodeTransferServiceTest {
     }
 
     @Test
-    void shouldRejectBatchWithDifferentServiceDuration() {
+    void shouldTransferBatchWithDifferentSpecsAndDurations() {
         ServiceCode first = activeCode(100L, 1L);
         ServiceCode second = activeCode(101L, 1L);
+        first.setSpecCode("SPEC-A");
+        first.setDurationDays(30);
+        second.setSpecCode("SPEC-B");
         second.setServiceType("OTHER");
+        second.setDurationDays(90);
         when(codeMapper.selectList(any())).thenReturn(List.of(first, second));
 
-        assertThrows(BusinessException.class,
-                () -> service.transfer(new TransferServiceCodeCommand(1L, 2L, List.of(100L, 101L), null)));
-        verify(codeMapper, org.mockito.Mockito.never())
+        TransferResult result = service.transfer(
+                new TransferServiceCodeCommand(1L, 2L, List.of(100L, 101L), null));
+
+        assertEquals(2, result.transferredCount());
+        verify(codeMapper, org.mockito.Mockito.times(2))
                 .transferWithCas(anyLong(), anyLong(), anyLong(), anyLong(), any(), any());
-        verify(transferMapper, org.mockito.Mockito.never()).insert(any(ServiceCodeTransfer.class));
+        verify(transferMapper, org.mockito.Mockito.times(2)).insert(any(ServiceCodeTransfer.class));
+    }
+
+    @Test
+    void shouldRejectBatchAboveConfiguredMaximum() {
+        List<Long> ids = java.util.stream.LongStream.rangeClosed(1, 501).boxed().toList();
+
+        assertThrows(BusinessException.class,
+                () -> service.transfer(new TransferServiceCodeCommand(1L, 2L, ids, null)));
+        verify(codeMapper, org.mockito.Mockito.never()).selectList(any());
     }
 
     @Test
