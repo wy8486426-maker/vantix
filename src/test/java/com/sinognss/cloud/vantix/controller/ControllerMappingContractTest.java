@@ -14,7 +14,6 @@ import java.util.ArrayList;
 import java.util.Map;
 import java.util.TreeMap;
 
-import com.sinognss.cloud.vantix.integration.cors.account.CorsAccountPasswordGateway;
 import com.sinognss.cloud.vantix.integration.cors.account.CorsPasswordGateway;
 import com.sinognss.cloud.vantix.integration.cors.account.CorsAccountRenewalGateway;
 import com.sinognss.cloud.vantix.integration.cors.account.CorsAccountStatusGateway;
@@ -44,12 +43,6 @@ class ControllerMappingContractTest {
 
     @TestConfiguration(proxyBeanMethods = false)
     static class GatewayMocks {
-        @Bean
-        @Primary
-        CorsAccountPasswordGateway passwordGateway() {
-            return mock(CorsAccountPasswordGateway.class);
-        }
-
         @Bean
         @Primary
         CorsPasswordGateway passwordOperationsGateway() {

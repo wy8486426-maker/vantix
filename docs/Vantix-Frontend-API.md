@@ -86,7 +86,6 @@ Vantix 不新增登录接口或 Token Header，继续使用现有 `sino-cloud-ba
 | 密码重置 | POST | `/api/service-accounts/{serviceAccountId}/password/reset` | `/api/service-accounts/password/reset` | `serviceAccountId` 从 Path 改为 Query |
 | 密码重置结果 | GET | `/api/account-password-resets/{requestId}` | `/api/account-password-resets/result` | `requestId` 从 Path 改为 Query |
 | 自定义密码 | POST | `/api/service-accounts/{serviceAccountId}/password` | `/api/service-accounts/password/custom` | `serviceAccountId` 从 Path 改为 Query，Body 只含 password |
-| 临时查看密码 | POST | `/api/service-accounts/{serviceAccountId}/password/reveal` | `/api/service-accounts/password/reveal` | `serviceAccountId` 从 Path 改为 Query |
 
 ---
 
@@ -1281,7 +1280,7 @@ Vantix 前端一次请求仍是“一个账号 + 一个服务码”，当前没�
 
 # 13. 密码能力（CORS 条件接口）
 
-> 以下接口只有 `vantix.cors.password.enabled=true` 且对应 CORS Gateway 存在时才注册。账号列表/详情不会返回密码。
+> 以下 reset/custom 接口只有 `vantix.cors.password.enabled=true` 且 `CorsPasswordGateway` 存在时才注册。账号列表/详情不会返回密码；当前未确认 CORS 的 reveal/query 接口，因此不注册对应路由。
 
 ## 13.1 POST `/api/service-accounts/password/reset`
 
@@ -1347,39 +1346,7 @@ Vantix 前端一次请求仍是“一个账号 + 一个服务码”，当前没�
 }
 ```
 
-## 13.3 POST `/api/service-accounts/password/reveal`
-
-> **接口地址已变更**
->
-> 原接口：`POST /api/service-accounts/{serviceAccountId}/password/reveal`
->
-> 新接口：`POST /api/service-accounts/password/reveal?serviceAccountId={serviceAccountId}`
->
-> 变更：`serviceAccountId` 从 Path 参数调整为 Query 参数。
-
-**Query**：`serviceAccountId`，必填。
-
-**Body**：
-
-```json
-{
-  "requestId": "PWD_REVEAL_202609160001"
-}
-```
-
-**响应 data**：
-
-```json
-{
-  "serviceAccountId": 1001,
-  "account": "AB12000001",
-  "password": "一次性明文"
-}
-```
-
-该接口带 `no-store/no-cache` 响应头。前端只能临时展示，不得写 localStorage/sessionStorage/IndexedDB、不得 console、不得埋点上传、不得长期放全局 store。
-
-## 13.4 POST `/api/service-accounts/password/custom`
+## 13.3 POST `/api/service-accounts/password/custom`
 
 **Query**：`serviceAccountId`，必填。
 
@@ -1499,7 +1466,6 @@ GET  /api/account-renewals/detail?requestId={requestId}
 | 密码 | POST | `/api/service-accounts/password/reset`（`serviceAccountId` Query） | 重置（CORS 条件） |
 | 密码 | GET | `/api/account-password-resets/result`（`requestId` Query） | 重置结果（CORS 条件） |
 | 密码 | POST | `/api/service-accounts/password/custom`（`serviceAccountId` Query） | 自定义密码（CORS 条件） |
-| 密码 | POST | `/api/service-accounts/password/reveal`（`serviceAccountId` Query） | 临时查看（CORS 条件） |
 
 ---
 

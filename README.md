@@ -19,9 +19,9 @@
 
 服务码转赠在一个 MySQL 本地事务内按服务码 ID 升序 `SELECT ... FOR UPDATE`，完成全部校验后使用 `version` CAS 更新并记录流水；任意一张失败都会回滚批次。批量转赠要求所有服务码的 `service_type`、`spec_code`、`duration_days` 完全一致。服务码过期和即将到期是 DTO 展示状态，不是数据库状态。
 
-公司真实性由 user-center 提供，Vantix 通过 `UserCenterFeignService` 同步公司 ID/名称到本地 `dealer_company`；公司上下级关系和状态仍由 Vantix 维护。CORS 的 `CorsAccountClient` 未猜测远程 URL。密码查看与重置流程已实现本地审计、权限和补偿边界，并通过 `CorsAccountPasswordGateway` 留待 CORS 接口契约确认后接入真实适配器；默认 `vantix.cors.password.enabled=false`，缺少 Gateway 时密码路由不会注册。
+公司真实性由 user-center 提供，Vantix 通过 `UserCenterFeignService` 同步公司 ID/名称到本地 `dealer_company`；公司上下级关系和状态仍由 Vantix 维护。CORS 的 `CorsAccountClient` 未猜测远程 URL。密码重置和自定义密码统一通过已落地的 `CorsPasswordGateway`，并由 `RestCorsAccountGateway` 调用 CORS；默认 `vantix.cors.password.enabled=false`，缺少 Gateway 时密码路由不会注册。
 
-密码路由为 `POST /api/service-accounts/password/reveal?serviceAccountId=...`、`POST /api/service-accounts/password/reset?serviceAccountId=...` 和本地状态查询 `GET /api/account-password-resets/result?requestId=...`。查看密码先写审计、成功后仅放入当前 HTTP 响应，并设置 `no-store`；重置使用原 requestId 持久化跟踪，超时恢复先查 CORS 状态，只有确认请求不存在后才会再次 POST。
+密码路由为 `POST /api/service-accounts/password/reset?serviceAccountId=...`、`POST /api/service-accounts/password/custom?serviceAccountId=...` 和本地状态查询 `GET /api/account-password-resets/result?requestId=...`。当前不注册密码查看或 CORS 远程 query-reset 路由；若后续确认 CORS 提供对应接口，再扩展 `CorsPasswordGateway`。
 
 统一用户中心由 `sino-cloud-base` 提供。`UserHolderBridge` 调用 `com.sinognss.cloud.base.filter.UserHolder` 的 `getUserAndCompanyId()` 作为数据范围、`getUser()` 作为真实操作人；本项目不创建用户、角色、权限或密码字段。
 
@@ -67,4 +67,4 @@ $env:Path="$env:JAVA_HOME\bin;$env:MAVEN_HOME\bin;$env:Path"
 mvn clean test
 ```
 
-后续阶段 TODO：密码 Gateway 的真实适配器需等 CORS 确认接口契约后实现。
+后续阶段 TODO：若 CORS 确认提供密码 reveal/query 接口，再扩展现有 `CorsPasswordGateway`；当前不保留第二套 password gateway。

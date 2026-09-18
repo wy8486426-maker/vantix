@@ -5,10 +5,8 @@ import com.sinognss.cloud.vantix.application.cors.account.AccountStatusSyncSched
 import com.sinognss.cloud.vantix.application.cors.account.CorsAccountStateApplyService;
 import com.sinognss.cloud.vantix.application.password.AccountPasswordOperationService;
 import com.sinognss.cloud.vantix.application.password.reset.AccountPasswordResetQueryService;
-import com.sinognss.cloud.vantix.application.password.reveal.AccountPasswordRevealService;
 import com.sinognss.cloud.vantix.application.renewal.AccountRenewalReserveService;
 import com.sinognss.cloud.vantix.controller.AccountPasswordResetController;
-import com.sinognss.cloud.vantix.controller.AccountPasswordRevealController;
 import com.sinognss.cloud.vantix.controller.AccountRenewalController;
 import com.sinognss.cloud.vantix.infrastructure.mapper.AccountPasswordActionMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.AccountRenewalMapper;
@@ -16,7 +14,6 @@ import com.sinognss.cloud.vantix.infrastructure.mapper.CorsOperationMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceAccountMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceCodeMapper;
 import com.sinognss.cloud.vantix.common.user.UserHolderBridge;
-import com.sinognss.cloud.vantix.integration.cors.account.CorsAccountPasswordGateway;
 import com.sinognss.cloud.vantix.integration.cors.account.CorsAccountRenewalGateway;
 import com.sinognss.cloud.vantix.integration.cors.account.CorsAccountStatusGateway;
 import com.sinognss.cloud.vantix.integration.cors.account.CorsPasswordGateway;
@@ -61,15 +58,11 @@ class CorsAccountFeatureConfigurationTest {
         runnerWithDependencies()
                 .withPropertyValues("vantix.cors.password.enabled=true")
                 .withBean(CorsPasswordGateway.class, () -> Mockito.mock(CorsPasswordGateway.class))
-                .withBean(CorsAccountPasswordGateway.class,
-                        () -> Mockito.mock(CorsAccountPasswordGateway.class))
                 .run(context -> {
                     assertTrue(context.isRunning());
                     assertNotNull(context.getBean(AccountPasswordOperationService.class));
                     assertNotNull(context.getBean(AccountPasswordResetQueryService.class));
                     assertNotNull(context.getBean(AccountPasswordResetController.class));
-                    assertNotNull(context.getBean(AccountPasswordRevealService.class));
-                    assertNotNull(context.getBean(AccountPasswordRevealController.class));
                 });
     }
 
@@ -85,17 +78,7 @@ class CorsAccountFeatureConfigurationTest {
     void enabledPasswordWithoutResetGatewayFailsContextInsteadOfHalfAssembling() {
         runnerWithDependencies()
                 .withPropertyValues("vantix.cors.password.enabled=true")
-                .withBean(CorsAccountPasswordGateway.class,
-                        () -> Mockito.mock(CorsAccountPasswordGateway.class))
                 .run(context -> assertMissingGatewayFailure(context, CorsPasswordGateway.class));
-    }
-
-    @Test
-    void enabledPasswordWithoutRevealGatewayFailsContextInsteadOfHalfAssembling() {
-        runnerWithDependencies()
-                .withPropertyValues("vantix.cors.password.enabled=true")
-                .withBean(CorsPasswordGateway.class, () -> Mockito.mock(CorsPasswordGateway.class))
-                .run(context -> assertMissingGatewayFailure(context, CorsAccountPasswordGateway.class));
     }
 
     private static ApplicationContextRunner runnerWithDependencies() {
@@ -140,9 +123,7 @@ class CorsAccountFeatureConfigurationTest {
             CorsAccountRenewalConfiguration.class,
             AccountRenewalController.class,
             CorsAccountPasswordResetConfiguration.class,
-            AccountPasswordResetController.class,
-            CorsAccountPasswordRevealConfiguration.class,
-            AccountPasswordRevealController.class
+            AccountPasswordResetController.class
     })
     static class FeatureConfiguration {
     }
