@@ -2,8 +2,6 @@ package com.sinognss.cloud.vantix.application.exchange;
 
 import com.sinognss.cloud.vantix.common.exception.BusinessException;
 import com.sinognss.cloud.vantix.common.exception.ErrorCode;
-import com.sinognss.cloud.vantix.common.user.UserHolderBridge;
-import com.sinognss.cloud.vantix.common.user.UserScope;
 import com.sinognss.cloud.vantix.domain.account.ServiceAccount;
 import com.sinognss.cloud.vantix.domain.exchange.ExchangeBatch;
 import com.sinognss.cloud.vantix.domain.exchange.ExchangeStatus;
@@ -24,64 +22,47 @@ import static org.mockito.Mockito.when;
 class ExchangeQueryServiceTest {
     private final ExchangeBatchMapper batchMapper = mock(ExchangeBatchMapper.class);
     private final ServiceAccountMapper accountMapper = mock(ServiceAccountMapper.class);
-    private final UserHolderBridge userHolder = mock(UserHolderBridge.class);
     private ExchangeQueryService service;
 
     @BeforeEach
     void setUp() {
-        service = new ExchangeQueryService(batchMapper, accountMapper, userHolder);
+        service = new ExchangeQueryService(batchMapper, accountMapper);
     }
 
     @Test
-    void personalUserCanReadOwnBatchButAnotherUserInSameCompanyCannot() {
+    void existingBatchCanBeReadWithoutUserScopeAccessCheck() {
         ExchangeBatch batch = batch(100L, 88L, ExchangeStatus.PROCESSING);
         when(batchMapper.selectByRequestId("request-a")).thenReturn(batch);
-        when(userHolder.getUserScope()).thenReturn(new UserScope(88L, 100L));
 
         ServiceCodeExchangeView result = service.get("request-a");
 
         assertEquals("PROCESSING", result.status());
-        when(userHolder.getUserScope()).thenReturn(new UserScope(89L, 100L));
-        BusinessException exception = assertThrows(BusinessException.class,
-                () -> service.get("request-a"));
-        assertEquals(ErrorCode.SERVICE_CODE_NOT_OWNED, exception.getVantixErrorCode());
         verify(accountMapper, never()).selectByExchangeBatchId(batch.getId());
     }
 
     @Test
-    void personalUserCannotReadBatchWithoutFrozenOwner() {
+    void batchWithoutFrozenOwnerCanBeRead() {
         when(batchMapper.selectByRequestId("request-unassigned"))
                 .thenReturn(batch(100L, null, ExchangeStatus.PROCESSING));
-        when(userHolder.getUserScope()).thenReturn(new UserScope(88L, 100L));
 
-        BusinessException exception = assertThrows(BusinessException.class,
-                () -> service.get("request-unassigned"));
-
-        assertEquals(ErrorCode.SERVICE_CODE_NOT_OWNED, exception.getVantixErrorCode());
+        assertEquals("PROCESSING", service.get("request-unassigned").status());
         verify(accountMapper, never()).selectByExchangeBatchId(12L);
     }
 
     @Test
-    void companyScopeCanReadOnlyItsCompanyAndGlobalScopeKeepsCrossCompanyAccess() {
-        ExchangeBatch companyBatch = batch(100L, null, ExchangeStatus.PROCESSING);
-        ExchangeBatch otherBatch = batch(200L, null, ExchangeStatus.PROCESSING);
-        when(batchMapper.selectByRequestId("company")).thenReturn(companyBatch);
-        when(batchMapper.selectByRequestId("other")).thenReturn(otherBatch);
-        when(userHolder.getUserScope()).thenReturn(new UserScope(null, 100L));
+    void missingBatchStillReturnsNotFound() {
+        when(batchMapper.selectByRequestId("missing")).thenReturn(null);
 
-        assertEquals("PROCESSING", service.get("company").status());
-        assertEquals(ErrorCode.SERVICE_CODE_NOT_OWNED, assertThrows(BusinessException.class,
-                () -> service.get("other")).getVantixErrorCode());
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> service.get("missing"));
 
-        when(userHolder.getUserScope()).thenReturn(new UserScope(null, null));
-        assertEquals("PROCESSING", service.get("other").status());
+        assertEquals(ErrorCode.NOT_FOUND, exception.getVantixErrorCode());
     }
 
     @Test
-    void personalCompletedQueryChecksEveryAccountOwnerBeforeReturningAccounts() {
+    void completedQueryChecksEveryAccountOwnerBeforeReturningAccounts() {
         ExchangeBatch batch = batch(100L, 88L, ExchangeStatus.COMPLETED);
         when(batchMapper.selectByRequestId("completed")).thenReturn(batch);
-        when(userHolder.getUserScope()).thenReturn(new UserScope(88L, 100L));
         ServiceAccount ownAccount = account(88L);
         when(accountMapper.selectByExchangeBatchId(batch.getId())).thenReturn(List.of(ownAccount));
 

@@ -390,11 +390,11 @@ class MySqlExchangeReserveIntegrationTest {
     }
 
     @Test
-    void reservationUsesCompanyManagerAndQueryStillRestrictsDifferentPersonalUser() {
+    void reservationUsesCompanyManagerAndQueryIgnoresCurrentUserScope() {
         LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Shanghai"));
         insertGeneration("B2B", 1005L, "B2B-PERSONAL-ORDER", "B2B-PERSONAL-BATCH", 1);
         insertCodes("PERSONAL-CODE-", 1005L, 1, now.plusDays(180));
-        setPersonalUser(88L);
+        setUnsupportedUser(88L);
 
         reserveService.reserve(new ServiceCodeExchangeCommand(
                 "PERSONAL-OWNERSHIP", COMPANY_ID, SPEC_CODE, GenerationSource.B2B, 1));
@@ -403,13 +403,11 @@ class MySqlExchangeReserveIntegrationTest {
                 "SELECT assigned_user_id FROM exchange_batch WHERE request_id = ?", Long.class,
                 "PERSONAL-OWNERSHIP");
         assertEquals(123L, assignedUserId);
-        setPersonalUser(123L);
+        setUnsupportedUser(123L);
         assertEquals("PROCESSING", queryService.get("PERSONAL-OWNERSHIP").status());
 
-        setPersonalUser(89L);
-        BusinessException exception = assertThrows(BusinessException.class,
-                () -> queryService.get("PERSONAL-OWNERSHIP"));
-        assertEquals(ErrorCode.SERVICE_CODE_NOT_OWNED, exception.getVantixErrorCode());
+        setUnsupportedUser(89L);
+        assertEquals("PROCESSING", queryService.get("PERSONAL-OWNERSHIP").status());
     }
 
     @Test
@@ -505,6 +503,15 @@ class MySqlExchangeReserveIntegrationTest {
         user.setUserNickname("personal-integration-user-" + userId);
         user.setCompanyId(COMPANY_ID);
         user.setDataType(3);
+        UserHolder.setUser(user);
+    }
+
+    private void setUnsupportedUser(long userId) {
+        UserCacheDTO user = new UserCacheDTO();
+        user.setUserId(userId);
+        user.setUserNickname("unsupported-integration-user-" + userId);
+        user.setCompanyId(COMPANY_ID);
+        user.setDataType(99);
         UserHolder.setUser(user);
     }
 
