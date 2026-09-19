@@ -1,7 +1,6 @@
 package com.sinognss.cloud.vantix.application.servicecode;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import com.sinognss.cloud.vantix.application.company.CompanyService;
 import com.sinognss.cloud.vantix.application.company.CompanyTransferTargetService;
 import com.sinognss.cloud.vantix.application.config.SystemCompanyResolver;
 import com.sinognss.cloud.vantix.common.exception.BusinessException;
@@ -9,12 +8,10 @@ import com.sinognss.cloud.vantix.common.exception.ErrorCode;
 import com.sinognss.cloud.vantix.common.user.OperatorIdentity;
 import com.sinognss.cloud.vantix.common.user.UserHolderBridge;
 import com.sinognss.cloud.vantix.config.ServiceCodeTransferProperties;
-import com.sinognss.cloud.vantix.domain.company.DealerCompany;
 import com.sinognss.cloud.vantix.domain.servicecode.ServiceCode;
 import com.sinognss.cloud.vantix.domain.servicecode.ServiceCodeStatus;
 import com.sinognss.cloud.vantix.domain.servicecode.ServiceCodeTransfer;
 import com.sinognss.cloud.vantix.domain.servicecode.TransferType;
-import com.sinognss.cloud.vantix.infrastructure.mapper.DealerCompanyMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceCodeMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceCodeTransferMapper;
 import org.slf4j.Logger;
@@ -33,8 +30,6 @@ public class ServiceCodeTransferService {
 
     private final ServiceCodeMapper serviceCodeMapper;
     private final ServiceCodeTransferMapper transferMapper;
-    private final DealerCompanyMapper companyMapper;
-    private final CompanyService companyService;
     private final CompanyTransferTargetService transferTargetService;
     private final SystemCompanyResolver systemCompanyResolver;
     private final UserHolderBridge userHolder;
@@ -43,21 +38,6 @@ public class ServiceCodeTransferService {
 
     public ServiceCodeTransferService(ServiceCodeMapper serviceCodeMapper,
                                       ServiceCodeTransferMapper transferMapper,
-                                      DealerCompanyMapper companyMapper,
-                                      CompanyService companyService,
-                                      SystemCompanyResolver systemCompanyResolver,
-                                      UserHolderBridge userHolder,
-                                      Clock clock,
-                                      ServiceCodeTransferProperties properties) {
-        this(serviceCodeMapper, transferMapper, companyMapper, companyService, null,
-                systemCompanyResolver, userHolder, clock, properties);
-    }
-
-    @org.springframework.beans.factory.annotation.Autowired
-    public ServiceCodeTransferService(ServiceCodeMapper serviceCodeMapper,
-                                      ServiceCodeTransferMapper transferMapper,
-                                      DealerCompanyMapper companyMapper,
-                                      CompanyService companyService,
                                       CompanyTransferTargetService transferTargetService,
                                       SystemCompanyResolver systemCompanyResolver,
                                       UserHolderBridge userHolder,
@@ -65,8 +45,6 @@ public class ServiceCodeTransferService {
                                       ServiceCodeTransferProperties properties) {
         this.serviceCodeMapper = serviceCodeMapper;
         this.transferMapper = transferMapper;
-        this.companyMapper = companyMapper;
-        this.companyService = companyService;
         this.transferTargetService = transferTargetService;
         this.systemCompanyResolver = systemCompanyResolver;
         this.userHolder = userHolder;
@@ -77,21 +55,13 @@ public class ServiceCodeTransferService {
     @Transactional
     public TransferResult transfer(TransferServiceCodeCommand command) {
         validateCommand(command);
-        validateSupportedUserScope();
-        Long from = userHolder.getCurrentCompanyId();
+        Long fromCompanyId = userHolder.getCurrentCompanyId();
         Long to = command.toCompanyId();
-        if (from.equals(to)) {
+        if (fromCompanyId.equals(to)) {
             throw new BusinessException(ErrorCode.TRANSFER_NOT_ALLOWED, "转出和转入公司不能相同");
         }
         Long systemCompanyId = systemCompanyResolver.requireId();
-        if (transferTargetService == null) {
-            validateCompaniesAndRelation(from, to, systemCompanyId);
-        } else {
-            transferTargetService.validateTarget(from, to);
-        }
-        if (transferTargetService == null && !userHolder.getUserScope().canAccessCompany(from)) {
-            throw new BusinessException(ErrorCode.SERVICE_CODE_NOT_OWNED, "当前用户无权从该公司转出服务码");
-        }
+        transferTargetService.validateTarget(fromCompanyId, to);
 
         List<Long> ids = command.serviceCodeIds().stream().distinct().sorted().toList();
         if (ids.size() != command.serviceCodeIds().size()) {
@@ -106,14 +76,14 @@ public class ServiceCodeTransferService {
             throw new BusinessException(ErrorCode.NOT_FOUND, "批量转赠中存在不存在的服务码");
         }
         for (ServiceCode code : lockedCodes) {
-            validateTransferable(code, from, now);
+            validateTransferable(code, fromCompanyId, now);
         }
 
         OperatorIdentity operator = userHolder.getOperator();
-        TransferType transferType = transferType(from, to, systemCompanyId);
+        TransferType transferType = transferType(fromCompanyId, to, systemCompanyId);
         String transferNo = "TR" + UUID.randomUUID().toString().replace("-", "").toUpperCase();
         for (ServiceCode code : lockedCodes) {
-            int affectedRows = serviceCodeMapper.transferWithCas(code.getId(), from, to, code.getVersion(), now, now);
+            int affectedRows = serviceCodeMapper.transferWithCas(code.getId(), fromCompanyId, to, code.getVersion(), now, now);
             if (affectedRows != 1) {
                 throw new BusinessException(ErrorCode.CONCURRENT_MODIFICATION, "服务码状态已变化，请重试");
             }
@@ -121,7 +91,7 @@ public class ServiceCodeTransferService {
             transfer.setTransferNo(transferNo);
             transfer.setServiceCodeId(code.getId());
             transfer.setServiceCode(code.getCode());
-            transfer.setFromCompanyId(from);
+            transfer.setFromCompanyId(fromCompanyId);
             transfer.setToCompanyId(to);
             transfer.setTransferType(transferType);
             transfer.setReason(command.reason());
@@ -131,7 +101,7 @@ public class ServiceCodeTransferService {
             transferMapper.insert(transfer);
         }
         log.info("Service code batch transferred, transferNo={}, fromCompanyId={}, toCompanyId={}, count={}, operatorUserId={}",
-                transferNo, from, to, lockedCodes.size(), operator.userId());
+                transferNo, fromCompanyId, to, lockedCodes.size(), operator.userId());
         return new TransferResult(transferNo, lockedCodes.size());
     }
 
@@ -144,25 +114,6 @@ public class ServiceCodeTransferService {
                         .eq(ServiceCodeTransfer::getServiceCodeId, serviceCodeId)
                         .orderByDesc(ServiceCodeTransfer::getCreatedAt))
                 .stream().map(TransferView::from).toList();
-    }
-
-    private void validateCompaniesAndRelation(Long from, Long to, Long systemCompanyId) {
-        if (!from.equals(systemCompanyId)) {
-            companyService.getRequired(from);
-        }
-        if (!to.equals(systemCompanyId)) {
-            companyService.getRequired(to);
-        }
-        if (from.equals(systemCompanyId) || to.equals(systemCompanyId)) {
-            return;
-        }
-        DealerCompany fromCompany = companyService.getRequired(from);
-        DealerCompany toCompany = companyService.getRequired(to);
-        boolean directRelation = from.equals(toCompany.getParentCompanyId())
-                || to.equals(fromCompany.getParentCompanyId());
-        if (!directRelation) {
-            throw new BusinessException(ErrorCode.TRANSFER_NOT_ALLOWED, "双方没有直接上下级关系");
-        }
     }
 
     private TransferType transferType(Long from, Long to, Long systemCompanyId) {
@@ -206,12 +157,6 @@ public class ServiceCodeTransferService {
         if (command.serviceCodeIds().size() > properties.getMaxBatchSize()) {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT,
                     "单次转赠服务码数量不能超过 " + properties.getMaxBatchSize());
-        }
-    }
-
-    private void validateSupportedUserScope() {
-        if (!userHolder.getUserScope().isSupported()) {
-            throw new BusinessException(ErrorCode.UNSUPPORTED_USER_SCOPE, "unsupported user scope");
         }
     }
 

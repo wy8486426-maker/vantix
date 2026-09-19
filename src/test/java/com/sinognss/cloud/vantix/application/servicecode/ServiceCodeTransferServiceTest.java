@@ -1,19 +1,20 @@
 package com.sinognss.cloud.vantix.application.servicecode;
 
-import com.sinognss.cloud.vantix.application.company.CompanyService;
+import com.sinognss.cloud.vantix.application.company.CompanyTransferTargetService;
 import com.sinognss.cloud.vantix.application.config.SystemCompanyResolver;
 import com.sinognss.cloud.vantix.common.exception.BusinessException;
+import com.sinognss.cloud.vantix.common.exception.ErrorCode;
 import com.sinognss.cloud.vantix.common.user.OperatorIdentity;
 import com.sinognss.cloud.vantix.common.user.UserHolderBridge;
-import com.sinognss.cloud.vantix.common.user.UserScope;
 import com.sinognss.cloud.vantix.config.ServiceCodeTransferProperties;
-import com.sinognss.cloud.vantix.domain.company.DealerCompany;
 import com.sinognss.cloud.vantix.domain.servicecode.ServiceCode;
 import com.sinognss.cloud.vantix.domain.servicecode.ServiceCodeStatus;
 import com.sinognss.cloud.vantix.domain.servicecode.ServiceCodeTransfer;
-import com.sinognss.cloud.vantix.infrastructure.mapper.DealerCompanyMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceCodeMapper;
 import com.sinognss.cloud.vantix.infrastructure.mapper.ServiceCodeTransferMapper;
+import com.sinognss.cloud.base.dto.UserCacheDTO;
+import com.sinognss.cloud.base.filter.UserHolder;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -33,15 +34,18 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class ServiceCodeTransferServiceTest {
     private final ServiceCodeMapper codeMapper = mock(ServiceCodeMapper.class);
     private final ServiceCodeTransferMapper transferMapper = mock(ServiceCodeTransferMapper.class);
-    private final DealerCompanyMapper companyMapper = mock(DealerCompanyMapper.class);
-    private final CompanyService companyService = mock(CompanyService.class);
+    private final CompanyTransferTargetService transferTargetService = mock(CompanyTransferTargetService.class);
     private final SystemCompanyResolver systemResolver = mock(SystemCompanyResolver.class);
     private final UserHolderBridge userHolder = mock(UserHolderBridge.class);
     private final Clock clock = Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC);
@@ -50,14 +54,17 @@ class ServiceCodeTransferServiceTest {
     @BeforeEach
     void setUp() {
         when(systemResolver.requireId()).thenReturn(999L);
-        when(userHolder.getUserScope()).thenReturn(new UserScope(null, null));
         when(userHolder.getCurrentCompanyId()).thenReturn(1L);
         when(userHolder.getOperator()).thenReturn(new OperatorIdentity(7L, "tester"));
-        when(companyService.getRequired(1L)).thenReturn(company(1L, null));
-        when(companyService.getRequired(2L)).thenReturn(company(2L, 1L));
+        doNothing().when(transferTargetService).validateTarget(anyLong(), anyLong());
         when(codeMapper.transferWithCas(anyLong(), anyLong(), anyLong(), anyLong(), any(), any())).thenReturn(1);
-        service = new ServiceCodeTransferService(codeMapper, transferMapper, companyMapper,
-                companyService, systemResolver, userHolder, clock, new ServiceCodeTransferProperties());
+        service = new ServiceCodeTransferService(codeMapper, transferMapper, transferTargetService,
+                systemResolver, userHolder, clock, new ServiceCodeTransferProperties());
+    }
+
+    @AfterEach
+    void clearUser() {
+        UserHolder.removeUser();
     }
 
     @Test
@@ -96,9 +103,45 @@ class ServiceCodeTransferServiceTest {
 
     @Test
     void shouldRejectUnrelatedCompany() {
-        when(companyService.getRequired(3L)).thenReturn(company(3L, null));
+        doThrow(new BusinessException(ErrorCode.TRANSFER_NOT_ALLOWED, "unrelated"))
+                .when(transferTargetService).validateTarget(1L, 3L);
         assertThrows(BusinessException.class,
                 () -> service.transfer(new TransferServiceCodeCommand(3L, List.of(100L), null)));
+    }
+
+    @Test
+    void unsupportedDataTypeDoesNotBlockTransferWhenCompanyIdIsValid() {
+        UserHolderBridge actualUserHolder = spy(new UserHolderBridge());
+        UserCacheDTO user = new UserCacheDTO();
+        user.setUserId(7L);
+        user.setUserNickname("tester");
+        user.setCompanyId(1L);
+        user.setDataType(99);
+        UserHolder.setUser(user);
+
+        ServiceCodeTransferService serviceWithActualUserHolder = new ServiceCodeTransferService(
+                codeMapper, transferMapper, transferTargetService, systemResolver,
+                actualUserHolder, clock, new ServiceCodeTransferProperties());
+        ServiceCode code = activeCode(100L, 1L);
+        when(codeMapper.selectList(any())).thenReturn(List.of(code));
+
+        assertEquals(1, serviceWithActualUserHolder
+                .transfer(new TransferServiceCodeCommand(2L, List.of(100L), null))
+                .transferredCount());
+        verify(actualUserHolder, never()).getUserScope();
+    }
+
+    @Test
+    void globalUserCanOnlyTransferCodesOwnedByCurrentCompany() {
+        when(userHolder.getCurrentCompanyId()).thenReturn(10L);
+        ServiceCode code = activeCode(100L, 20L);
+        when(codeMapper.selectList(any())).thenReturn(List.of(code));
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> service.transfer(new TransferServiceCodeCommand(30L, List.of(100L), null)));
+
+        assertEquals(ErrorCode.SERVICE_CODE_NOT_OWNED, exception.getVantixErrorCode());
+        verify(transferTargetService).validateTarget(10L, 30L);
     }
 
     @Test
@@ -197,10 +240,4 @@ class ServiceCodeTransferServiceTest {
         return code;
     }
 
-    private DealerCompany company(Long id, Long parentId) {
-        DealerCompany company = new DealerCompany();
-        company.setCompanyId(id);
-        company.setParentCompanyId(parentId);
-        return company;
-    }
 }
