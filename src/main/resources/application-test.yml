@@ -1,0 +1,21 @@
+spring:
+  config:
+    import: "optional:nacos:vantix-service-test.yml?group=BASIC_GROUP&namespace=test"
+  cloud:
+    nacos:
+      config:
+        enabled: true
+        server-addr: ${NACOS_SERVER_ADDR:192.168.2.219:8849}
+        namespace: ${NACOS_NAMESPACE:test}
+        group: ${NACOS_GROUP:BASIC_GROUP}
+        username: ${NACOS_USERNAME:nacos}
+        password: ${NACOS_PASSWORD:nacos}
+        file-extension: yml
+      discovery:
+        enabled: true
+        server-addr: ${NACOS_SERVER_ADDR:192.168.2.219:8849}
+        namespace: ${NACOS_NAMESPACE:test}
+        group: ${NACOS_GROUP:BASIC_GROUP}
+        username: ${NACOS_USERNAME:nacos}
+        password: ${NACOS_PASSWORD:nacos}
+        ip: 192.168.2.219

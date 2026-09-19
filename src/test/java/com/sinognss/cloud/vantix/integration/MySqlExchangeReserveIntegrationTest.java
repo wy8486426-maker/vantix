@@ -101,8 +101,8 @@ class MySqlExchangeReserveIntegrationTest {
         jdbc.update("DELETE FROM service_duration_config");
         jdbc.update("DELETE FROM company_exchange_config");
         jdbc.update("DELETE FROM dealer_company");
-        jdbc.update("INSERT INTO dealer_company (company_id, company_name, company_status) "
-                + "VALUES (?, 'exchange test company', 'ACTIVE')", COMPANY_ID);
+        jdbc.update("INSERT INTO dealer_company (company_id, company_name, manager_id, company_status) "
+                + "VALUES (?, 'exchange test company', 123, 'ACTIVE')", COMPANY_ID);
         jdbc.update("INSERT INTO company_exchange_config (company_id, account_prefix) VALUES (?, 'AB12')",
                 COMPANY_ID);
         jdbc.update("INSERT INTO service_duration_config "
@@ -390,7 +390,7 @@ class MySqlExchangeReserveIntegrationTest {
     }
 
     @Test
-    void personalReservationPersistsOwnerAndHidesBatchFromAnotherUserInSameCompany() {
+    void reservationUsesCompanyManagerAndQueryStillRestrictsDifferentPersonalUser() {
         LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Shanghai"));
         insertGeneration("B2B", 1005L, "B2B-PERSONAL-ORDER", "B2B-PERSONAL-BATCH", 1);
         insertCodes("PERSONAL-CODE-", 1005L, 1, now.plusDays(180));
@@ -402,7 +402,8 @@ class MySqlExchangeReserveIntegrationTest {
         Long assignedUserId = jdbc.queryForObject(
                 "SELECT assigned_user_id FROM exchange_batch WHERE request_id = ?", Long.class,
                 "PERSONAL-OWNERSHIP");
-        assertEquals(88L, assignedUserId);
+        assertEquals(123L, assignedUserId);
+        setPersonalUser(123L);
         assertEquals("PROCESSING", queryService.get("PERSONAL-OWNERSHIP").status());
 
         setPersonalUser(89L);

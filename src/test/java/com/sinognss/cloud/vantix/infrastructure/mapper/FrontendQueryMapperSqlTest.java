@@ -91,6 +91,15 @@ class FrontendQueryMapperSqlTest {
     }
 
     @Test
+    void companyPageIncludesManagerFieldsAndSearchesManagerTel() throws Exception {
+        String sql = read("/mapper/CompanyFrontendQueryMapper.xml");
+
+        assertTrue(sql.contains("dc.manager_id"));
+        assertTrue(sql.contains("dc.manager_tel"));
+        assertTrue(sql.contains("or dc.manager_tel like"));
+    }
+
+    @Test
     void serviceAccountPageBuildsWithoutSourceParameterValue() throws Exception {
         BoundSql boundSql = serviceAccountStatement("pageForFrontend")
                 .getBoundSql(serviceAccountParameters(null));

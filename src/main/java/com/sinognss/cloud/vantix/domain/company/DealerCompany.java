@@ -12,6 +12,8 @@ public class DealerCompany {
     private Long id;
     private Long companyId;
     private String companyName;
+    private Long managerId;
+    private String managerTel;
     private Long parentCompanyId;
     private CompanyStatus companyStatus;
     private LocalDateTime companySyncedAt;
@@ -24,6 +26,10 @@ public class DealerCompany {
     public void setCompanyId(Long companyId) { this.companyId = companyId; }
     public String getCompanyName() { return companyName; }
     public void setCompanyName(String companyName) { this.companyName = companyName; }
+    public Long getManagerId() { return managerId; }
+    public void setManagerId(Long managerId) { this.managerId = managerId; }
+    public String getManagerTel() { return managerTel; }
+    public void setManagerTel(String managerTel) { this.managerTel = managerTel; }
     public Long getParentCompanyId() { return parentCompanyId; }
     public void setParentCompanyId(Long parentCompanyId) { this.parentCompanyId = parentCompanyId; }
     public CompanyStatus getCompanyStatus() { return companyStatus; }

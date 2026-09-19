@@ -80,7 +80,7 @@ public class UserCenterCompanyFeignAdapter implements UserCenterCompanyGateway {
                 CompanySelectVO item = page.list().get(index);
                 try {
                     UserCenterCompany company = item == null
-                            ? null : new UserCenterCompany(item.id(), item.name());
+                            ? null : new UserCenterCompany(item.id(), item.name(), item.managerId(), item.managerTel());
                     if (company == null || !company.isValid()) {
                         throw syncFailure("用户中心返回的公司资料无效");
                     }
@@ -99,7 +99,7 @@ public class UserCenterCompanyFeignAdapter implements UserCenterCompanyGateway {
     }
 
     private UserCenterCompany toCompany(CompanyCommonVO item) {
-        UserCenterCompany company = new UserCenterCompany(item.id(), item.name());
+        UserCenterCompany company = new UserCenterCompany(item.id(), item.name(), item.managerId(), item.managerTel());
         if (!company.isValid()) {
             throw syncFailure("用户中心返回的公司资料无效");
         }

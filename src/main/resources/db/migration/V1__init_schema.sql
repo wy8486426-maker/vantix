@@ -11,6 +11,8 @@ CREATE TABLE dealer_company (
     id BIGINT NOT NULL AUTO_INCREMENT,
     company_id BIGINT NOT NULL,
     company_name VARCHAR(128) NOT NULL,
+    manager_id BIGINT NULL,
+    manager_tel VARCHAR(32) NULL,
     parent_company_id BIGINT NULL,
     company_status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
     company_synced_at DATETIME(3) NULL,

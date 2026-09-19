@@ -39,21 +39,29 @@ class DealerCompanySyncServiceTest {
     }
 
     @Test
-    void existingLocalCompanyDoesNotCallUserCenter() {
+    void ensurePresentRefreshesManagerFieldsForExistingLocalCompany() {
         DealerCompany existing = company(100L, "local");
         when(companyMapper.selectByCompanyId(100L)).thenReturn(existing);
+        when(gateway.findByCompanyId(100L))
+                .thenReturn(Optional.of(new UserCenterCompany(100L, "remote", 123L, "13800138000")));
 
         assertDoesNotThrow(() -> service.ensurePresent(100L));
 
-        verify(gateway, never()).findByCompanyId(100L);
-        verify(companyMapper, never()).upsertSyncedCompanies(any());
+        verify(gateway).findByCompanyId(100L);
+        @SuppressWarnings("unchecked")
+        org.mockito.ArgumentCaptor<Collection<DealerCompany>> captor =
+                org.mockito.ArgumentCaptor.forClass(Collection.class);
+        verify(companyMapper).upsertSyncedCompanies(captor.capture());
+        DealerCompany synced = captor.getValue().iterator().next();
+        assertEquals(123L, synced.getManagerId());
+        assertEquals("13800138000", synced.getManagerTel());
     }
 
     @Test
     void missingCompanyUsesPreciseRemoteIdentityAndDefaultsToFirstLevel() {
         when(companyMapper.selectByCompanyId(100L)).thenReturn(null);
         when(gateway.findByCompanyId(100L))
-                .thenReturn(Optional.of(new UserCenterCompany(100L, "remote")));
+                .thenReturn(Optional.of(new UserCenterCompany(100L, "remote", 123L, "13800138000")));
 
         service.ensurePresent(100L);
 
@@ -64,6 +72,8 @@ class DealerCompanySyncServiceTest {
         DealerCompany inserted = captor.getValue().iterator().next();
         assertEquals(100L, inserted.getCompanyId());
         assertEquals("remote", inserted.getCompanyName());
+        assertEquals(123L, inserted.getManagerId());
+        assertEquals("13800138000", inserted.getManagerTel());
         assertNull(inserted.getParentCompanyId());
         assertNull(inserted.getCompanyStatus());
         assertEquals(2026, inserted.getCompanySyncedAt().getYear());
@@ -110,9 +120,9 @@ class DealerCompanySyncServiceTest {
     @Test
     void fullSyncProcessesTwoPagesAsSeparateBatches() {
         when(gateway.page(1, 200)).thenReturn(new UserCenterCompanyPage(1, 2,
-                1, List.of(new UserCenterCompany(100L, "one"))));
+                1, List.of(new UserCenterCompany(100L, "one", 101L, "13800000001"))));
         when(gateway.page(2, 200)).thenReturn(new UserCenterCompanyPage(2, 2,
-                1, List.of(new UserCenterCompany(200L, "two"))));
+                1, List.of(new UserCenterCompany(200L, "two", 202L, "13800000002"))));
 
         DealerCompanySyncService.SyncSummary summary = service.syncAllCompanies();
 
@@ -120,6 +130,32 @@ class DealerCompanySyncServiceTest {
         verify(companyMapper, times(2)).upsertSyncedCompanies(any());
         verify(gateway).page(1, 200);
         verify(gateway).page(2, 200);
+        @SuppressWarnings("unchecked")
+        org.mockito.ArgumentCaptor<Collection<DealerCompany>> captor =
+                org.mockito.ArgumentCaptor.forClass(Collection.class);
+        verify(companyMapper, times(2)).upsertSyncedCompanies(captor.capture());
+        assertEquals(101L, captor.getAllValues().get(0).iterator().next().getManagerId());
+        assertEquals("13800000002", captor.getAllValues().get(1).iterator().next().getManagerTel());
+    }
+
+    @Test
+    void fullSyncRefreshesChangedManagerFields() {
+        when(gateway.page(1, 200))
+                .thenReturn(new UserCenterCompanyPage(1, 1, 1,
+                        List.of(new UserCenterCompany(100L, "company", 101L, "13800000001"))))
+                .thenReturn(new UserCenterCompanyPage(1, 1, 1,
+                        List.of(new UserCenterCompany(100L, "company", 202L, "13800000002"))));
+
+        service.syncAllCompanies();
+        service.syncAllCompanies();
+
+        @SuppressWarnings("unchecked")
+        org.mockito.ArgumentCaptor<Collection<DealerCompany>> captor =
+                org.mockito.ArgumentCaptor.forClass(Collection.class);
+        verify(companyMapper, times(2)).upsertSyncedCompanies(captor.capture());
+        assertEquals(101L, captor.getAllValues().get(0).iterator().next().getManagerId());
+        assertEquals(202L, captor.getAllValues().get(1).iterator().next().getManagerId());
+        assertEquals("13800000002", captor.getAllValues().get(1).iterator().next().getManagerTel());
     }
 
     @Test
@@ -146,7 +182,8 @@ class DealerCompanySyncServiceTest {
     @Test
     void invalidFullSyncItemIsSkippedButValidItemIsWritten() {
         when(gateway.page(1, 200)).thenReturn(new UserCenterCompanyPage(1, 1,
-                2, List.of(new UserCenterCompany(100L, "valid"), new UserCenterCompany(null, "invalid"))));
+                2, List.of(new UserCenterCompany(100L, "valid", 101L, null),
+                        new UserCenterCompany(null, "invalid", null, null))));
 
         DealerCompanySyncService.SyncSummary summary = service.syncAllCompanies();
 
@@ -158,7 +195,7 @@ class DealerCompanySyncServiceTest {
     void allInvalidSourcePageDoesNotStopFollowingPages() {
         when(gateway.page(1, 200)).thenReturn(new UserCenterCompanyPage(1, 2, 2, List.of()));
         when(gateway.page(2, 200)).thenReturn(new UserCenterCompanyPage(2, 2, 1,
-                List.of(new UserCenterCompany(200L, "two"))));
+                List.of(new UserCenterCompany(200L, "two", 202L, "13800000002"))));
 
         DealerCompanySyncService.SyncSummary summary = service.syncAllCompanies();
 

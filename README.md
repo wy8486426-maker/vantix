@@ -1,7 +1,7 @@
 # Vantix 账号运营平台
 
 第一阶段是单 Spring Boot 服务，负责公司上下级关系、服务时长/账号沉默配置、服务码资产和批量转赠。数据库由 Flyway 从空库执行当前完整的 `V1__init_schema.sql` baseline 初始化。
-
+公司管理接口授权由上游权限中心按 URL 控制，Vantix 不重复执行公司数据范围鉴权
 ## 本阶段接口
 
 - `GET /api/companies`、`GET /api/companies/detail?companyId=...`、`GET /api/companies/children?companyId=...`

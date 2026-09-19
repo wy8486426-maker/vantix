@@ -5,6 +5,8 @@ import java.time.LocalDateTime;
 public class CompanyPageRow {
     private Long companyId;
     private String companyName;
+    private Long managerId;
+    private String managerTel;
     private Long parentCompanyId;
     private String parentCompanyName;
     private String level;
@@ -17,6 +19,10 @@ public class CompanyPageRow {
     public void setCompanyId(Long companyId) { this.companyId = companyId; }
     public String getCompanyName() { return companyName; }
     public void setCompanyName(String companyName) { this.companyName = companyName; }
+    public Long getManagerId() { return managerId; }
+    public void setManagerId(Long managerId) { this.managerId = managerId; }
+    public String getManagerTel() { return managerTel; }
+    public void setManagerTel(String managerTel) { this.managerTel = managerTel; }
     public Long getParentCompanyId() { return parentCompanyId; }
     public void setParentCompanyId(Long parentCompanyId) { this.parentCompanyId = parentCompanyId; }
     public String getParentCompanyName() { return parentCompanyName; }

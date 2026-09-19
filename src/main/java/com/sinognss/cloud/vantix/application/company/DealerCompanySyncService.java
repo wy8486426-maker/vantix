@@ -35,11 +35,6 @@ public class DealerCompanySyncService {
 
     public void ensurePresent(Long companyId) {
         validateCompanyId(companyId);
-        DealerCompany existing = companyMapper.selectByCompanyId(companyId);
-        if (existing != null) {
-            return;
-        }
-
         UserCenterCompany remote = userCenterCompanyGateway.findByCompanyId(companyId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "公司不存在: " + companyId));
         if (!remote.isValid()) {
@@ -96,7 +91,8 @@ public class DealerCompanySyncService {
         DealerCompany company = new DealerCompany();
         company.setCompanyId(remote.companyId());
         company.setCompanyName(remote.companyName());
-        company.setParentCompanyId(null);
+        company.setManagerId(remote.managerId());
+        company.setManagerTel(remote.managerTel());
         company.setCompanySyncedAt(syncedAt);
         return company;
     }

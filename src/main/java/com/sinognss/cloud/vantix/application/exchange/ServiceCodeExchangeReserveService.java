@@ -1,13 +1,11 @@
 package com.sinognss.cloud.vantix.application.exchange;
 
-import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sinognss.cloud.vantix.common.exception.BusinessException;
 import com.sinognss.cloud.vantix.common.exception.ErrorCode;
 import com.sinognss.cloud.vantix.common.user.OperatorIdentity;
 import com.sinognss.cloud.vantix.common.user.UserHolderBridge;
-import com.sinognss.cloud.vantix.common.user.UserScope;
 import com.sinognss.cloud.vantix.config.GenerationProperties;
 import com.sinognss.cloud.vantix.domain.config.ServiceDurationConfig;
 import com.sinognss.cloud.vantix.domain.company.DealerCompany;
@@ -84,22 +82,14 @@ public class ServiceCodeExchangeReserveService {
     public ExchangeReservation reserve(ServiceCodeExchangeCommand input) {
         ServiceCodeExchangeCommand command = normalize(input);
         validateMaxQuantity(command);
-        UserScope scope = userHolder.getUserScope();
-        assertCompanyAccess(scope, command.companyId());
-        Long assignedUserId = effectiveAssignedUserId(scope);
-
-        String payloadHash = ExchangePayloadHash.calculate(command, assignedUserId);
         ExchangeBatch existing = batchMapper.selectByRequestId(command.requestId());
         if (existing != null) {
-            verifyPayload(existing, payloadHash, assignedUserId);
-            CorsOperation operation = operationMapper.selectByBusiness(BIZ_TYPE, existing.getId());
-            return new ExchangeReservation(existing.getId(), operation == null ? null : operation.getId(), false);
+            return existingReservation(existing, command);
         }
 
-        if (companyMapper.selectCount(Wrappers.<DealerCompany>lambdaQuery()
-                .eq(DealerCompany::getCompanyId, command.companyId())) == 0) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "公司不存在: " + command.companyId());
-        }
+        DealerCompany company = requireCompany(command.companyId());
+        Long assignedUserId = requireManagerId(company);
+        String payloadHash = ExchangePayloadHash.calculate(command, assignedUserId);
         CompanyExchangeConfig exchangeConfig = exchangeConfigMapper.selectByCompanyId(command.companyId());
         if (exchangeConfig == null) {
             throw new BusinessException(ErrorCode.EXCHANGE_CONFIG_REQUIRED,
@@ -138,26 +128,20 @@ public class ServiceCodeExchangeReserveService {
     @Transactional
     public ExchangeReservation reserveByCodes(ServiceCodeExchangeByCodesCommand input) {
         ServiceCodeExchangeByCodesCommand command = normalizeByCodes(input);
-        UserScope scope = userHolder.getUserScope();
-        assertCompanyAccess(scope, command.companyId());
-        Long assignedUserId = effectiveAssignedUserId(scope);
-
-        String payloadHash = ExchangePayloadHash.calculateByCodes(command, assignedUserId);
         ExchangeBatch existing = batchMapper.selectByRequestId(command.requestId());
         if (existing != null) {
-            verifyPayload(existing, payloadHash, assignedUserId);
-            CorsOperation operation = operationMapper.selectByBusiness(BIZ_TYPE, existing.getId());
-            return new ExchangeReservation(existing.getId(), operation == null ? null : operation.getId(), false);
+            return existingReservation(existing, command);
         }
 
+        DealerCompany company = requireCompany(command.companyId());
+        Long assignedUserId = requireManagerId(company);
+        String payloadHash = ExchangePayloadHash.calculateByCodes(command, assignedUserId);
         CompanyExchangeConfig exchangeConfig = validateCompanyAndExchangeConfig(command.companyId());
         LocalDateTime now = LocalDateTime.now(clock);
         List<ServiceCode> codes = serviceCodeMapper.selectByIdsForExchange(command.serviceCodeIds());
         ExchangeBatch concurrent = batchMapper.selectByRequestIdForUpdate(command.requestId());
         if (concurrent != null) {
-            verifyPayload(concurrent, payloadHash, assignedUserId);
-            CorsOperation operation = operationMapper.selectByBusiness(BIZ_TYPE, concurrent.getId());
-            return new ExchangeReservation(concurrent.getId(), operation == null ? null : operation.getId(), false);
+            return existingReservation(concurrent, command);
         }
         String specCode = validateExactCodes(codes, command.serviceCodeIds(), command.companyId(), now);
         ServiceDurationConfig spec = findSpec(specCode);
@@ -172,30 +156,20 @@ public class ServiceCodeExchangeReserveService {
     public ExchangeReservation findExisting(ServiceCodeExchangeCommand input) {
         ServiceCodeExchangeCommand command = normalize(input);
         validateMaxQuantity(command);
-        UserScope scope = userHolder.getUserScope();
-        assertCompanyAccess(scope, command.companyId());
-        Long assignedUserId = effectiveAssignedUserId(scope);
         ExchangeBatch batch = batchMapper.selectByRequestId(command.requestId());
         if (batch == null) {
             return null;
         }
-        verifyPayload(batch, ExchangePayloadHash.calculate(command, assignedUserId), assignedUserId);
-        CorsOperation operation = operationMapper.selectByBusiness(BIZ_TYPE, batch.getId());
-        return new ExchangeReservation(batch.getId(), operation == null ? null : operation.getId(), false);
+        return existingReservation(batch, command);
     }
 
     public ExchangeReservation findExistingByCodes(ServiceCodeExchangeByCodesCommand input) {
         ServiceCodeExchangeByCodesCommand command = normalizeByCodes(input);
-        UserScope scope = userHolder.getUserScope();
-        assertCompanyAccess(scope, command.companyId());
-        Long assignedUserId = effectiveAssignedUserId(scope);
         ExchangeBatch batch = batchMapper.selectByRequestId(command.requestId());
         if (batch == null) {
             return null;
         }
-        verifyPayload(batch, ExchangePayloadHash.calculateByCodes(command, assignedUserId), assignedUserId);
-        CorsOperation operation = operationMapper.selectByBusiness(BIZ_TYPE, batch.getId());
-        return new ExchangeReservation(batch.getId(), operation == null ? null : operation.getId(), false);
+        return existingReservation(batch, command);
     }
 
     private ExchangeReservation persistSelectedCodes(ExchangeBatch batch, List<ServiceCode> codes,
@@ -341,16 +315,29 @@ public class ServiceCodeExchangeReserveService {
     }
 
     private CompanyExchangeConfig validateCompanyAndExchangeConfig(Long companyId) {
-        if (companyMapper.selectCount(Wrappers.<DealerCompany>lambdaQuery()
-                .eq(DealerCompany::getCompanyId, companyId)) == 0) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "公司不存在: " + companyId);
-        }
         CompanyExchangeConfig exchangeConfig = exchangeConfigMapper.selectByCompanyId(companyId);
         if (exchangeConfig == null) {
             throw new BusinessException(ErrorCode.EXCHANGE_CONFIG_REQUIRED,
                     "请先配置兑换账号前缀");
         }
         return exchangeConfig;
+    }
+
+    private DealerCompany requireCompany(Long companyId) {
+        DealerCompany company = companyMapper.selectByCompanyId(companyId);
+        if (company == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "公司不存在: " + companyId);
+        }
+        return company;
+    }
+
+    private Long requireManagerId(DealerCompany company) {
+        Long managerId = company.getManagerId();
+        if (managerId == null || managerId <= 0) {
+            throw new BusinessException(ErrorCode.COMPANY_MANAGER_REQUIRED,
+                    "公司管理员未同步，无法兑换");
+        }
+        return managerId;
     }
 
     private String validateExactCodes(List<ServiceCode> codes, List<Long> requestedIds,
@@ -426,14 +413,22 @@ public class ServiceCodeExchangeReserveService {
         }
     }
 
-    private static void assertCompanyAccess(UserScope scope, Long companyId) {
-        if (!scope.canAccessCompany(companyId)) {
-            throw new BusinessException(ErrorCode.SERVICE_CODE_NOT_OWNED, "无权兑换该公司的服务码");
-        }
+    private ExchangeReservation existingReservation(ExchangeBatch existing,
+                                                    ServiceCodeExchangeCommand command) {
+        verifyPayload(existing,
+                ExchangePayloadHash.calculate(command, existing.getAssignedUserId()),
+                existing.getAssignedUserId());
+        CorsOperation operation = operationMapper.selectByBusiness(BIZ_TYPE, existing.getId());
+        return new ExchangeReservation(existing.getId(), operation == null ? null : operation.getId(), false);
     }
 
-    private static Long effectiveAssignedUserId(UserScope scope) {
-        return scope.type() == UserScope.Type.PERSONAL ? scope.userId() : null;
+    private ExchangeReservation existingReservation(ExchangeBatch existing,
+                                                    ServiceCodeExchangeByCodesCommand command) {
+        verifyPayload(existing,
+                ExchangePayloadHash.calculateByCodes(command, existing.getAssignedUserId()),
+                existing.getAssignedUserId());
+        CorsOperation operation = operationMapper.selectByBusiness(BIZ_TYPE, existing.getId());
+        return new ExchangeReservation(existing.getId(), operation == null ? null : operation.getId(), false);
     }
 
     private static boolean hasControl(String value) {

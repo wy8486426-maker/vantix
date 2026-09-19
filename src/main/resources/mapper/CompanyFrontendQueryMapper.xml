@@ -6,6 +6,8 @@
             resultType="com.sinognss.cloud.vantix.application.company.CompanyPageRow">
         SELECT dc.company_id,
                dc.company_name,
+               dc.manager_id AS managerId,
+               dc.manager_tel AS managerTel,
                dc.parent_company_id,
                parent.company_name AS parent_company_name,
                CASE WHEN dc.parent_company_id IS NULL THEN 'FIRST_LEVEL' ELSE 'SECOND_LEVEL' END AS level,
@@ -17,7 +19,8 @@
         LEFT JOIN dealer_company parent ON parent.company_id = dc.parent_company_id
         <where>
             <if test="keyword != null and keyword != ''">
-                AND dc.company_name LIKE CONCAT('%', #{keyword}, '%')
+                AND (dc.company_name LIKE CONCAT('%', #{keyword}, '%')
+                     OR dc.manager_tel LIKE CONCAT('%', #{keyword}, '%'))
             </if>
             <if test="status != null and status != ''">
                 AND dc.company_status = #{status}

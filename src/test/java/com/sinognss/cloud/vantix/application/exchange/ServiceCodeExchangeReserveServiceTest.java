@@ -6,7 +6,6 @@ import com.sinognss.cloud.vantix.common.exception.BusinessException;
 import com.sinognss.cloud.vantix.common.exception.ErrorCode;
 import com.sinognss.cloud.vantix.common.user.OperatorIdentity;
 import com.sinognss.cloud.vantix.common.user.UserHolderBridge;
-import com.sinognss.cloud.vantix.common.user.UserScope;
 import com.sinognss.cloud.vantix.config.GenerationProperties;
 import com.sinognss.cloud.vantix.domain.company.DealerCompany;
 import com.sinognss.cloud.vantix.domain.config.ServiceDurationConfig;
@@ -70,9 +69,8 @@ class ServiceCodeExchangeReserveServiceTest {
         service = new ServiceCodeExchangeReserveService(batchMapper, detailMapper, exchangeConfigMapper, operationMapper,
                 serviceCodeMapper, durationMapper, companyMapper, userHolder,
                 generationProperties, objectMapper, clock);
-        when(userHolder.getUserScope()).thenReturn(new UserScope(null, null));
         when(userHolder.getOperator()).thenReturn(new OperatorIdentity(7L, "tester"));
-        when(companyMapper.selectCount(any())).thenReturn(1L);
+        when(companyMapper.selectByCompanyId(anyLong())).thenAnswer(invocation -> company(invocation.getArgument(0), 123L));
         when(exchangeConfigMapper.selectByCompanyId(anyLong())).thenReturn(exchangeConfig());
         when(durationMapper.selectBySpecCodes(anyList())).thenReturn(List.of(spec()));
         when(batchMapper.insert(any(ExchangeBatch.class))).thenAnswer(invocation -> {
@@ -222,6 +220,7 @@ class ServiceCodeExchangeReserveServiceTest {
         assertEquals("EXACT", batchCaptor.getValue().getGenerationSource());
         assertEquals("SPEC-1", batchCaptor.getValue().getSpecCode());
         assertEquals(2, batchCaptor.getValue().getQuantity());
+        assertEquals(123L, batchCaptor.getValue().getAssignedUserId());
 
         ArgumentCaptor<List<ExchangeDetail>> detailCaptor = ArgumentCaptor.forClass(List.class);
         verify(detailMapper).insertBatch(detailCaptor.capture());
@@ -394,9 +393,8 @@ class ServiceCodeExchangeReserveServiceTest {
     }
 
     @Test
-    void personalReservationFreezesOwnershipAndRejectsSameCompanyDifferentUserRetry() throws Exception {
-        ServiceCodeExchangeCommand command = command("personal-request", 1, null);
-        when(userHolder.getUserScope()).thenReturn(new UserScope(88L, 1L));
+    void reservationUsesCompanyManagerAndKeepsOperatorSeparate() throws Exception {
+        ServiceCodeExchangeCommand command = command("manager-request", 1, null);
         when(serviceCodeMapper.selectAvailableForExchange(eq(1L), eq("SPEC-1"), eq("B2B"), any(), eq(1)))
                 .thenReturn(List.of(code(101L, LocalDateTime.of(2026, 2, 1, 0, 0))));
 
@@ -405,42 +403,79 @@ class ServiceCodeExchangeReserveServiceTest {
         ArgumentCaptor<ExchangeBatch> batchCaptor = ArgumentCaptor.forClass(ExchangeBatch.class);
         verify(batchMapper).insert(batchCaptor.capture());
         ExchangeBatch batch = batchCaptor.getValue();
-        assertEquals(88L, batch.getAssignedUserId());
+        assertEquals(123L, batch.getAssignedUserId());
+        assertEquals(7L, batch.getOperatorUserId());
+        assertEquals("tester", batch.getOperatorUserName());
         assertEquals("标准规格", batch.getDisplayName());
-        assertEquals(ExchangePayloadHash.calculate(command, 88L), batch.getPayloadHash());
+        assertEquals(ExchangePayloadHash.calculate(command, 123L), batch.getPayloadHash());
 
         ArgumentCaptor<List<ExchangeDetail>> detailCaptor = ArgumentCaptor.forClass(List.class);
         verify(detailMapper).insertBatch(detailCaptor.capture());
         ExchangeCodeSnapshot snapshot = objectMapper.readValue(
                 detailCaptor.getValue().get(0).getServiceCodeSnapshot(), ExchangeCodeSnapshot.class);
         assertEquals(batch.getAssignedUserId(), snapshot.assignedUserId());
-
-        when(batchMapper.selectByRequestId("personal-request")).thenReturn(batch);
-        when(userHolder.getUserScope()).thenReturn(new UserScope(89L, 1L));
-        BusinessException reserveException = assertThrows(BusinessException.class,
-                () -> service.reserve(command));
-        assertEquals(ErrorCode.EXCHANGE_IDEMPOTENCY_CONFLICT, reserveException.getVantixErrorCode());
-        BusinessException lookupException = assertThrows(BusinessException.class,
-                () -> service.findExisting(command));
-        assertEquals(ErrorCode.EXCHANGE_IDEMPOTENCY_CONFLICT, lookupException.getVantixErrorCode());
+        verify(userHolder, never()).getUserScope();
         verify(serviceCodeMapper, times(1)).selectAvailableForExchange(eq(1L), eq("SPEC-1"),
                 eq("B2B"), any(), eq(1));
     }
 
     @Test
-    void companyAndGlobalReservationsKeepBatchAssignedUserNull() {
+    void managerChangeDoesNotBreakExistingRequestIdIdempotency() {
         when(serviceCodeMapper.selectAvailableForExchange(eq(1L), eq("SPEC-1"), eq("B2B"), any(), eq(1)))
                 .thenReturn(List.of(code(101L, LocalDateTime.of(2026, 2, 1, 0, 0))));
-        when(userHolder.getUserScope()).thenReturn(new UserScope(null, 1L));
-        assertTrue(service.reserve(command("company-request", 1, null)).created());
+        ServiceCodeExchangeCommand command = command("manager-replay", 1, null);
+        assertTrue(service.reserve(command).created());
 
-        when(userHolder.getUserScope()).thenReturn(new UserScope(null, null));
-        assertTrue(service.reserve(command("global-request", 1, null)).created());
+        ArgumentCaptor<ExchangeBatch> batchCaptor = ArgumentCaptor.forClass(ExchangeBatch.class);
+        verify(batchMapper).insert(batchCaptor.capture());
+        ExchangeBatch original = batchCaptor.getValue();
+        assertEquals(123L, original.getAssignedUserId());
+        when(batchMapper.selectByRequestId("manager-replay")).thenReturn(original);
+        DealerCompany changed = company(1L, 200L);
+        when(companyMapper.selectByCompanyId(1L)).thenReturn(changed);
+
+        ExchangeReservation retry = service.reserve(command);
+
+        assertFalse(retry.created());
+        assertEquals(original.getId(), retry.batchId());
+        assertEquals(123L, original.getAssignedUserId());
+        verify(batchMapper, times(1)).insert(any(ExchangeBatch.class));
+    }
+
+    @Test
+    void newRequestUsesLatestCompanyManagerAfterManagerChange() {
+        when(serviceCodeMapper.selectAvailableForExchange(eq(1L), eq("SPEC-1"), eq("B2B"), any(), eq(1)))
+                .thenReturn(List.of(code(101L, LocalDateTime.of(2026, 2, 1, 0, 0))));
+
+        assertTrue(service.reserve(command("old-manager-request", 1, null)).created());
+        when(companyMapper.selectByCompanyId(1L)).thenReturn(company(1L, 200L));
+        assertTrue(service.reserve(command("new-manager-request", 1, null)).created());
 
         ArgumentCaptor<ExchangeBatch> batchCaptor = ArgumentCaptor.forClass(ExchangeBatch.class);
         verify(batchMapper, times(2)).insert(batchCaptor.capture());
-        assertTrue(batchCaptor.getAllValues().stream()
-                .allMatch(batch -> batch.getAssignedUserId() == null));
+        assertEquals(List.of(123L, 200L), batchCaptor.getAllValues().stream()
+                .map(ExchangeBatch::getAssignedUserId).toList());
+    }
+
+    @Test
+    void missingOrNonPositiveManagerRejectsBothExchangeEntries() {
+        when(companyMapper.selectByCompanyId(1L)).thenReturn(company(1L, null), company(1L, 0L));
+
+        BusinessException missing = assertThrows(BusinessException.class,
+                () -> service.reserve(command("missing-manager", 1, null)));
+        BusinessException invalid = assertThrows(BusinessException.class,
+                () -> service.reserveByCodes(exactCommand("invalid-manager", 3L)));
+
+        assertEquals(ErrorCode.COMPANY_MANAGER_REQUIRED, missing.getVantixErrorCode());
+        assertEquals(ErrorCode.COMPANY_MANAGER_REQUIRED, invalid.getVantixErrorCode());
+        verify(batchMapper, never()).insert(any(ExchangeBatch.class));
+    }
+
+    private DealerCompany company(Long companyId, Long managerId) {
+        DealerCompany company = new DealerCompany();
+        company.setCompanyId(companyId);
+        company.setManagerId(managerId);
+        return company;
     }
     private ServiceCodeExchangeCommand command(String requestId, int quantity, String prefix) {
         return new ServiceCodeExchangeCommand(requestId, 1L, "SPEC-1",

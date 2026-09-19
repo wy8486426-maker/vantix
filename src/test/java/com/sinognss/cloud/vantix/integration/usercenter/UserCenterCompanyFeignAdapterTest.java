@@ -5,6 +5,7 @@ import com.sinognss.cloud.vantix.application.company.UserCenterCompany;
 import com.sinognss.cloud.vantix.application.company.UserCenterCompanyPage;
 import com.sinognss.cloud.vantix.common.exception.BusinessException;
 import com.sinognss.cloud.vantix.common.exception.ErrorCode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -23,13 +24,13 @@ class UserCenterCompanyFeignAdapterTest {
     @Test
     void preciseLookupMatchesRequestedCompanyIdInsteadOfFirstItem() {
         when(feignService.selectListByCompanyIdList(List.of(100L))).thenReturn(
-                CommonResult.success(List.of(new CompanyCommonVO(999L, "other"),
-                        new CompanyCommonVO(100L, "target"))));
+                CommonResult.success(List.of(new CompanyCommonVO(999L, "other", 999L, "13800000000"),
+                        new CompanyCommonVO(100L, "target", 123L, "13800138000"))));
 
         Optional<UserCenterCompany> result = adapter.findByCompanyId(100L);
 
         assertTrue(result.isPresent());
-        assertEquals(new UserCenterCompany(100L, "target"), result.get());
+        assertEquals(new UserCenterCompany(100L, "target", 123L, "13800138000"), result.get());
     }
 
     @Test
@@ -49,6 +50,34 @@ class UserCenterCompanyFeignAdapterTest {
                 () -> adapter.findByCompanyId(100L));
 
         assertEquals(ErrorCode.COMPANY_SYNC_FAILED, exception.getVantixErrorCode());
+    }
+
+    @Test
+    void companyDtosDeserializeManagerFields() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        CompanyCommonVO common = mapper.readValue(
+                "{\"id\":100,\"name\":\"target\",\"managerId\":123,\"managerTel\":\"13800138000\"}",
+                CompanyCommonVO.class);
+        CompanySelectVO select = mapper.readValue(
+                "{\"id\":100,\"name\":\"target\",\"managerId\":123,\"managerTel\":\"13800138000\"}",
+                CompanySelectVO.class);
+
+        assertEquals(123L, common.managerId());
+        assertEquals("13800138000", common.managerTel());
+        assertEquals(123L, select.managerId());
+        assertEquals("13800138000", select.managerTel());
+    }
+
+    @Test
+    void pageMapsManagerFieldsIntoSyncCompany() {
+        when(feignService.choicePage(200, 1)).thenReturn(CommonResult.success(
+                new PageUtil<>(1L, 200L, 1L, 1L,
+                        List.of(new CompanySelectVO(100L, "target", 123L, "13800138000")))));
+
+        UserCenterCompanyPage result = adapter.page(1, 200);
+
+        assertEquals(new UserCenterCompany(100L, "target", 123L, "13800138000"),
+                result.companies().get(0));
     }
 
     @Test

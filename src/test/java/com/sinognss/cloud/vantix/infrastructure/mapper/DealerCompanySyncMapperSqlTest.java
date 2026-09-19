@@ -19,8 +19,12 @@ class DealerCompanySyncMapperSqlTest {
         String updateClause = sql.substring(sql.indexOf("on duplicate key update"));
 
         assertTrue(sql.contains("insert into dealer_company"));
+        assertTrue(sql.contains("manager_id"));
+        assertTrue(sql.contains("manager_tel"));
         assertTrue(sql.contains("parent_company_id"));
         assertTrue(updateClause.contains("company_name = values(company_name)"));
+        assertTrue(updateClause.contains("manager_id = values(manager_id)"));
+        assertTrue(updateClause.contains("manager_tel = values(manager_tel)"));
         assertTrue(updateClause.contains("company_synced_at = values(company_synced_at)"));
         assertFalse(updateClause.contains("parent_company_id"));
         assertFalse(updateClause.contains("company_status"));
