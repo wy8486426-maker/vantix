@@ -2,6 +2,7 @@ package com.sinognss.cloud.vantix.controller;
 
 import com.sinognss.cloud.vantix.application.company.CompanyService;
 import com.sinognss.cloud.vantix.application.company.CompanyFrontendQueryService;
+import com.sinognss.cloud.vantix.application.company.CompanyTransferTargetService;
 import com.sinognss.cloud.vantix.application.company.CompanyLevel;
 import com.sinognss.cloud.vantix.application.company.CompanyPageQuery;
 import com.sinognss.cloud.vantix.application.company.UpdateCompanyParentCommand;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.List;
 
@@ -25,10 +27,19 @@ import java.util.List;
 public class CompanyController {
     private final CompanyService companyService;
     private final CompanyFrontendQueryService frontendQueryService;
+    private final CompanyTransferTargetService transferTargetService;
 
     public CompanyController(CompanyService companyService, CompanyFrontendQueryService frontendQueryService) {
+        this(companyService, frontendQueryService, null);
+    }
+
+    @Autowired
+    public CompanyController(CompanyService companyService,
+                             CompanyFrontendQueryService frontendQueryService,
+                             CompanyTransferTargetService transferTargetService) {
         this.companyService = companyService;
         this.frontendQueryService = frontendQueryService;
+        this.transferTargetService = transferTargetService;
     }
 
     @GetMapping
@@ -61,6 +72,11 @@ public class CompanyController {
     @GetMapping("/partners")
     public Object partners(@RequestParam(required = false) @jakarta.validation.constraints.Positive Long companyId) {
         return CommonResultAdapter.success(frontendQueryService.partners(companyId));
+    }
+
+    @GetMapping("/transfer-targets")
+    public Object transferTargets() {
+        return CommonResultAdapter.success(transferTargetService.list());
     }
 
     @PutMapping("/parent/update")

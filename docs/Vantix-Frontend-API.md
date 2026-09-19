@@ -579,7 +579,6 @@ specCode, ownerCompanyId, createdFrom, createdTo
 
 ```json
 {
-  "fromCompanyId": 10001,
   "toCompanyId": 10002,
   "serviceCodeIds": [501, 502],
   "reason": "渠道调拨"
@@ -994,7 +993,27 @@ level=FIRST_LEVEL|SECOND_LEVEL
 ]
 ```
 
-## 10.6 PUT `/api/companies/parent/update`
+## 10.6 GET `/api/companies/transfer-targets`
+
+**作用**：返回当前登录公司的可转赠目标公司。系统公司返回其他经销商；普通公司返回系统公司、直属上级和直属下级。`companyId` 不需要由前端传入。
+
+**响应 data**：
+
+```json
+[
+  {
+    "companyId": 1,
+    "companyName": "系统公司",
+    "managerId": null,
+    "managerTel": null,
+    "relationshipType": "SYSTEM"
+  }
+]
+```
+
+`managerId`、`managerTel` 仅用于前端展示，允许为 `null`，不参与转赠权限或公司关系判断。
+
+## 10.7 PUT `/api/companies/parent/update`
 
 > **接口地址已变更**
 >

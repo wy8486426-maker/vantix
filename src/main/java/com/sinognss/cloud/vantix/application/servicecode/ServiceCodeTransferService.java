@@ -2,6 +2,7 @@ package com.sinognss.cloud.vantix.application.servicecode;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.sinognss.cloud.vantix.application.company.CompanyService;
+import com.sinognss.cloud.vantix.application.company.CompanyTransferTargetService;
 import com.sinognss.cloud.vantix.application.config.SystemCompanyResolver;
 import com.sinognss.cloud.vantix.common.exception.BusinessException;
 import com.sinognss.cloud.vantix.common.exception.ErrorCode;
@@ -34,6 +35,7 @@ public class ServiceCodeTransferService {
     private final ServiceCodeTransferMapper transferMapper;
     private final DealerCompanyMapper companyMapper;
     private final CompanyService companyService;
+    private final CompanyTransferTargetService transferTargetService;
     private final SystemCompanyResolver systemCompanyResolver;
     private final UserHolderBridge userHolder;
     private final Clock clock;
@@ -47,10 +49,25 @@ public class ServiceCodeTransferService {
                                       UserHolderBridge userHolder,
                                       Clock clock,
                                       ServiceCodeTransferProperties properties) {
+        this(serviceCodeMapper, transferMapper, companyMapper, companyService, null,
+                systemCompanyResolver, userHolder, clock, properties);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public ServiceCodeTransferService(ServiceCodeMapper serviceCodeMapper,
+                                      ServiceCodeTransferMapper transferMapper,
+                                      DealerCompanyMapper companyMapper,
+                                      CompanyService companyService,
+                                      CompanyTransferTargetService transferTargetService,
+                                      SystemCompanyResolver systemCompanyResolver,
+                                      UserHolderBridge userHolder,
+                                      Clock clock,
+                                      ServiceCodeTransferProperties properties) {
         this.serviceCodeMapper = serviceCodeMapper;
         this.transferMapper = transferMapper;
         this.companyMapper = companyMapper;
         this.companyService = companyService;
+        this.transferTargetService = transferTargetService;
         this.systemCompanyResolver = systemCompanyResolver;
         this.userHolder = userHolder;
         this.clock = clock;
@@ -60,14 +77,19 @@ public class ServiceCodeTransferService {
     @Transactional
     public TransferResult transfer(TransferServiceCodeCommand command) {
         validateCommand(command);
-        Long from = command.fromCompanyId();
+        validateSupportedUserScope();
+        Long from = userHolder.getCurrentCompanyId();
         Long to = command.toCompanyId();
         if (from.equals(to)) {
             throw new BusinessException(ErrorCode.TRANSFER_NOT_ALLOWED, "转出和转入公司不能相同");
         }
         Long systemCompanyId = systemCompanyResolver.requireId();
-        validateCompaniesAndRelation(from, to, systemCompanyId);
-        if (!userHolder.getUserScope().canAccessCompany(from)) {
+        if (transferTargetService == null) {
+            validateCompaniesAndRelation(from, to, systemCompanyId);
+        } else {
+            transferTargetService.validateTarget(from, to);
+        }
+        if (transferTargetService == null && !userHolder.getUserScope().canAccessCompany(from)) {
             throw new BusinessException(ErrorCode.SERVICE_CODE_NOT_OWNED, "当前用户无权从该公司转出服务码");
         }
 
@@ -174,7 +196,7 @@ public class ServiceCodeTransferService {
     }
 
     private void validateCommand(TransferServiceCodeCommand command) {
-        if (command == null || command.fromCompanyId() == null || command.toCompanyId() == null
+        if (command == null || command.toCompanyId() == null
                 || command.serviceCodeIds() == null || command.serviceCodeIds().isEmpty()) {
             throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "批量转赠参数非法");
         }
@@ -186,4 +208,11 @@ public class ServiceCodeTransferService {
                     "单次转赠服务码数量不能超过 " + properties.getMaxBatchSize());
         }
     }
+
+    private void validateSupportedUserScope() {
+        if (!userHolder.getUserScope().isSupported()) {
+            throw new BusinessException(ErrorCode.UNSUPPORTED_USER_SCOPE, "unsupported user scope");
+        }
+    }
+
 }

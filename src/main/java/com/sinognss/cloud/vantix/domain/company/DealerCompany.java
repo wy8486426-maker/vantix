@@ -1,6 +1,7 @@
 package com.sinognss.cloud.vantix.domain.company;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
@@ -10,9 +11,13 @@ import java.time.LocalDateTime;
 public class DealerCompany {
     @TableId(type = IdType.AUTO)
     private Long id;
+    @TableField("company_id")
     private Long companyId;
+    @TableField("company_name")
     private String companyName;
+    @TableField("manager_id")
     private Long managerId;
+    @TableField("manager_tel")
     private String managerTel;
     private Long parentCompanyId;
     private CompanyStatus companyStatus;

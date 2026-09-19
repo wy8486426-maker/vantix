@@ -177,7 +177,7 @@ class MySqlTransferIntegrationTest {
         UserCacheDTO user = new UserCacheDTO();
         user.setUserId(88L);
         user.setUserNickname("integration-user");
-        user.setCompanyId(null);
+        user.setCompanyId(10L);
         user.setDataType(4);
         UserHolder.setUser(user);
     }

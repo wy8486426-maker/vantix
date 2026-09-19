@@ -51,6 +51,7 @@ class ServiceCodeTransferServiceTest {
     void setUp() {
         when(systemResolver.requireId()).thenReturn(999L);
         when(userHolder.getUserScope()).thenReturn(new UserScope(null, null));
+        when(userHolder.getCurrentCompanyId()).thenReturn(1L);
         when(userHolder.getOperator()).thenReturn(new OperatorIdentity(7L, "tester"));
         when(companyService.getRequired(1L)).thenReturn(company(1L, null));
         when(companyService.getRequired(2L)).thenReturn(company(2L, 1L));
@@ -64,7 +65,7 @@ class ServiceCodeTransferServiceTest {
         ServiceCode code = activeCode(100L, 1L);
         when(codeMapper.selectList(any())).thenReturn(List.of(code));
 
-        TransferResult result = service.transfer(new TransferServiceCodeCommand(1L, 2L, List.of(100L), "赠送"));
+        TransferResult result = service.transfer(new TransferServiceCodeCommand(2L, List.of(100L), "赠送"));
 
         assertEquals(1, result.transferredCount());
         verify(codeMapper).transferWithCas(100L, 1L, 2L, 0L,
@@ -80,23 +81,24 @@ class ServiceCodeTransferServiceTest {
     void shouldTransferChildToParentAndAllowSystemDirections() {
         ServiceCode childCode = activeCode(100L, 2L);
         when(codeMapper.selectList(any())).thenReturn(List.of(childCode));
-        TransferResult childToParent = service.transfer(new TransferServiceCodeCommand(2L, 1L, List.of(100L), null));
+        when(userHolder.getCurrentCompanyId()).thenReturn(2L, 1L, 999L);
+        TransferResult childToParent = service.transfer(new TransferServiceCodeCommand(1L, List.of(100L), null));
         assertEquals(1, childToParent.transferredCount());
 
         ServiceCode toSystemCode = activeCode(101L, 1L);
         when(codeMapper.selectList(any())).thenReturn(List.of(toSystemCode));
-        assertEquals(1, service.transfer(new TransferServiceCodeCommand(1L, 999L, List.of(101L), null)).transferredCount());
+        assertEquals(1, service.transfer(new TransferServiceCodeCommand(999L, List.of(101L), null)).transferredCount());
 
         ServiceCode fromSystemCode = activeCode(102L, 999L);
         when(codeMapper.selectList(any())).thenReturn(List.of(fromSystemCode));
-        assertEquals(1, service.transfer(new TransferServiceCodeCommand(999L, 1L, List.of(102L), null)).transferredCount());
+        assertEquals(1, service.transfer(new TransferServiceCodeCommand(1L, List.of(102L), null)).transferredCount());
     }
 
     @Test
     void shouldRejectUnrelatedCompany() {
         when(companyService.getRequired(3L)).thenReturn(company(3L, null));
         assertThrows(BusinessException.class,
-                () -> service.transfer(new TransferServiceCodeCommand(1L, 3L, List.of(100L), null)));
+                () -> service.transfer(new TransferServiceCodeCommand(3L, List.of(100L), null)));
     }
 
     @Test
@@ -107,7 +109,7 @@ class ServiceCodeTransferServiceTest {
         when(codeMapper.selectList(any())).thenReturn(List.of(valid, consumed));
 
         assertThrows(BusinessException.class,
-                () -> service.transfer(new TransferServiceCodeCommand(1L, 2L, List.of(100L, 101L), null)));
+                () -> service.transfer(new TransferServiceCodeCommand(2L, List.of(100L, 101L), null)));
         verify(codeMapper, org.mockito.Mockito.never())
                 .transferWithCas(anyLong(), anyLong(), anyLong(), anyLong(), any(), any());
         verify(transferMapper, org.mockito.Mockito.never())
@@ -126,7 +128,7 @@ class ServiceCodeTransferServiceTest {
         when(codeMapper.selectList(any())).thenReturn(List.of(first, second));
 
         TransferResult result = service.transfer(
-                new TransferServiceCodeCommand(1L, 2L, List.of(100L, 101L), null));
+                new TransferServiceCodeCommand(2L, List.of(100L, 101L), null));
 
         assertEquals(2, result.transferredCount());
         verify(codeMapper, org.mockito.Mockito.times(2))
@@ -139,7 +141,7 @@ class ServiceCodeTransferServiceTest {
         List<Long> ids = java.util.stream.LongStream.rangeClosed(1, 501).boxed().toList();
 
         assertThrows(BusinessException.class,
-                () -> service.transfer(new TransferServiceCodeCommand(1L, 2L, ids, null)));
+                () -> service.transfer(new TransferServiceCodeCommand(2L, ids, null)));
         verify(codeMapper, org.mockito.Mockito.never()).selectList(any());
     }
 
@@ -149,9 +151,9 @@ class ServiceCodeTransferServiceTest {
         expired.setExpireAt(LocalDateTime.of(2025, 12, 31, 23, 59));
         when(codeMapper.selectList(any())).thenReturn(List.of(expired));
         assertThrows(BusinessException.class,
-                () -> service.transfer(new TransferServiceCodeCommand(1L, 2L, List.of(100L), null)));
+                () -> service.transfer(new TransferServiceCodeCommand(2L, List.of(100L), null)));
         assertThrows(BusinessException.class,
-                () -> service.transfer(new TransferServiceCodeCommand(1L, 1L, List.of(100L), null)));
+                () -> service.transfer(new TransferServiceCodeCommand(1L, List.of(100L), null)));
     }
 
     @Test
@@ -177,7 +179,7 @@ class ServiceCodeTransferServiceTest {
     private boolean transferWithoutPropagating(CountDownLatch start) throws InterruptedException {
         start.await();
         try {
-            service.transfer(new TransferServiceCodeCommand(1L, 2L, List.of(100L), null));
+            service.transfer(new TransferServiceCodeCommand(2L, List.of(100L), null));
             return true;
         } catch (BusinessException exception) {
             return false;

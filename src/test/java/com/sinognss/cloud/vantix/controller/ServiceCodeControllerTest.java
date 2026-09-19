@@ -76,7 +76,7 @@ class ServiceCodeControllerTest {
     @Test
     void transferRejectsBatchAboveConfiguredMaximum() {
         ServiceCodeController.TransferRequest request = new ServiceCodeController.TransferRequest(
-                1L, 2L, java.util.stream.LongStream.rangeClosed(1, 501).boxed().toList(), null);
+                2L, java.util.stream.LongStream.rangeClosed(1, 501).boxed().toList(), null);
 
         assertThrows(com.sinognss.cloud.vantix.common.exception.BusinessException.class,
                 () -> controller.transfer(request));

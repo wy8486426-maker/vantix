@@ -82,7 +82,7 @@ public class ServiceCodeController {
                     "单次转赠服务码数量不能超过 " + transferProperties.getMaxBatchSize());
         }
         return CommonResultAdapter.success(transferService.transfer(new TransferServiceCodeCommand(
-                request.fromCompanyId(), request.toCompanyId(), request.serviceCodeIds(), request.reason())));
+                request.toCompanyId(), request.serviceCodeIds(), request.reason())));
     }
 
     @GetMapping("/transfers/history")
@@ -90,8 +90,7 @@ public class ServiceCodeController {
         return CommonResultAdapter.success(transferService.history(id));
     }
 
-    public record TransferRequest(@NotNull @Positive Long fromCompanyId,
-                                  @NotNull @Positive Long toCompanyId,
+    public record TransferRequest(@NotNull @Positive Long toCompanyId,
                                   @NotEmpty List<@NotNull @Positive Long> serviceCodeIds,
                                   @Size(max = 512) String reason) {
     }
